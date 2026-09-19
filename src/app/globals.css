@@ -1,0 +1,114 @@
+/*
+ * Jetons partages de la plateforme (source unique, cf. shared-theme/).
+ * Ne jamais recopier ces variables ici : seul l'import est autorise.
+ */
+@import url("https://cowbloke.com/theme/tweakcn.css");
+@import "tailwindcss";
+
+/*
+ * Jetons propres a mp2ifsm : couleurs semantiques de marche qui
+ * n'existent pas dans le theme partage (elles ne dupliquent rien).
+ */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-lg: var(--radius, 0.625rem);
+  --radius-md: calc(var(--radius, 0.625rem) - 2px);
+  --radius-sm: calc(var(--radius, 0.625rem) - 4px);
+
+  --font-sans: var(--font-sans, ui-sans-serif, system-ui, -apple-system,
+               "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif);
+}
+
+/* Palette des resultats : jusqu'a 4 issues lisibles cote a cote. */
+:root {
+  --outcome-1: oklch(0.58 0.13 155);   /* vert   — 1re issue / "Oui" */
+  --outcome-2: oklch(0.58 0.16 25);    /* rouge  — 2e issue / "Non" */
+  --outcome-3: oklch(0.60 0.12 255);   /* bleu */
+  --outcome-4: oklch(0.65 0.13 85);    /* ambre */
+  --sheet-backdrop: oklch(0.15 0 0 / 0.45);
+}
+
+* { border-color: var(--border); }
+
+html {
+  -webkit-text-size-adjust: 100%;
+  /* L'app est une pile d'ecrans mobiles : pas de zoom horizontal. */
+  overscroll-behavior-y: none;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  /* Place pour la barre de navigation fixe du bas. */
+  padding-bottom: calc(4.5rem + env(safe-area-inset-bottom));
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Les montants s'alignent en colonne : chiffres a chasse fixe. */
+.tabular { font-variant-numeric: tabular-nums; }
+
+/* Squelettes de chargement. */
+@keyframes shimmer { 100% { transform: translateX(100%); } }
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--muted) 85%, var(--background));
+  border-radius: var(--radius-md);
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent,
+              color-mix(in oklab, var(--background) 60%, transparent), transparent);
+  animation: shimmer 1.6s infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after { animation: none; }
+}
+
+/* Feuille de pari : glisse depuis le bas sur mobile. */
+@keyframes sheet-in {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* Contenu des cartes : formules, images et texte. */
+.contenu-carte .texte { white-space: pre-wrap; }
+.contenu-carte .katex { font-size: 1.05em; }
+.contenu-carte .katex-display { margin: 0.4em 0; }
+.contenu-carte .bloc-maths { margin: 0.5rem 0; overflow-x: auto; }
+.contenu-carte .maths-erreur { color: var(--destructive); font-size: 0.9em; }
+.contenu-carte .image-refusee {
+  color: var(--muted-foreground);
+  font-size: 0.8em;
+}
+.contenu-carte img {
+  display: block;
+  margin: 0.5rem auto;
+  max-height: 16rem;
+  border-radius: var(--radius-sm);
+  object-fit: contain;
+}

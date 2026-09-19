@@ -1,0 +1,41 @@
+[Unit]
+Description=mp2ifsm.com — portail de classe
+Documentation=file:/home/cowbloke/projects/mp2ifsm/README.md
+After=network-online.target postgresql.service
+Wants=network-online.target
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=cowbloke
+Group=cowbloke
+WorkingDirectory=/home/cowbloke/projects/mp2ifsm
+
+# DATABASE_URL, SESSION_SECRET, CRON_TOKEN, DEPOSIT_* — jamais en dépôt.
+EnvironmentFile=/home/cowbloke/projects/mp2ifsm/.env
+Environment=NODE_ENV=production
+Environment=PORT=4260
+# Écoute sur la loopback : le public passe par nginx puis le tunnel.
+Environment=HOSTNAME=127.0.0.1
+
+# Chemin absolu vers node : systemd n'a pas le PATH de l'utilisateur,
+# et on appelle le binaire next local plutôt que npx (plus rapide, pas
+# de résolution réseau possible au démarrage).
+ExecStart=/usr/local/bin/node node_modules/next/dist/bin/next start -p 4260 -H 127.0.0.1
+Restart=on-failure
+RestartSec=3
+
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+# next start écrit son cache d'images/fetch sous .next/cache.
+ReadWritePaths=/home/cowbloke/projects/mp2ifsm/.next /home/cowbloke/mp2ifsm-data
+
+[Install]
+WantedBy=multi-user.target
