@@ -253,3 +253,34 @@ publiques, les pages authentifiées et un envoi/téléchargement sur SSD ont ét
 vérifiés. L’ancien build `.next` et la sauvegarde privée
 `/home/cowbloke/backups/mp2ifsm-deploy-20260919-portal` sont conservés pour retour
 arrière. Ne pas construire les prochains tests dans le répertoire du build actif.
+
+## Administration du profil et propositions (19 septembre 2026)
+
+Dans **Profil → Administration**, les administrateurs retrouvent les propositions
+à approuver/refuser, l’annuaire de tous les comptes (recherche, rôle, inscription,
+sessions actives et déconnexion des autres comptes), ainsi que les outils de
+création/résolution et le rapprochement comptable. `/admin` redirige vers cet onglet.
+Les actions vérifient le rôle côté serveur ; aucun hash de mot de passe ni jeton
+n’est envoyé dans l’annuaire.
+
+**Marché → Proposer un pari** envoie une question, une règle de résolution,
+une fermeture et 2–10 issues. La proposition reste privée au proposant et aux
+administrateurs jusqu’à son approbation. Le profil affiche son statut et le
+message de modération. L’approbation crée le marché et ses issues dans une seule
+transaction avec verrou : deux validations concurrentes ne publient jamais deux
+marchés. Une proposition expirée doit être refusée puis soumise avec une nouvelle
+date. Maximum : 10 propositions en attente par compte.
+
+La lune en haut à droite active le thème sombre partagé ; le choix est mémorisé
+sur cet appareil. Au premier affichage, le thème suit la préférence système.
+
+Migration additive : `db/schema-proposals.sql`, après les schémas existants.
+Build actif : `.next-release-20260919-admin`. Sauvegarde avant déploiement :
+`/home/cowbloke/backups/mp2ifsm-admin-20260919` (dump PostgreSQL et ancienne unité).
+Retour arrière : réinstaller `service.before`, daemon-reload et redémarrer
+`mp2ifsm`. Conserver la table additive pour préserver les propositions reçues.
+
+Validation : build, typecheck, tests unitaires, 44 assertions d’intégration en
+schéma isolé et Chromium mobile (thème persistant, formulaire de proposition,
+révisions). Vérification publique avec `scripts/check-admin-live.ts` : sessions
+éphémères nettoyées à la fin, sans ajout de compte, proposition ou marché.

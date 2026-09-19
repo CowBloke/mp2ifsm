@@ -1,3 +1,4 @@
+import { FormulaireMarche } from "@/components/AdminMarches";
 import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -25,6 +26,7 @@ export default async function PageMarche() {
         </Suspense>
       </header>
 
+      <div className="mb-4"><FormulaireMarche proposition /></div>
       <Suspense fallback={<SqueletteFil />}>
         <Fil userId={u.id} />
       </Suspense>

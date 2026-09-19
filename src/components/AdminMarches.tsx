@@ -3,13 +3,14 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { annulerMarche, creerMarche, resoudreMarche } from "@/lib/actions";
+import { proposerPari } from "@/lib/actions-admin";
 import { couleurIssue } from "./couleurs";
 import { cotesImplicites, formatCentimes, formatPourcentage, tempsRestant } from "@/lib/money";
 import type { MarcheVue } from "@/lib/queries";
 
 /* Creation d'un marche. Deux issues par defaut (binaire) ; on peut en
  * ajouter jusqu'a dix pour un marche a choix multiple. */
-export function FormulaireMarche() {
+export function FormulaireMarche({ proposition = false }: { proposition?: boolean }) {
   const router = useRouter();
   const [issues, setIssues] = useState(["Oui", "Non"]);
   const [message, setMessage] = useState<{ ton: "ok" | "ko"; texte: string } | null>(null);
@@ -19,9 +20,12 @@ export function FormulaireMarche() {
   function envoyer(formData: FormData) {
     setMessage(null);
     demarrer(async () => {
-      const r = await creerMarche(formData);
+      const date = new Date(String(formData.get("closesAt")));
+      if (Number.isNaN(date.getTime())) { setMessage({ ton: "ko", texte: "Date invalide" }); return; }
+      formData.set("closesAt", date.toISOString());
+      const r = proposition ? await proposerPari({ question: formData.get("question"), description: formData.get("description"), closesAt: date.toISOString(), issues: formData.getAll("issue") }) : await creerMarche(formData);
       if (r.ok) {
-        setMessage({ ton: "ok", texte: "Marché créé" });
+        setMessage({ ton: "ok", texte: proposition ? "Proposition envoyée ! Retrouvez son statut dans votre profil." : "Marché créé" });
         setIssues(["Oui", "Non"]);
         setOuvert(false);
         router.refresh();
@@ -33,20 +37,21 @@ export function FormulaireMarche() {
 
   if (!ouvert) {
     return (
-      <button
+      <div><button
         type="button"
         onClick={() => setOuvert(true)}
         className="w-full rounded-[var(--radius-md)] bg-[var(--primary)] px-4 py-3
                    text-[14px] font-semibold text-[var(--primary-foreground)]"
       >
-        + Nouveau marché
-      </button>
+        {proposition ? "+ Proposer un pari" : "+ Nouveau marché"}
+      </button>{message && <p role="status" className="mt-2 text-sm">{message.texte}</p>}</div>
     );
   }
 
   return (
     <form action={envoyer} className="rounded-[var(--radius-lg)] border bg-[var(--card)] p-4">
-      <h2 className="text-[15px] font-semibold">Nouveau marché</h2>
+      <h2 className="text-[15px] font-semibold">{proposition ? "Proposer un pari" : "Nouveau marché"}</h2>
+      {proposition && <p className="mt-1 text-sm text-[var(--muted-foreground)]">Une idée amusante pour la classe ? Un administrateur la validera avant son ouverture.</p>}
 
       <label htmlFor="question" className="mt-3 block text-[13px] font-medium">Question</label>
       <input
@@ -60,7 +65,7 @@ export function FormulaireMarche() {
         Précisions (règle de résolution)
       </label>
       <textarea
-        id="description" name="description" rows={2} maxLength={1000}
+        id="description" name="description" required={proposition} rows={2} maxLength={1000}
         placeholder="Comment la question sera tranchée, sans ambiguïté."
         className="mt-1 w-full rounded-[var(--radius-md)] border-2 px-3 py-2 text-[14px]
                    outline-none focus:border-[var(--ring)]"
@@ -88,7 +93,7 @@ export function FormulaireMarche() {
                 onChange={(e) =>
                   setIssues((prev) => prev.map((v, j) => (j === i ? e.target.value : v)))
                 }
-                className="flex-1 rounded-[var(--radius-md)] border-2 px-3 py-2 text-[14px]
+                className="min-w-0 flex-1 rounded-[var(--radius-md)] border-2 px-3 py-2 text-[14px]
                            outline-none focus:border-[var(--ring)]"
               />
               {issues.length > 2 && (
@@ -134,10 +139,10 @@ export function FormulaireMarche() {
         <button
           type="submit"
           disabled={enCours}
-          className="flex-1 rounded-[var(--radius-md)] bg-[var(--primary)] px-4 py-2.5
+          className="min-w-0 flex-1 rounded-[var(--radius-md)] bg-[var(--primary)] px-4 py-2.5
                      text-[14px] font-semibold text-[var(--primary-foreground)] disabled:opacity-50"
         >
-          {enCours ? "…" : "Créer le marché"}
+          {enCours ? "…" : proposition ? "Envoyer pour validation" : "Créer le marché"}
         </button>
       </div>
     </form>
@@ -246,7 +251,7 @@ export function CarteResolution({ marche }: { marche: MarcheVue }) {
               type="button"
               onClick={resoudre}
               disabled={choix === null || enCours}
-              className="flex-1 rounded-[var(--radius-md)] bg-[var(--primary)] px-3 py-2.5
+              className="min-w-0 flex-1 rounded-[var(--radius-md)] bg-[var(--primary)] px-3 py-2.5
                          text-[13px] font-semibold text-[var(--primary-foreground)]
                          disabled:opacity-40"
             >

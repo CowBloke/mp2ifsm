@@ -1,3 +1,6 @@
+import { Administration } from "@/components/Administration";
+import { ProposalList } from "@/components/AdminPanel";
+import { proposals } from "@/lib/proposals";
 import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -14,9 +17,10 @@ import { queryOne } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-export default async function PageMoi() {
+export default async function PageMoi({ searchParams }: { searchParams: Promise<{ onglet?: string }> }) {
   const u = await utilisateurCourant();
   if (!u) redirect("/connexion");
+  const adminTab = u.role === "admin" && (await searchParams).onglet === "admin";
 
   return (
     <main className="py-4">
@@ -36,6 +40,11 @@ export default async function PageMoi() {
         </form>
       </header>
 
+      {u.role === "admin" && <nav aria-label="Rubriques du profil" className="mb-5 flex gap-2">
+        <Link href="/profil" aria-current={!adminTab ? "page" : undefined} className={`rounded-lg border px-4 py-2 text-sm ${!adminTab ? 'bg-[var(--secondary)]' : ''}`}>Mon profil</Link>
+        <Link href="/profil?onglet=admin" aria-current={adminTab ? "page" : undefined} className={`rounded-lg border px-4 py-2 text-sm ${adminTab ? 'bg-[var(--secondary)]' : ''}`}>Administration</Link>
+      </nav>}
+      {adminTab ? <Administration userId={u.id} /> : <>
       <h2 className="mb-2 text-[12px] font-semibold uppercase tracking-wide
                      text-[var(--muted-foreground)]">
         Marché — portefeuille
@@ -51,6 +60,8 @@ export default async function PageMoi() {
       <Suspense fallback={<div className="mt-6"><SqueletteListe n={3} /></div>}>
         <Positions userId={u.id} />
       </Suspense>
+      <section className="mt-6"><h2 className="mb-2 font-semibold">Mes propositions de paris</h2><ProposalList items={JSON.parse(JSON.stringify(await proposals(u.id)))} /></section>
+      </>}
     </main>
   );
 }
@@ -67,10 +78,10 @@ async function Reglages({ userId, estAdmin }: { userId: string; estAdmin: boolea
       </h2>
       <ReglagePartageStats initial={r?.partage_stats ?? false} />
       {estAdmin && (
-        <Link href="/admin"
+        <Link href="/profil?onglet=admin"
               className="mt-2 block rounded-[var(--radius-md)] border bg-[var(--card)] p-3
                          text-[14px] font-medium transition-colors hover:bg-[var(--muted)]">
-          Administration du marché →
+          Ouvrir l’administration →
         </Link>
       )}
     </section>

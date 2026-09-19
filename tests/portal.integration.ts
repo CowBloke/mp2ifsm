@@ -28,7 +28,7 @@ let assertions = 0;
 function ok(condition: unknown, message: string) { assert.ok(condition, message); assertions++; console.log(`PASS ${message}`); }
 try {
   await admin.query(`create schema ${schema}`);
-  for (const fichier of ["db/schema.sql", "db/functions.sql", "db/schema-portal.sql"]) {
+  for (const fichier of ["db/schema.sql", "db/functions.sql", "db/schema-portal.sql", "db/schema-proposals.sql"]) {
     await query(await readFile(fichier, "utf8"));
   }
   const membres = await query<{ id: string }>(`insert into app_user (email, display_name, password_hash, partage_stats)
@@ -75,6 +75,29 @@ try {
     const html = await r.text();
     ok(r.ok && !html.includes('"digest":'), `authenticated page ${path}`);
   }
+  const { submitProposal } = await import("../src/lib/proposals");
+  const suggestion = { question: 'Un pari amusant pour vendredi ?', description: 'Résultat annoncé en classe.', closesAt: new Date(Date.now()+86400000).toISOString(), issues: ['Oui','Non'] };
+  ok((await action("proposerPari", [suggestion])).ok, "member submits a proposal");
+  const [proposal] = await query<{id:number}>("select id from market_proposal");
+  ok((await query("select 1 from market")).length===0, "pending proposal is not a live market");
+  ok(!(await action("examinerProposition", [proposal.id,true,''])).ok, "member cannot approve proposals");
+  ok(!(await action("revoquerSessions", [bob])).ok, "member cannot revoke sessions");
+  const memberAdmin = await fetch(base+'/profil?onglet=admin', {headers:auth});
+  ok(!(await memberAdmin.text()).includes('test-b@example.invalid'), "member cannot view account directory");
+  await query("update app_user set role='admin' where id=$1",[bob]);
+  const adminCookie = `mp2_session=${tokenBob}`;
+  const approvals = await Promise.all([action('examinerProposition',[proposal.id,true,'Amusez-vous !'],adminCookie),action('examinerProposition',[proposal.id,true,''],adminCookie)]);
+  ok(approvals.filter(r=>r.ok).length===1, "concurrent approval publishes exactly once");
+  ok((await query('select 1 from market')).length===1 && (await query('select 1 from outcome')).length===2, "approved market has its outcomes");
+  await submitProposal(alice,suggestion);
+  const [expired] = await query<{id:number}>("update market_proposal set closes_at=now()-interval '1 hour' where status='pending' returning id");
+  ok(!(await action('examinerProposition',[expired.id,true,''],adminCookie)).ok, "expired proposal cannot be published");
+  ok((await action('examinerProposition',[expired.id,false,'Date dépassée'],adminCookie)).ok, "admin can reject with feedback");
+  ok(!(await action('proposerPari',[{...suggestion,issues:['Oui','oui']}])).ok, "duplicate outcomes rejected");
+  ok(!(await action('proposerPari',[suggestion],'')).ok, "anonymous proposals rejected");
+  const adminPage = await fetch(base+'/profil?onglet=admin',{headers:{cookie:adminCookie}});
+  ok((await adminPage.text()).includes('test-a@example.invalid'), "admin profile contains account directory");
+  await query("update app_user set role='member' where id=$1",[bob]);
   ok((await fetch(base + "/api/documents/1")).status === 401, "unauthenticated download rejected");
   const revs = await Promise.all([action("reviserCarte", [card.id, "good", first!.jeton, 1000]), action("reviserCarte", [card.id, "good", first!.jeton, 1000])]);
   ok(revs.filter(r => r.ok).length === 1, "concurrent first reviews schedule exactly once");
