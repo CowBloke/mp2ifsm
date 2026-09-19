@@ -37,7 +37,7 @@ export async function browserCheck(base: string, token: string) {
     }
     async function until(expression: string) {
       for (let i = 0; i < 100; i++) {
-        if (await evaluate(expression)) return;
+        if (await evaluate(`!!document.body && (${expression})`)) return;
         await new Promise(r => setTimeout(r, 100));
       }
       throw new Error(`Browser timed out: ${expression}; ${await evaluate("JSON.stringify({url: location.href, body: document.body.innerText.slice(0, 1200)})")}`);
@@ -51,6 +51,18 @@ export async function browserCheck(base: string, token: string) {
     assert.ok(await evaluate('document.documentElement.scrollWidth <= 390'), "dashboard fits mobile viewport");
     const screenshot = await send("Page.captureScreenshot", { format: "png", captureBeyondViewport: true });
     await writeFile("/tmp/mp2i-portal-dashboard.png", Buffer.from(screenshot.data, "base64"));
+    await until(`!!document.querySelector('button[aria-label="Activer le mode sombre"]')`);
+    await evaluate(`document.querySelector('button[aria-label="Activer le mode sombre"]').click()`);
+    await until('document.documentElement.classList.contains("dark")');
+    await send("Page.reload");
+    await until('document.documentElement.classList.contains("dark") && !!document.querySelector("button[aria-pressed=true]")');
+    await send("Page.navigate", { url: base + "/marche" });
+    await until('document.body.innerText.includes("Proposer un pari")');
+    await evaluate('new Promise(r => setTimeout(r, 500))');
+    await evaluate(`Array.from(document.querySelectorAll('button')).find(b=>b.textContent.includes('Proposer un pari')).click()`);
+    await until('document.body.innerText.includes("Envoyer pour validation")');
+    assert.ok(await evaluate('document.documentElement.scrollWidth <= 390'), "proposal form fits mobile viewport");
+    console.log("PASS dark mode toggle, reload persistence and mobile proposal form");
     await send("Page.navigate", { url: base + "/fiches/integration/reviser" });
     await until('document.body.innerText.includes("Afficher la réponse")');
     // Give React hydration a frame before dispatching keyboard shortcuts.

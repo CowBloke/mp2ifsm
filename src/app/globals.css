@@ -112,3 +112,7 @@ body {
   border-radius: var(--radius-sm);
   object-fit: contain;
 }
+
+input, textarea, select { color: var(--foreground); background-color: var(--card); }
+button, a, input, textarea, select { touch-action: manipulation; }
+:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
