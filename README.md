@@ -295,7 +295,7 @@ code depuis un runner GitHub sur le serveur.
 
 Le timer local `mp2ifsm-deploy.timer` vérifie cette branche toutes les deux
 minutes. Un nouveau SHA approuvé est préparé dans
-`/home/cowbloke/mp2ifsm-releases/<sha>` par l’utilisateur `cowbloke`, revalidé,
+`/var/lib/mp2ifsm-deploy/releases/<sha>` par l’utilisateur `cowbloke`, revalidé,
 construit avec `.next-production`, puis les migrations idempotentes sont
 appliquées. Le lien `/var/lib/mp2ifsm-deploy/current` n’est remplacé qu’après ces
 étapes. Le service est redémarré et contrôlé sur loopback ; en cas d’échec, le

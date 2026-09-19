@@ -36,7 +36,7 @@ ProtectControlGroups=true
 RestrictSUIDSGID=true
 RestrictNamespaces=true
 # next start écrit son cache d'images/fetch sous .next-production/cache.
-ReadWritePaths=/home/cowbloke/mp2ifsm-releases /home/cowbloke/mp2ifsm-data
+ReadWritePaths=/var/lib/mp2ifsm-deploy/releases /home/cowbloke/mp2ifsm-data
 
 [Install]
 WantedBy=multi-user.target
