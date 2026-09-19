@@ -306,6 +306,8 @@ Installation ou restauration des unités (les copies sous `/etc` et
 `/usr/local/sbin` doivent rester détenues par root) :
 
 ```bash
+sudo install -d -o root -g root -m 0755 /usr/local/libexec
+sudo install -o root -g root -m 0755 deploy/build-release.sh /usr/local/libexec/mp2ifsm-build-release
 sudo install -o root -g root -m 0755 deploy/mp2ifsm-auto-deploy /usr/local/sbin/mp2ifsm-auto-deploy
 sudo install -o root -g root -m 0644 deploy/mp2ifsm.service /etc/systemd/system/mp2ifsm.service
 sudo install -o root -g root -m 0644 deploy/mp2ifsm-deploy.service /etc/systemd/system/mp2ifsm-deploy.service

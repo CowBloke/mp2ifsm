@@ -13,6 +13,7 @@ readonly CURRENT="$STATE_DIR/current"
 readonly ENV_FILE="$REPOSITORY/.env"
 readonly SERVICE=mp2ifsm.service
 readonly LOCK_FILE=/run/lock/mp2ifsm-auto-deploy.lock
+readonly BUILD_HELPER=/usr/local/libexec/mp2ifsm-build-release
 
 log() {
   printf '[mp2ifsm-deploy] %s\n' "$*"
@@ -61,7 +62,7 @@ if [[ "$marker" != "$target" ]]; then
 
   log "preparing approved commit $target"
   as_app git -C "$REPOSITORY" worktree add --detach "$release" "$target"
-  if ! as_app /bin/bash "$release/deploy/build-release.sh" "$release" "$ENV_FILE"; then
+  if ! as_app /bin/bash "$BUILD_HELPER" "$release" "$ENV_FILE"; then
     log "validation/build/migration failed; production was not changed"
     as_app git -C "$REPOSITORY" worktree remove --force "$release" || true
     exit 1
