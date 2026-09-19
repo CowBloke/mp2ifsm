@@ -1,0 +1,23 @@
+[Unit]
+Description=Deploy the latest approved mp2ifsm GitHub commit
+Documentation=file:/home/cowbloke/projects/mp2ifsm/README.md
+After=network-online.target postgresql.service
+Wants=network-online.target
+Requires=postgresql.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/mp2ifsm-auto-deploy
+
+# The helper deliberately starts as root, drops to cowbloke for all repository
+# code, then uses root only to switch the release symlink and restart the app.
+UMask=0027
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/cowbloke/projects/mp2ifsm /home/cowbloke/mp2ifsm-releases /var/lib/mp2ifsm-deploy /run/lock
+NoNewPrivileges=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true

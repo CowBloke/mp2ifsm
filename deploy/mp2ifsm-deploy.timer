@@ -1,0 +1,12 @@
+[Unit]
+Description=Check GitHub for an approved mp2ifsm release
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=2min
+RandomizedDelaySec=20s
+Persistent=true
+Unit=mp2ifsm-deploy.service
+
+[Install]
+WantedBy=timers.target

@@ -9,11 +9,12 @@ Requires=postgresql.service
 Type=simple
 User=cowbloke
 Group=cowbloke
-WorkingDirectory=/home/cowbloke/projects/mp2ifsm
+WorkingDirectory=/var/lib/mp2ifsm-deploy/current
 
 # DATABASE_URL, SESSION_SECRET, CRON_TOKEN, DEPOSIT_* — jamais en dépôt.
 EnvironmentFile=/home/cowbloke/projects/mp2ifsm/.env
 Environment=NODE_ENV=production
+Environment=NEXT_BUILD_DIR=.next-production
 Environment=PORT=4260
 # Écoute sur la loopback : le public passe par nginx puis le tunnel.
 Environment=HOSTNAME=127.0.0.1
@@ -34,8 +35,8 @@ ProtectKernelTunables=true
 ProtectControlGroups=true
 RestrictSUIDSGID=true
 RestrictNamespaces=true
-# next start écrit son cache d'images/fetch sous .next/cache.
-ReadWritePaths=/home/cowbloke/projects/mp2ifsm/.next /home/cowbloke/mp2ifsm-data
+# next start écrit son cache d'images/fetch sous .next-production/cache.
+ReadWritePaths=/home/cowbloke/mp2ifsm-releases /home/cowbloke/mp2ifsm-data
 
 [Install]
 WantedBy=multi-user.target

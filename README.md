@@ -284,3 +284,37 @@ Validation : build, typecheck, tests unitaires, 44 assertions d’intégration e
 schéma isolé et Chromium mobile (thème persistant, formulaire de proposition,
 révisions). Vérification publique avec `scripts/check-admin-live.ts` : sessions
 éphémères nettoyées à la fin, sans ajout de compte, proposition ou marché.
+
+## Déploiement continu avec approbation
+
+Chaque push sur `main` déclenche `.github/workflows/production.yml` : installation
+propre, tests, vérification TypeScript et build. Si tout réussit, le job attend
+l’approbation de l’environnement GitHub `production`. L’approbation avance la
+branche technique `production` sur le SHA exact validé ; elle ne déploie aucun
+code depuis un runner GitHub sur le serveur.
+
+Le timer local `mp2ifsm-deploy.timer` vérifie cette branche toutes les deux
+minutes. Un nouveau SHA approuvé est préparé dans
+`/home/cowbloke/mp2ifsm-releases/<sha>` par l’utilisateur `cowbloke`, revalidé,
+construit avec `.next-production`, puis les migrations idempotentes sont
+appliquées. Le lien `/var/lib/mp2ifsm-deploy/current` n’est remplacé qu’après ces
+étapes. Le service est redémarré et contrôlé sur loopback ; en cas d’échec, le
+lien et le service reviennent au build précédent. Les migrations doivent donc
+rester additives et compatibles avec la version précédente.
+
+Installation ou restauration des unités (les copies sous `/etc` et
+`/usr/local/sbin` doivent rester détenues par root) :
+
+```bash
+sudo install -o root -g root -m 0755 deploy/mp2ifsm-auto-deploy /usr/local/sbin/mp2ifsm-auto-deploy
+sudo install -o root -g root -m 0644 deploy/mp2ifsm.service /etc/systemd/system/mp2ifsm.service
+sudo install -o root -g root -m 0644 deploy/mp2ifsm-deploy.service /etc/systemd/system/mp2ifsm-deploy.service
+sudo install -o root -g root -m 0644 deploy/mp2ifsm-deploy.timer /etc/systemd/system/mp2ifsm-deploy.timer
+sudo systemctl daemon-reload
+sudo systemctl enable --now mp2ifsm-deploy.timer
+```
+
+Diagnostic : `systemctl status mp2ifsm-deploy.timer` et
+`journalctl -u mp2ifsm-deploy.service`. Un redéploiement ne se fait jamais en
+déplaçant manuellement la branche `production` : relancer le workflow sur le SHA
+voulu et approuver le job conserve la piste d’audit GitHub.

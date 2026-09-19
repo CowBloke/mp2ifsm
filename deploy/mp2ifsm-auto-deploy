@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+# Installed root-owned at /usr/local/sbin/mp2ifsm-auto-deploy. Git operations,
+# dependency scripts, tests, builds, and migrations all run as the unprivileged
+# application account. Root is retained only for the atomic switch and systemd.
+
+readonly APP_USER=cowbloke
+readonly REPOSITORY=/home/cowbloke/projects/mp2ifsm
+readonly RELEASES=/home/cowbloke/mp2ifsm-releases
+readonly STATE_DIR=/var/lib/mp2ifsm-deploy
+readonly CURRENT="$STATE_DIR/current"
+readonly ENV_FILE="$REPOSITORY/.env"
+readonly SERVICE=mp2ifsm.service
+readonly LOCK_FILE=/run/lock/mp2ifsm-auto-deploy.lock
+
+log() {
+  printf '[mp2ifsm-deploy] %s\n' "$*"
+}
+
+as_app() {
+  runuser --user "$APP_USER" -- env \
+    HOME="/home/$APP_USER" USER="$APP_USER" LOGNAME="$APP_USER" "$@"
+}
+
+mkdir -p "$RELEASES" "$STATE_DIR"
+chown "$APP_USER:$APP_USER" "$RELEASES"
+
+exec 9>"$LOCK_FILE"
+if ! flock -n 9; then
+  log "another deployment is already running"
+  exit 0
+fi
+
+as_app git -C "$REPOSITORY" fetch --quiet --prune origin \
+  '+refs/heads/main:refs/remotes/origin/main' \
+  '+refs/heads/production:refs/remotes/origin/production'
+
+target=$(as_app git -C "$REPOSITORY" rev-parse --verify refs/remotes/origin/production)
+main=$(as_app git -C "$REPOSITORY" rev-parse --verify refs/remotes/origin/main)
+
+if ! as_app git -C "$REPOSITORY" merge-base --is-ancestor "$target" "$main"; then
+  log "refusing $target: approved production is not contained in origin/main"
+  exit 1
+fi
+
+if [[ -f "$STATE_DIR/deployed-sha" ]] && [[ $(<"$STATE_DIR/deployed-sha") == "$target" ]]; then
+  exit 0
+fi
+
+release="$RELEASES/$target"
+marker=''
+if [[ -f "$release/.mp2ifsm-release-sha" ]]; then
+  marker=$(<"$release/.mp2ifsm-release-sha")
+fi
+if [[ "$marker" != "$target" ]]; then
+  if [[ -e "$release" ]]; then
+    log "refusing unexpected incomplete release path: $release"
+    exit 1
+  fi
+
+  log "preparing approved commit $target"
+  as_app git -C "$REPOSITORY" worktree add --detach "$release" "$target"
+  if ! as_app /bin/bash "$release/deploy/build-release.sh" "$release" "$ENV_FILE"; then
+    log "validation/build/migration failed; production was not changed"
+    as_app git -C "$REPOSITORY" worktree remove --force "$release" || true
+    exit 1
+  fi
+fi
+
+if [[ $(<"$release/.mp2ifsm-release-sha") != "$target" ]]; then
+  log "release marker does not match approved commit"
+  exit 1
+fi
+
+previous=''
+if [[ -L "$CURRENT" ]]; then
+  previous=$(readlink -f "$CURRENT")
+fi
+
+ln -sfn "$release" "$CURRENT.new"
+mv -Tf "$CURRENT.new" "$CURRENT"
+
+log "activating $target"
+systemctl restart "$SERVICE"
+
+healthy=0
+for _ in {1..30}; do
+  if curl --fail --silent --show-error --max-time 3 \
+    -H 'Host: mp2ifsm.com' http://127.0.0.1:4260/ >/dev/null; then
+    healthy=1
+    break
+  fi
+  sleep 1
+done
+
+if [[ $healthy -ne 1 ]]; then
+  log "health check failed"
+  if [[ -n "$previous" && -d "$previous" ]]; then
+    log "rolling code back to $previous"
+    ln -sfn "$previous" "$CURRENT.new"
+    mv -Tf "$CURRENT.new" "$CURRENT"
+    systemctl restart "$SERVICE"
+  fi
+  exit 1
+fi
+
+printf '%s\n' "$target" > "$STATE_DIR/deployed-sha"
+log "deployed $target successfully"

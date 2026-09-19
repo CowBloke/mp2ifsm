@@ -1,0 +1,53 @@
+name: Validate and approve production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: mp2ifsm-production
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci
+      SESSION_SECRET: ci-build-only-not-a-production-secret
+      CRON_TOKEN: ci-build-only
+      PUBLIC_ORIGIN: https://mp2ifsm.com
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck
+      - run: npm run build
+
+  approve:
+    name: Approve for production
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment:
+      name: production
+      url: https://mp2ifsm.com
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Mark this exact commit as approved
+        env:
+          APPROVED_SHA: ${{ github.sha }}
+        run: git push origin "$APPROVED_SHA:refs/heads/production" --force
