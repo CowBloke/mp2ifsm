@@ -85,6 +85,47 @@ export type PaquetImporte = {
   medias: Map<string, Buffer>;
 };
 
+export type CarteCloze = {
+  index: number;
+  recto: string;
+  verso: string;
+};
+
+// decoupe et formate les cartes cloze
+export function formaterCloze(texte: string, extra = ""): CarteCloze[] {
+  const motif = /\{\{\s*c(\d+)\s*::([\s\S]*?)\}\}/gi;
+  const indices = new Set<number>();
+  for (const m of texte.matchAll(motif)) {
+    indices.add(Number(m[1]));
+  }
+  if (indices.size === 0) return [];
+
+  const tries = Array.from(indices).sort((a, b) => a - b);
+  return tries.map((n) => {
+    const reponses: string[] = [];
+    const recto = texte.replace(motif, (_, numStr: string, corps: string) => {
+      const num = Number(numStr);
+      const sep = corps.indexOf("::");
+      const reponse = (sep !== -1 ? corps.slice(0, sep) : corps).trim();
+      const indice = (sep !== -1 ? corps.slice(sep + 2) : "").trim();
+
+      if (num === n) {
+        if (reponse) reponses.push(reponse);
+        return indice ? `[${indice}]` : "[...]";
+      }
+      return reponse;
+    });
+
+    const repTexte = reponses.join(", ");
+    const verso = [repTexte, extra.trim()].filter(Boolean).join("\n\n");
+    return {
+      index: n,
+      recto: recto || "(vide)",
+      verso: verso || "(vide)",
+    };
+  });
+}
+
 export async function lireApkg(archive: Buffer): Promise<PaquetImporte> {
   let dossier: string | null = null;
   try {
@@ -135,11 +176,34 @@ export async function lireApkg(archive: Buffer): Promise<PaquetImporte> {
       if (lignes.length > 10000) throw new ErreurMetier("FICHIER_TROP_GROS");
       notes = lignes.flatMap(({ guid, flds }) => {
         const champs = flds.split(SEP);
+        const indexCloze = champs.findIndex((c) => /\{\{\s*c\d+\s*::/i.test(c));
+
+        if (indexCloze !== -1) {
+          const texteHtml = champs[indexCloze] ?? "";
+          const extraHtml = champs.filter((_, i) => i !== indexCloze).filter((c) => c.trim()).join("<br>");
+          const texte = htmlVersTexte(texteHtml);
+          const extra = htmlVersTexte(extraHtml);
+          const cartesCloze = formaterCloze(texte, extra);
+
+          if (cartesCloze.length > 0) {
+            const medias = [
+              ...mediasReferences(texteHtml),
+              ...mediasReferences(extraHtml),
+            ];
+            return cartesCloze.map((c) => ({
+              guid: `${guid}-c${c.index}`,
+              recto: c.recto || "(vide)",
+              verso: c.verso || "(vide)",
+              medias,
+            }));
+          }
+        }
+
         const rectoHtml = champs[0] ?? "";
         const versoHtml = champs.slice(1).filter((c) => c.trim()).join("<br>");
         const recto = htmlVersTexte(rectoHtml);
         const verso = htmlVersTexte(versoHtml);
-        // Une note sans recto exploitable n'a rien à faire ici.
+        // une note sans recto exploitable n'a rien a faire ici
         if (!recto && !verso) return [];
         return [{
           guid,
