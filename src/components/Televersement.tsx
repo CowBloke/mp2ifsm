@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { MATIERES } from "@/lib/constantes";
+import { ChoixMatiere } from "@/components/Matiere";
 
 /*
  * Dépôt d'un document.
@@ -12,7 +12,9 @@ import { MATIERES } from "@/lib/constantes";
  * est affichée ici, et chaque fichier garde l'identité de son
  * déposant — c'est ce qui rend la règle applicable.
  */
-export function Televersement({ restant }: { restant: number }) {
+export function Televersement({
+  restant, matieres,
+}: { restant: number; matieres: Array<{ id: number; nom: string }> }) {
   const router = useRouter();
   const [ouvert, setOuvert] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -69,12 +71,7 @@ export function Televersement({ restant }: { restant: number }) {
       />
 
       <div className="mt-2 grid grid-cols-2 gap-2">
-        <select name="matiere" defaultValue=""
-                className="rounded-[var(--radius-md)] border-2 px-2 py-2 text-[14px]
-                           outline-none focus:border-[var(--ring)]">
-          <option value="">Matière…</option>
-          {MATIERES.map((m) => <option key={m} value={m}>{m}</option>)}
-        </select>
+        <ChoixMatiere matieres={matieres} />
         <input name="chapitre" maxLength={120} placeholder="Chapitre"
                className="rounded-[var(--radius-md)] border-2 px-3 py-2 text-[14px]
                           outline-none focus:border-[var(--ring)]" />

@@ -6,6 +6,7 @@ export type EcheanceVue = {
   titre: string;
   kind: string;
   matiere: string | null;
+  couleur: string | null;
   due_at: string;
   details: string | null;
   auteur: string;
@@ -14,9 +15,10 @@ export type EcheanceVue = {
 
 export async function echeancesAVenir(limite = 20): Promise<EcheanceVue[]> {
   return query<EcheanceVue>(
-    `select e.id, e.titre, e.kind::text as kind, e.matiere::text as matiere,
+    `select e.id, e.titre, e.kind::text as kind, sj.nom as matiere, sj.couleur,
             e.due_at, e.details, u.display_name as auteur, e.created_by
        from echeance e join app_user u on u.id = e.created_by
+       left join subject sj on sj.id = e.subject_id
       where e.deleted_at is null and e.due_at > now() - interval '12 hours'
       order by e.due_at asc
       limit $1`,

@@ -3,10 +3,12 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { creerPaquet } from "@/lib/actions-fiches";
-import { MATIERES } from "@/lib/constantes";
+import { ChoixMatiere } from "@/components/Matiere";
+
+type Matieres = Array<{ id: number; nom: string }>;
 
 /** Créer un paquet, ou en importer un depuis Anki. */
-export function OutilsPaquets() {
+export function OutilsPaquets({ matieres }: { matieres: Matieres }) {
   const [vue, setVue] = useState<null | "creer" | "importer">(null);
 
   if (!vue) {
@@ -29,22 +31,17 @@ export function OutilsPaquets() {
   return (
     <div className="rounded-[var(--radius-lg)] border bg-[var(--card)] p-4">
       {vue === "creer"
-        ? <FormulairePaquet onFini={() => setVue(null)} />
-        : <FormulaireImport onFini={() => setVue(null)} />}
+        ? <FormulairePaquet matieres={matieres} onFini={() => setVue(null)} />
+        : <FormulaireImport matieres={matieres} onFini={() => setVue(null)} />}
     </div>
   );
 }
 
-function ChampsClassement({ chapitreDefaut = "" }: { chapitreDefaut?: string }) {
+function ChampsClassement({ matieres }: { matieres: Matieres }) {
   return (
     <div className="grid grid-cols-2 gap-2">
-      <select name="matiere" required defaultValue=""
-              className="rounded-[var(--radius-md)] border-2 px-2 py-2 text-[14px]
-                         outline-none focus:border-[var(--ring)]">
-        <option value="" disabled>Matière…</option>
-        {MATIERES.map((m) => <option key={m} value={m}>{m}</option>)}
-      </select>
-      <input name="chapitre" required maxLength={120} defaultValue={chapitreDefaut}
+      <ChoixMatiere matieres={matieres} />
+      <input name="chapitre" required maxLength={120}
              placeholder="Chapitre"
              className="rounded-[var(--radius-md)] border-2 px-3 py-2 text-[14px]
                         outline-none focus:border-[var(--ring)]" />
@@ -52,7 +49,7 @@ function ChampsClassement({ chapitreDefaut = "" }: { chapitreDefaut?: string }) 
   );
 }
 
-function FormulairePaquet({ onFini }: { onFini: () => void }) {
+function FormulairePaquet({ matieres, onFini }: { matieres: Matieres; onFini: () => void }) {
   const router = useRouter();
   const [erreur, setErreur] = useState<string | null>(null);
   const [enCours, demarrer] = useTransition();
@@ -74,7 +71,7 @@ function FormulairePaquet({ onFini }: { onFini: () => void }) {
              placeholder="Titre (ex. Développements limités)"
              className="w-full rounded-[var(--radius-md)] border-2 px-3 py-2 text-[14px]
                         outline-none focus:border-[var(--ring)]" />
-      <ChampsClassement />
+      <ChampsClassement matieres={matieres} />
       <textarea name="description" rows={2} maxLength={1000} placeholder="Description (facultatif)"
                 className="w-full rounded-[var(--radius-md)] border-2 px-3 py-2 text-[14px]
                            outline-none focus:border-[var(--ring)]" />
@@ -84,7 +81,7 @@ function FormulairePaquet({ onFini }: { onFini: () => void }) {
   );
 }
 
-function FormulaireImport({ onFini }: { onFini: () => void }) {
+function FormulaireImport({ matieres, onFini }: { matieres: Matieres; onFini: () => void }) {
   const router = useRouter();
   const [erreur, setErreur] = useState<string | null>(null);
   const [enCours, setEnCours] = useState(false);
@@ -114,7 +111,7 @@ function FormulaireImport({ onFini }: { onFini: () => void }) {
              className="w-full text-[13px] file:mr-3 file:rounded-[var(--radius-sm)]
                         file:border-0 file:bg-[var(--secondary)] file:px-3 file:py-1.5
                         file:text-[13px] file:font-medium" />
-      <ChampsClassement />
+      <ChampsClassement matieres={matieres} />
       <input name="titre" maxLength={120} placeholder="Titre (sinon celui du paquet Anki)"
              className="w-full rounded-[var(--radius-md)] border-2 px-3 py-2 text-[14px]
                         outline-none focus:border-[var(--ring)]" />

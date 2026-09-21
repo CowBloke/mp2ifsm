@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 /*
- * Navigation basse, cinq sections de poids égal.
+ * Navigation basse, six sections de poids égal.
  *
  * Le marché n'a pas de traitement visuel particulier : c'est une
  * rubrique comme les autres, pour que le site se lise comme un outil
@@ -15,7 +15,9 @@ const ONGLETS = [
     icone: "M3 11 12 3l9 8M5 10v10h14V10" },
   { href: "/fiches", label: "Fiches",
     icone: "M4 6h13v13H4zM7 3h13v13" },
-  { href: "/documents", label: "Documents",
+  { href: "/colles", label: "Colles",
+    icone: "M4 6h16v14H4zM4 10h16M8 3v4m8-4v4" },
+  { href: "/documents", label: "Docs",
     icone: "M13 3H6v18h12V8zM13 3v5h5" },
   { href: "/marche", label: "Marché",
     icone: "M4 14h4v6H4zm6-8h4v14h-4zm6 4h4v10h-4z" },

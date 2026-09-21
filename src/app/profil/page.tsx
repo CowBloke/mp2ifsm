@@ -14,6 +14,11 @@ import {
 } from "@/lib/queries";
 import { utilisateurCourant } from "@/lib/session";
 import { queryOne } from "@/lib/db";
+import { ReglageGroupe } from "@/components/Groupe";
+import { BadgeStatut } from "@/components/AdminRetours";
+import { NOM_CATEGORIE } from "@/lib/constantes";
+import { GROUPE_MAX } from "@/lib/colloscope";
+import { mesRetours } from "@/lib/retours";
 
 export const dynamic = "force-dynamic";
 
@@ -54,7 +59,11 @@ export default async function PageMoi({ searchParams }: { searchParams: Promise<
       </Suspense>
 
       <Suspense fallback={<div className="mt-6"><SqueletteListe n={1} /></div>}>
-        <Reglages userId={u.id} estAdmin={u.role === "admin"} />
+        <Reglages userId={u.id} estAdmin={u.role === "admin"} groupe={u.groupe_colle} />
+      </Suspense>
+
+      <Suspense fallback={<div className="mt-6"><SqueletteListe n={2} /></div>}>
+        <MesRetours userId={u.id} />
       </Suspense>
 
       <Suspense fallback={<div className="mt-6"><SqueletteListe n={3} /></div>}>
@@ -66,7 +75,9 @@ export default async function PageMoi({ searchParams }: { searchParams: Promise<
   );
 }
 
-async function Reglages({ userId, estAdmin }: { userId: string; estAdmin: boolean }) {
+async function Reglages({
+  userId, estAdmin, groupe,
+}: { userId: string; estAdmin: boolean; groupe: number | null }) {
   const r = await queryOne<{ partage_stats: boolean }>(
     `select partage_stats from app_user where id = $1::uuid`, [userId]);
 
@@ -76,13 +87,51 @@ async function Reglages({ userId, estAdmin }: { userId: string; estAdmin: boolea
                      text-[var(--muted-foreground)]">
         Réglages
       </h2>
-      <ReglagePartageStats initial={r?.partage_stats ?? false} />
+      <div className="space-y-2">
+        <ReglageGroupe groupe={groupe} max={GROUPE_MAX} />
+        <ReglagePartageStats initial={r?.partage_stats ?? false} />
+      </div>
       {estAdmin && (
         <Link href="/profil?onglet=admin"
               className="mt-2 block rounded-[var(--radius-md)] border bg-[var(--card)] p-3
                          text-[14px] font-medium transition-colors hover:bg-[var(--muted)]">
           Ouvrir l’administration →
         </Link>
+      )}
+    </section>
+  );
+}
+
+async function MesRetours({ userId }: { userId: string }) {
+  const retours = await mesRetours(userId);
+  return (
+    <section id="mes-retours" className="mt-6 scroll-mt-4">
+      <h2 className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
+        Mes retours
+      </h2>
+      {retours.length === 0 ? (
+        <p className="rounded-[var(--radius-md)] border border-dashed p-4 text-center text-[13px]
+                      text-[var(--muted-foreground)]">
+          Une idée, un bug ? Le bouton « Retour » en haut de chaque page est fait pour ça.
+        </p>
+      ) : (
+        <ul className="space-y-2">
+          {retours.map((r) => (
+            <li key={r.id} className="rounded-[var(--radius-md)] border bg-[var(--card)] p-3">
+              <div className="flex flex-wrap items-center gap-2 text-[11px] text-[var(--muted-foreground)]">
+                <BadgeStatut statut={r.statut} />
+                <span className="font-semibold">{NOM_CATEGORIE[r.categorie]}</span>
+                <span>{new Date(r.created_at).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })}</span>
+              </div>
+              <p className="mt-1.5 line-clamp-3 whitespace-pre-wrap break-words text-[13px]">{r.message}</p>
+              {r.reponse && (
+                <p className="mt-2 border-l-2 pl-2 text-[12px]">
+                  <span className="font-semibold">Réponse : </span>{r.reponse}
+                </p>
+              )}
+            </li>
+          ))}
+        </ul>
       )}
     </section>
   );

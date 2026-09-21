@@ -15,7 +15,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
 
   const { slug } = await params;
   const deck = await queryOne<{ id: number; titre: string; matiere: string; chapitre: string }>(
-    `select id, titre, matiere::text as matiere, chapitre from deck where slug = $1`,
+    `select d.id, d.titre, coalesce(sj.nom, 'Sans matière') as matiere, d.chapitre
+       from deck d left join subject sj on sj.id = d.subject_id where d.slug = $1`,
     [slug],
   );
   if (!deck) return new NextResponse("Introuvable", { status: 404 });

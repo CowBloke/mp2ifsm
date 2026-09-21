@@ -9,6 +9,8 @@ import {
   rechercherDocuments, usage,
 } from "@/lib/documents";
 import { formatTaille } from "@/lib/stockage";
+import { listerMatieres } from "@/lib/matieres";
+import { PastilleMatiere } from "@/components/Matiere";
 import { utilisateurCourant } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -93,7 +95,7 @@ function Onglet({ href, actif, label }: { href: string; actif: boolean; label: s
  * Deux barres — la vôtre et celle de la classe.
  */
 async function Occupation({ userId }: { userId: string }) {
-  const us = await usage(userId);
+  const [us, matieres] = await Promise.all([usage(userId), listerMatieres()]);
   const partMembre = Math.min(1, us.utilise_membre / us.quota_membre);
   const partGlobale = Math.min(1, us.utilise_global / us.plafond_global);
   const restant = Math.max(0, us.quota_membre - us.utilise_membre);
@@ -113,7 +115,7 @@ async function Occupation({ userId }: { userId: string }) {
         />
       </div>
       <div className="mt-3">
-        <Televersement restant={restant} />
+        <Televersement restant={restant} matieres={matieres.map(({ id, nom }) => ({ id, nom }))} />
       </div>
     </div>
   );
@@ -185,16 +187,16 @@ async function Arborescence() {
   return (
     <div className="space-y-4">
       {noeuds.map((n) => (
-        <section key={n.matiere ?? "sans"}>
-          <h2 className="mb-2 text-[12px] font-semibold uppercase tracking-wide
-                         text-[var(--muted-foreground)]">
-            {n.matiere ?? "Non classé"} ({n.total})
+        <section key={n.subject_id ?? "sans"}>
+          <h2 className="mb-2 flex items-center gap-2">
+            <PastilleMatiere nom={n.matiere} couleur={n.couleur} />
+            <span className="tabular text-[11px] text-[var(--muted-foreground)]">{n.total}</span>
           </h2>
           <ul className="space-y-1.5">
             {n.chapitres.map((c) => (
               <li key={c.chapitre ?? "sans"}>
                 <Link
-                  href={`/documents?matiere=${encodeURIComponent(n.matiere ?? "")}` +
+                  href={`/documents?matiere=${encodeURIComponent(n.subject_id ?? "")}` +
                         `&chapitre=${encodeURIComponent(c.chapitre ?? "")}`}
                   className="flex items-center justify-between rounded-[var(--radius-md)] border
                              bg-[var(--card)] px-3 py-2.5 transition-colors hover:bg-[var(--muted)]"
@@ -220,12 +222,17 @@ async function ParMatiere({
 }: {
   matiere: string; chapitre: string | null; userId: string; estAdmin: boolean;
 }) {
-  const docs = await documentsParMatiere(matiere, chapitre);
+  const [docs, matieres] = await Promise.all([
+    documentsParMatiere(matiere, chapitre),
+    listerMatieres(true),
+  ]);
+  const m = matieres.find((x) => String(x.id) === matiere);
   return (
     <>
-      <div className="mb-2 flex items-center justify-between">
-        <p className="text-[13px] font-medium">
-          {matiere || "Non classé"}{chapitre && ` — ${chapitre}`}
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <p className="flex min-w-0 items-center gap-2 text-[13px] font-medium">
+          <PastilleMatiere nom={m?.nom ?? null} couleur={m?.couleur ?? null} />
+          {chapitre && <span className="truncate">{chapitre}</span>}
         </p>
         <Link href="/documents?vue=classement"
               className="text-[12px] text-[var(--muted-foreground)] underline">

@@ -3,10 +3,11 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { restaurerDocument, supprimerDocument } from "@/lib/actions-documents";
+import { PastilleMatiere } from "@/components/Matiere";
 
 export type DocVue = {
   id: number; original_name: string; mime: string; taille: number;
-  matiere: string | null; chapitre: string | null; tags: string[];
+  matiere: string | null; couleur: string | null; chapitre: string | null; tags: string[];
   uploader: string; uploaded_by: string; created_at: string;
   deleted_at: string | null; purge_after: string | null;
 };
@@ -73,9 +74,11 @@ export function ListeDocuments({
                     {taille(d.taille)} · {d.uploader} ·{" "}
                     {new Date(d.created_at).toLocaleDateString("fr-FR",
                       { day: "2-digit", month: "2-digit", year: "2-digit" })}
-                    {d.matiere && ` · ${d.matiere}`}
-                    {d.chapitre && ` — ${d.chapitre}`}
+                    {d.chapitre && ` · ${d.chapitre}`}
                   </p>
+                  {d.matiere && (
+                    <PastilleMatiere nom={d.matiere} couleur={d.couleur} petite className="mt-1" />
+                  )}
 
                   {d.tags.length > 0 && (
                     <div className="mt-1 flex flex-wrap gap-1">

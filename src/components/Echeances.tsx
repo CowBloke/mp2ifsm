@@ -3,12 +3,14 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ajouterEcheance } from "@/lib/actions-echeances";
-import { MATIERES } from "@/lib/constantes";
+import { ChoixMatiere } from "@/components/Matiere";
 
 const TYPES = ["DS", "DM", "Colle", "TIPE", "Oral", "Projet", "Autre"] as const;
 
 /** Ajout d'une échéance par n'importe qui dans la classe. */
-export function FormulaireEcheance() {
+export function FormulaireEcheance({
+  matieres,
+}: { matieres: Array<{ id: number; nom: string }> }) {
   const router = useRouter();
   const [ouvert, setOuvert] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -54,12 +56,7 @@ export function FormulaireEcheance() {
                            outline-none focus:border-[var(--ring)]">
           {TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
-        <select name="matiere" defaultValue=""
-                className="rounded-[var(--radius-md)] border-2 px-2 py-2 text-[14px]
-                           outline-none focus:border-[var(--ring)]">
-          <option value="">Matière…</option>
-          {MATIERES.map((m) => <option key={m} value={m}>{m}</option>)}
-        </select>
+        <ChoixMatiere matieres={matieres} />
       </div>
       <input
         name="dueAt" type="datetime-local" required

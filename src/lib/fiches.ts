@@ -11,17 +11,20 @@ import { apercuIntervalles, type Apercu, type EtatDb } from "./fsrs";
  * (user_id, card_id)). Aucune requête ici ne mélange les deux.
  */
 
-export { MATIERES } from "./constantes";
-export type { Matiere } from "./constantes";
-import type { Matiere } from "./constantes";
-
 export type PaquetVue = {
   id: number;
   slug: string;
   titre: string;
-  matiere: Matiere;
+  subject_id: number | null;
+  /** Nom de la matière, null = sans matière. */
+  matiere: string | null;
+  couleur: string | null;
+  matiere_archivee: boolean;
+  /** Seuls les paquets suivis entrent dans les révisions et statistiques. */
+  abonne: boolean;
   chapitre: string;
   description: string | null;
+  created_by: string;
   total: number;
   nouvelles: number;
   apprentissage: number;
@@ -31,13 +34,18 @@ export type PaquetVue = {
 
 /* Décompte par paquet. Les cartes neuves ne sont pas plafonnées par jour. */
 const SELECT_PAQUET = `
-  select d.id, d.slug, d.titre, d.matiere::text as matiere, d.chapitre, d.description,
+  select d.id, d.slug, d.titre, d.subject_id, sj.nom as matiere, sj.couleur,
+         coalesce(sj.archived_at is not null, false) as matiere_archivee,
+         exists (select 1 from deck_subscription ab
+                  where ab.deck_id = d.id and ab.user_id = $1::uuid) as abonne,
+         d.chapitre, d.description, d.created_by,
          coalesce(c.total, 0)                      as total,
          coalesce(c.nouvelles, 0)                  as nouvelles,
          coalesce(c.apprentissage, 0)              as apprentissage,
          coalesce(c.a_revoir, 0)                   as a_revoir,
          coalesce(r.signalements, 0)               as signalements
     from deck d
+    left join subject sj on sj.id = d.subject_id
     left join lateral (
       select count(*) as total,
              count(*) filter (where s.user_id is null)                             as nouvelles,
@@ -57,7 +65,7 @@ const SELECT_PAQUET = `
 
 export async function listerPaquets(userId: string): Promise<PaquetVue[]> {
   return query<PaquetVue>(
-    `${SELECT_PAQUET} order by d.matiere, d.chapitre, d.titre`,
+    `${SELECT_PAQUET} order by sj.id is null, sj.position, sj.nom, d.chapitre, d.titre`,
     [userId],
   );
 }
@@ -86,7 +94,8 @@ export type CarteARevisier = {
  *
  * Ordre : ce qui est en apprentissage d'abord (intervalles courts, à
  * enchaîner), puis les révisions dues, puis les cartes neuves. Renvoie
- * null quand la session est terminée.
+ * null quand la session est terminée — ou quand le membre ne suit pas
+ * ce paquet : seuls les paquets suivis entrent dans les révisions.
  */
 export async function prochaineCarte(
   userId: string,
@@ -109,6 +118,8 @@ export async function prochaineCarte(
        left join card_state s on s.card_id = k.id and s.user_id = $1::uuid
       where k.deck_id = $2 and k.deleted_at is null
         and (s.user_id is null or s.due <= now())
+        and exists (select 1 from deck_subscription ab
+                     where ab.deck_id = k.deck_id and ab.user_id = $1::uuid)
       order by
         case when s.state in ('Learning','Relearning') then 0
              when s.state = 'Review'                   then 1
@@ -274,9 +285,9 @@ export type LigneHeatmap = {
 /**
  * Heatmap de classe — strictement opt-in.
  *
- * Seuls les membres ayant coché `partage_stats` apparaissent. Le
- * filtre est dans le SQL, pas dans l'affichage : un membre qui n'a pas
- * consenti ne sort jamais de la base.
+ * Seuls les membres ayant coché `partage_stats` et suivant le paquet
+ * apparaissent. Le filtre est dans le SQL, pas dans l'affichage : un
+ * membre qui n'a pas consenti ne sort jamais de la base.
  */
 export async function heatmapClasse(deckId: number, jours = 30): Promise<LigneHeatmap[]> {
   const lignes = await query<{ user_id: string; display_name: string; jour: string; n: number }>(
@@ -286,6 +297,7 @@ export async function heatmapClasse(deckId: number, jours = 30): Promise<LigneHe
        from review_log rl
        join card k     on k.id = rl.card_id
        join app_user u on u.id = rl.user_id
+      join deck_subscription ab on ab.deck_id = k.deck_id and ab.user_id = u.id
       where k.deck_id = $1
         and u.partage_stats = true
         and rl.reviewed_at > now() - ($2::int || ' days')::interval

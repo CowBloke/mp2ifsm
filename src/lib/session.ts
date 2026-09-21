@@ -53,6 +53,10 @@ export type Utilisateur = {
   display_name: string;
   email: string;
   role: "member" | "admin";
+  /** Groupe de colles, null tant que le membre ne l'a pas indiqué. */
+  groupe_colle: number | null;
+  /** « Plus tard » cliqué sur la demande de groupe, pour cette session. */
+  groupe_reporte: boolean;
 };
 
 export async function creerSession(userId: string): Promise<void> {
@@ -90,12 +94,24 @@ export async function utilisateurCourant(): Promise<Utilisateur | null> {
   if (!jeton) return null;
 
   return queryOne<Utilisateur>(
-    `select u.id, u.display_name, u.email, u.role
+    `select u.id, u.display_name, u.email, u.role, u.groupe_colle, s.groupe_reporte
        from user_session s
        join app_user u on u.id = s.user_id
       where s.token_hash = $1 and s.expires_at > now()`,
     [hashJeton(jeton)],
   );
+}
+
+/**
+ * Masque la demande de groupe de colles pour la session en cours
+ * seulement : elle réapparaît à la prochaine connexion.
+ */
+export async function reporterDemandeGroupe(): Promise<void> {
+  const jar = await cookies();
+  const jeton = jar.get(COOKIE)?.value;
+  if (!jeton) throw new ErreurMetier("NON_CONNECTE");
+  await query(`update user_session set groupe_reporte = true where token_hash = $1`,
+    [hashJeton(jeton)]);
 }
 
 /** Utilisateur courant obligatoire. Leve NON_CONNECTE sinon. */

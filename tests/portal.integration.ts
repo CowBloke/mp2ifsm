@@ -28,7 +28,7 @@ let assertions = 0;
 function ok(condition: unknown, message: string) { assert.ok(condition, message); assertions++; console.log(`PASS ${message}`); }
 try {
   await admin.query(`create schema ${schema}`);
-  for (const fichier of ["db/schema.sql", "db/functions.sql", "db/schema-portal.sql", "db/schema-proposals.sql"]) {
+  for (const fichier of ["db/schema.sql", "db/functions.sql", "db/schema-portal.sql", "db/schema-proposals.sql", "db/schema-etudes.sql"]) {
     await query(await readFile(fichier, "utf8"));
   }
   const membres = await query<{ id: string }>(`insert into app_user (email, display_name, password_hash, partage_stats)
@@ -44,6 +44,12 @@ try {
     values ('integration','Intégration','Maths','Analyse',$1) returning id`, [alice]);
   const [card] = await query<{ id: number }>(`insert into card(deck_id,recto,verso,author_id)
     values ($1,'Dérivée de $x^2$','$2x$',$2) returning id`, [deck.id, alice]);
+  const [maths] = await query<{ id: number; subject_id: number }>(
+    "select s.id, d.subject_id from subject s, deck d where s.legacy='Maths' and d.id=$1", [deck.id]);
+  ok(maths.subject_id === maths.id, "legacy enum insert is mapped to its subject");
+  ok((await prochaineCarte(alice, deck.id)) === null, "unsubscribed deck yields no card to review");
+  ok((await listerPaquets(alice)).every(p => !p.abonne), "new members follow no deck");
+  await query("insert into deck_subscription(user_id,deck_id) values ($1,$3),($2,$3)", [alice, bob, deck.id]);
   const first = await prochaineCarte(alice, deck.id);
   ok(first?.apercu.length === 4, "first card returns four server intervals");
   ok((await statsPaquet(deck.id, alice)).a_venir.length === 7, "empty forecast retains all seven days");
@@ -70,7 +76,7 @@ try {
     assert.ok(result, `${name}: ${res.status} ${body.slice(0, 500)}`);
     return JSON.parse(result.slice(result.indexOf(":") + 1));
   }
-  for (const path of ["/", "/fiches", "/fiches/integration", "/fiches/integration/reviser", "/documents", "/profil", "/marche", "/marche/classement"]) {
+  for (const path of ["/", "/fiches", "/fiches/integration", "/fiches/integration/reviser", "/documents", "/profil", "/marche", "/marche/classement", "/colles", "/colles?groupe=4&semaine=2026-09-21"]) {
     const r = await fetch(base + path, { headers: auth });
     const html = await r.text();
     ok(r.ok && !html.includes('"digest":'), `authenticated page ${path}`);
@@ -107,13 +113,43 @@ try {
   const bobFirst = await prochaineCarte(bob, deck.id);
   await action("reviserCarte", [card.id, "easy", bobFirst!.jeton, 500], `mp2_session=${tokenBob}`);
   ok((await heatmapClasse(deck.id)).every(r => r.user_id === alice), "heatmap excludes non-consenting member");
+  ok((await action("suivrePaquet", [deck.id, false], `mp2_session=${tokenBob}`)).ok, "member can unsubscribe");
+  ok((await query("select 1 from card_state where user_id=$1", [bob])).length === 1, "unsubscribing keeps review history");
+  const bobToken = (await import("../src/lib/revision-token")).jetonRevision(bob, card.id, 1, new Date());
+  ok((await action("reviserCarte", [card.id, "good", bobToken, 500], `mp2_session=${tokenBob}`)).erreur?.includes("Abonnez"),
+    "reviews are refused on unsubscribed decks");
+  ok((await action("suivrePaquet", [deck.id, true], `mp2_session=${tokenBob}`)).ok, "member can resubscribe");
+  ok((await action("envoyerRetour", ["bug", "Le bouton ne répond pas", "/fiches"])).ok, "member sends feedback");
+  ok(!(await action("envoyerRetour", ["spam", "Catégorie inconnue"])).ok, "unknown feedback category rejected");
+  const [retour] = await query<{ id: number; page: string }>("select id, page from feedback");
+  ok(retour.page === "/fiches", "feedback records the page");
+  ok(!(await action("traiterRetour", [retour.id, "prevu", "Merci"])).ok, "member cannot triage feedback");
+  ok(!(await action("creerMatiere", ["Informatique", "cyan"])).ok, "member cannot create subjects");
+  ok(!(await action("definirGroupe", [42])).ok, "out-of-range colle group rejected");
+  ok((await action("definirGroupe", [10])).ok, "member sets a colle group");
+  await query("update app_user set role='admin' where id=$1", [bob]);
+  ok((await action("traiterRetour", [retour.id, "prevu", "Prévu pour la semaine prochaine"], adminCookie)).ok, "admin updates feedback status");
+  const creee = await action("creerMatiere", ["Informatique", "cyan"], adminCookie);
+  ok(creee.ok, "admin creates a subject");
+  ok(!(await action("creerMatiere", [" informatique ", "bleu"], adminCookie)).ok, "duplicate subject name rejected");
+  ok((await action("archiverMatiere", [creee.data.id, true], adminCookie)).ok, "admin archives a subject");
+  ok(!(await action("changerMatierePaquet", [deck.id, String(creee.data.id)], adminCookie)).ok, "archived subject refused for content");
+  ok((await action("changerMatierePaquet", [deck.id, ""], adminCookie)).ok, "deck can move to no subject");
+  ok((await query("select 1 from deck where id=$1 and subject_id is null and matiere is null", [deck.id])).length === 1,
+    "legacy column follows subject changes");
+  await query("update deck set matiere='Maths' where id=$1", [deck.id]);
+  ok((await query("select 1 from deck where id=$1 and subject_id=$2", [deck.id, maths.id])).length === 1,
+    "legacy writes still set the subject (rollback compatibility)");
+  await query("update app_user set role='member' where id=$1", [bob]);
+  const profil = await (await fetch(base + "/profil", { headers: auth })).text();
+  ok(profil.includes("Prévu pour la semaine prochaine"), "author sees the feedback status and reply");
   ok((await action("modifierCarte", [card.id, "Recto corrigé", "Verso corrigé", "Correction de test"], `mp2_session=${tokenBob}`)).ok, "classmate can correct a shared card");
   const history = await query<{ edited_by: string }>("select edited_by from card_revision where card_id=$1 order by id", [card.id]);
   ok(history.length === 2 && history[1].edited_by === bob, "edit history records the actual editor");
   async function upload(name: string, bytes: Buffer, cookie = auth.cookie) {
     const fd = new FormData();
     fd.set("fichier", new File([new Uint8Array(bytes)], name, { type: "application/pdf" }));
-    fd.set("matiere", "Maths"); fd.set("chapitre", "Analyse"); fd.set("tags", "intégrale, corrigé");
+    fd.set("matiere", String(maths.id)); fd.set("chapitre", "Analyse"); fd.set("tags", "intégrale, corrigé");
     return fetch(base + "/api/documents/upload", { method: "POST", headers: { cookie, origin: base }, body: fd });
   }
   ok(!(await upload("fake.pdf", Buffer.from("not a pdf"))).ok, "forged PDF rejected");
@@ -136,7 +172,7 @@ try {
   ok((await purgerDocuments()).purges === 1, "expired trash is removed from disk and database");
   const image = Buffer.from([137,80,78,71,13,10,26,10]);
   const apkg = await ecrireApkg("Schémas", [{ recto: "![](figure.png)", verso: "$x$" }], new Map([["figure.png", image]]));
-  const fd = new FormData(); fd.set("apkg", new File([new Uint8Array(apkg)], "test.apkg")); fd.set("matiere", "Physique"); fd.set("chapitre", "Optique");
+  const fd = new FormData(); fd.set("apkg", new File([new Uint8Array(apkg)], "test.apkg")); fd.set("matiere", ""); fd.set("chapitre", "Optique");
   const imp = await fetch(base + "/api/fiches/import", { method: "POST", headers: { ...auth, origin: base }, body: fd });
   const imported = await imp.json();
   ok(imp.ok && imported.images === 1, "Anki import stores images");

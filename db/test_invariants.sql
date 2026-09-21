@@ -1,3 +1,7 @@
+-- Fichier en UTF-8. Sans cette ligne, psql sous Windows lit les accents
+-- selon la page de code de la console et les enregistre corrompus.
+set client_encoding = 'UTF8';
+
 -- =====================================================================
 -- mp2ifsm.com — invariant tests.
 --

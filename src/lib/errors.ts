@@ -42,6 +42,12 @@ export const MESSAGES_FR: Record<string, string> = {
   APKG_VIDE: "Ce paquet Anki ne contient aucune carte",
   SETTLEMENT_NOT_CONSERVED: "Règlement incohérent, opération annulée",
   ESCROW_NOT_EMPTY: "Règlement incohérent, opération annulée",
+  MATIERE_INVALIDE: "Matière inconnue ou archivée",
+  MATIERE_EN_DOUBLE: "Une matière porte déjà ce nom",
+  PAS_ABONNE: "Abonnez-vous à ce paquet pour le réviser",
+  GROUPE_INVALIDE: "Numéro de groupe de colles invalide",
+  RETOUR_INVALIDE: "Message trop court (5 caractères minimum)",
+  RETOURS_TROP_NOMBREUX: "Trop de retours envoyés aujourd’hui, réessayez demain",
 };
 
 const MESSAGE_GENERIQUE = "Une erreur est survenue, réessayez";
