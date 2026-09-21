@@ -11,9 +11,9 @@ import { apercuIntervalles, type Apercu, type EtatDb } from "./fsrs";
  * (user_id, card_id)). Aucune requête ici ne mélange les deux.
  */
 
-export { MATIERES, NOUVELLES_PAR_JOUR } from "./constantes";
+export { MATIERES } from "./constantes";
 export type { Matiere } from "./constantes";
-import { NOUVELLES_PAR_JOUR, type Matiere } from "./constantes";
+import type { Matiere } from "./constantes";
 
 export type PaquetVue = {
   id: number;
@@ -29,18 +29,11 @@ export type PaquetVue = {
   signalements: number;
 };
 
-/*
- * Décompte par paquet. « nouvelles » est plafonné au quota quotidien,
- * sinon un paquet fraîchement importé afficherait 400 cartes dues et
- * découragerait tout le monde.
- */
+/* Décompte par paquet. Les cartes neuves ne sont pas plafonnées par jour. */
 const SELECT_PAQUET = `
   select d.id, d.slug, d.titre, d.matiere::text as matiere, d.chapitre, d.description,
          coalesce(c.total, 0)                      as total,
-         least(coalesce(c.nouvelles, 0), greatest(0, $2::int - (
-           select count(distinct rl.card_id)::int from review_log rl join card kc on kc.id = rl.card_id
-            where rl.user_id = $1::uuid and kc.deck_id = d.id
-              and rl.state = 'New' and rl.reviewed_at >= date_trunc('day', now()))))  as nouvelles,
+         coalesce(c.nouvelles, 0)                  as nouvelles,
          coalesce(c.apprentissage, 0)              as apprentissage,
          coalesce(c.a_revoir, 0)                   as a_revoir,
          coalesce(r.signalements, 0)               as signalements
@@ -65,14 +58,12 @@ const SELECT_PAQUET = `
 export async function listerPaquets(userId: string): Promise<PaquetVue[]> {
   return query<PaquetVue>(
     `${SELECT_PAQUET} order by d.matiere, d.chapitre, d.titre`,
-    [userId, NOUVELLES_PAR_JOUR],
+    [userId],
   );
 }
 
 export async function lirePaquet(slug: string, userId: string): Promise<PaquetVue | null> {
-  return queryOne<PaquetVue>(`${SELECT_PAQUET} and d.slug = $3`, [
-    userId, NOUVELLES_PAR_JOUR, slug,
-  ]);
+  return queryOne<PaquetVue>(`${SELECT_PAQUET} and d.slug = $2`, [userId, slug]);
 }
 
 export type CarteARevisier = {
@@ -94,22 +85,13 @@ export type CarteARevisier = {
  * Carte suivante d'une session.
  *
  * Ordre : ce qui est en apprentissage d'abord (intervalles courts, à
- * enchaîner), puis les révisions dues, puis les cartes neuves dans la
- * limite du quota. Renvoie null quand la session est terminée.
+ * enchaîner), puis les révisions dues, puis les cartes neuves. Renvoie
+ * null quand la session est terminée.
  */
 export async function prochaineCarte(
   userId: string,
   deckId: number,
 ): Promise<CarteARevisier | null> {
-  const vuesAujourdhui = await queryOne<{ n: number }>(
-    `select count(distinct rl.card_id)::int as n
-       from review_log rl join card k on k.id = rl.card_id
-      where rl.user_id = $1::uuid and k.deck_id = $2
-        and rl.state = 'New' and rl.reviewed_at >= date_trunc('day', now())`,
-    [userId, deckId],
-  );
-  const quotaRestant = Math.max(0, NOUVELLES_PAR_JOUR - (vuesAujourdhui?.n ?? 0));
-
   const ligne = await queryOne<{
     card_id: number; recto: string; verso: string; auteur: string; author_id: string;
     deck_titre: string; deck_slug: string; signalee: boolean;
@@ -126,10 +108,7 @@ export async function prochaineCarte(
        join app_user u on u.id = k.author_id
        left join card_state s on s.card_id = k.id and s.user_id = $1::uuid
       where k.deck_id = $2 and k.deleted_at is null
-        and (
-          (s.user_id is not null and s.due <= now())
-          or (s.user_id is null and $3::int > 0)
-        )
+        and (s.user_id is null or s.due <= now())
       order by
         case when s.state in ('Learning','Relearning') then 0
              when s.state = 'Review'                   then 1
@@ -137,7 +116,7 @@ export async function prochaineCarte(
         s.due asc nulls last,
         k.id asc
       limit 1`,
-    [userId, deckId, quotaRestant],
+    [userId, deckId],
   );
   if (!ligne) return null;
 
@@ -151,7 +130,7 @@ export async function prochaineCarte(
       }
     : null;
 
-  const restant = await compterRestant(userId, deckId, quotaRestant);
+  const restant = await compterRestant(userId, deckId);
 
   const maintenant = new Date();
   return {
@@ -167,16 +146,16 @@ export async function prochaineCarte(
   };
 }
 
-export async function compterRestant(userId: string, deckId: number, quotaRestant: number) {
+export async function compterRestant(userId: string, deckId: number) {
   const r = await queryOne<{ nouvelles: number; apprentissage: number; a_revoir: number }>(
-    `select least(count(*) filter (where s.user_id is null), $3::int)::int as nouvelles,
+    `select count(*) filter (where s.user_id is null)::int                as nouvelles,
             count(*) filter (where s.state in ('Learning','Relearning')
                                and s.due <= now())::int                    as apprentissage,
             count(*) filter (where s.state = 'Review' and s.due <= now())::int as a_revoir
        from card k
        left join card_state s on s.card_id = k.id and s.user_id = $1::uuid
       where k.deck_id = $2 and k.deleted_at is null`,
-    [userId, deckId, quotaRestant],
+    [userId, deckId],
   );
   return r ?? { nouvelles: 0, apprentissage: 0, a_revoir: 0 };
 }

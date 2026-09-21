@@ -1,6 +1,6 @@
 import "server-only";
 import { query, queryOne } from "./db";
-import { NOUVELLES_PAR_JOUR, listerPaquets } from "./fiches";
+import { listerPaquets } from "./fiches";
 
 /*
  * Données de l'accueil. Une requête par carte du tableau de bord,
@@ -9,7 +9,7 @@ import { NOUVELLES_PAR_JOUR, listerPaquets } from "./fiches";
 
 export type ResumeFiches = {
   a_reviser: number;        // dues maintenant (apprentissage + révision)
-  nouvelles: number;        // neuves disponibles dans la limite du quota
+  nouvelles: number;        // neuves jamais vues
   revises_aujourdhui: number;
   paquets: number;
   prochain_paquet: { slug: string; titre: string; n: number } | null;
@@ -22,14 +22,11 @@ export async function resumeFiches(userId: string): Promise<ResumeFiches> {
          (select count(*) from card_state s join card k on k.id = s.card_id
            where s.user_id = $1::uuid and s.due <= now() and k.deleted_at is null)::int
            as a_reviser,
-         (select least(count(*), $2::int) from card k
-            left join card_state s on s.card_id = k.id and s.user_id = $1::uuid
-           where s.user_id is null and k.deleted_at is null)::int as nouvelles,
          (select count(*) from review_log
            where user_id = $1::uuid and reviewed_at >= date_trunc('day', now()))::int
            as revises_aujourdhui,
          (select count(*) from deck where archived_at is null)::int as paquets`,
-      [userId, NOUVELLES_PAR_JOUR],
+      [userId],
     ),
     // Le paquet qui a le plus de cartes dues : c'est là qu'on renvoie
     // le bouton « Réviser » de l'accueil.

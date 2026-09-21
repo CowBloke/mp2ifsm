@@ -315,6 +315,7 @@ export type CarteRendue = {
   jeton: string;
   cardId: number;
   rectoHtml: string;
+  rectoReveleHtml: string;
   versoHtml: string;
   auteur: string;
   signalee: boolean;
@@ -333,7 +334,7 @@ export async function carteSuivante(deckId: number): Promise<Reponse<CarteRendue
   try {
     const u = await exigerUtilisateur();
     const { prochaineCarte } = await import("./fiches");
-    const { rendreContenu } = await import("./rendu");
+    const { composerCarte } = await import("./rendu");
 
     const c = await prochaineCarte(u.id, deckId);
     if (!c) return { ok: true, data: null };
@@ -343,8 +344,7 @@ export async function carteSuivante(deckId: number): Promise<Reponse<CarteRendue
       data: {
         jeton: c.jeton,
         cardId: c.card_id,
-        rectoHtml: rendreContenu(c.recto),
-        versoHtml: rendreContenu(c.verso),
+        ...composerCarte(c.recto, c.verso),
         auteur: c.auteur,
         signalee: c.signalee,
         apercu: c.apercu,

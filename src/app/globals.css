@@ -97,6 +97,8 @@ body {
 
 /* Contenu des cartes : formules, images et texte. */
 .contenu-carte .texte { white-space: pre-wrap; }
+.contenu-carte .trou { font-weight: 600; color: var(--outcome-3); }
+.contenu-carte .trou-revele { color: var(--outcome-1); }
 .contenu-carte .katex { font-size: 1.05em; }
 .contenu-carte .katex-display { margin: 0.4em 0; }
 .contenu-carte .bloc-maths { margin: 0.5rem 0; overflow-x: auto; }
