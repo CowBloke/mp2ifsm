@@ -4,7 +4,7 @@ import { tx } from "@/lib/db";
 import { ErreurMetier, messageFr } from "@/lib/errors";
 import { lireApkg } from "@/lib/anki";
 import { DOSSIER_IMAGES, TYPES_IMAGES, detecterType, ecrire, supprimerDuDisque, TAILLE_MAX_IMAGE } from "@/lib/stockage";
-import { MATIERES } from "@/lib/constantes";
+import { matiereDuFormulaire } from "@/lib/matieres";
 
 import { lireFormulaire, verifierQuota } from "@/lib/uploads";
 
@@ -33,11 +33,9 @@ export async function POST(request: Request) {
     }
     if (fichier.size > TAILLE_MAX_APKG) throw new ErreurMetier("FICHIER_TROP_GROS");
 
-    const matiere = String(form.get("matiere") ?? "").trim();
+    const matiere = await matiereDuFormulaire(form.get("matiere"));
     const chapitre = String(form.get("chapitre") ?? "").trim();
-    if (!(MATIERES as readonly string[]).includes(matiere) || !chapitre || chapitre.length > 120) {
-      throw new ErreurMetier("CHAMPS_MANQUANTS");
-    }
+    if (!chapitre || chapitre.length > 120) throw new ErreurMetier("CHAMPS_MANQUANTS");
 
     const paquet = await lireApkg(Buffer.from(await fichier.arrayBuffer()));
     if (paquet.notes.length === 0) throw new ErreurMetier("APKG_VIDE");
@@ -70,7 +68,9 @@ export async function POST(request: Request) {
         ids.set(nom, r.rows[0].id);
       }
 
-      const base = `${matiere}-${chapitre}-${titre}`.toLowerCase()
+      const nomMatiere = matiere === null ? "" : (await c.query<{ nom: string }>(
+        `select nom from subject where id = $1`, [matiere])).rows[0]?.nom ?? "";
+      const base = `${nomMatiere}-${chapitre}-${titre}`.toLowerCase()
         .normalize("NFD").replace(/[̀-ͯ]/g, "")
         .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 58) || "import";
       let slug = base;
@@ -81,12 +81,14 @@ export async function POST(request: Request) {
       }
 
       const d = await c.query<{ id: number }>(
-        `insert into deck (slug, titre, matiere, chapitre, description, created_by)
-         values ($1,$2,$3::matiere,$4,$5,$6::uuid) returning id`,
+        `insert into deck (slug, titre, subject_id, chapitre, description, created_by)
+         values ($1,$2,$3,$4,$5,$6::uuid) returning id`,
         [slug, titre, matiere, chapitre,
          `Importé depuis Anki par ${u.display_name}`, u.id],
       );
       const deckId = d.rows[0].id;
+      await c.query(`insert into deck_subscription (user_id, deck_id) values ($1::uuid, $2)`,
+        [u.id, deckId]);
 
       let crees = 0;
       for (const note of paquet.notes) {

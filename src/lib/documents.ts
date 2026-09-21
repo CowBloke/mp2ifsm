@@ -15,7 +15,9 @@ export type DocumentVue = {
   original_name: string;
   mime: string;
   taille: number;
+  subject_id: number | null;
   matiere: string | null;
+  couleur: string | null;
   chapitre: string | null;
   tags: string[];
   uploaded_by: string;
@@ -26,27 +28,31 @@ export type DocumentVue = {
 };
 
 const CHAMPS = `
-  d.id, d.original_name, d.mime, d.taille, d.matiere::text as matiere, d.chapitre,
+  d.id, d.original_name, d.mime, d.taille, d.subject_id, sj.nom as matiere, sj.couleur,
+  d.chapitre,
   d.tags, d.uploaded_by, u.display_name as uploader, d.created_at,
   d.deleted_at, d.purge_after`;
 
 export async function documentsRecents(limite = 20): Promise<DocumentVue[]> {
   return query<DocumentVue>(
     `select ${CHAMPS} from document d join app_user u on u.id = d.uploaded_by
+      left join subject sj on sj.id = d.subject_id
       where d.deleted_at is null
       order by d.created_at desc limit $1`,
     [limite],
   );
 }
 
+/** `matiere` : id de la matière, "" = sans matière, null = toutes. */
 export async function documentsParMatiere(
   matiere: string | null,
   chapitre: string | null,
 ): Promise<DocumentVue[]> {
   return query<DocumentVue>(
     `select ${CHAMPS} from document d join app_user u on u.id = d.uploaded_by
+      left join subject sj on sj.id = d.subject_id
       where d.deleted_at is null
-        and ($1::text is null or coalesce(d.matiere::text, '') = $1)
+        and ($1::text is null or coalesce(d.subject_id::text, '') = $1)
         and ($2::text is null or coalesce(d.chapitre, '') = $2)
       order by d.created_at desc limit 500`,
     [matiere, chapitre],
@@ -63,6 +69,7 @@ export async function rechercherDocuments(terme: string): Promise<DocumentVue[]>
   if (q.length < 2) return [];
   return query<DocumentVue>(
     `select ${CHAMPS} from document d join app_user u on u.id = d.uploaded_by
+      left join subject sj on sj.id = d.subject_id
       where d.deleted_at is null
         and (d.recherche @@ plainto_tsquery('french', $1)
              or d.original_name ilike '%' || $1 || '%'
@@ -78,6 +85,7 @@ export async function rechercherDocuments(terme: string): Promise<DocumentVue[]>
 export async function lireDocument(id: number): Promise<DocumentVue | null> {
   return queryOne<DocumentVue>(
     `select ${CHAMPS} from document d join app_user u on u.id = d.uploaded_by
+      left join subject sj on sj.id = d.subject_id
       where d.id = $1`,
     [id],
   );
@@ -85,28 +93,34 @@ export async function lireDocument(id: number): Promise<DocumentVue | null> {
 
 /** Arborescence matière → chapitres, avec les compteurs. */
 export type NoeudMatiere = {
+  subject_id: number | null;
   matiere: string | null;
+  couleur: string | null;
   total: number;
   chapitres: Array<{ chapitre: string | null; n: number; taille: number }>;
 };
 
 export async function arborescence(): Promise<NoeudMatiere[]> {
   const lignes = await query<{
-    matiere: string | null; chapitre: string | null; n: number; taille: number;
+    subject_id: number | null; matiere: string | null; couleur: string | null;
+    chapitre: string | null; n: number; taille: number;
   }>(
-    `select d.matiere::text as matiere, d.chapitre,
+    `select d.subject_id, sj.nom as matiere, sj.couleur, d.chapitre,
             count(*)::int as n, coalesce(sum(d.taille), 0)::bigint as taille
-       from document d
+       from document d left join subject sj on sj.id = d.subject_id
       where d.deleted_at is null
-      group by 1, 2
-      order by 1 nulls last, 2 nulls last`,
+      group by d.subject_id, sj.nom, sj.couleur, sj.position, d.chapitre
+      order by d.subject_id is null, sj.position, sj.nom, d.chapitre nulls last`,
   );
 
   const parMatiere = new Map<string, NoeudMatiere>();
   for (const l of lignes) {
-    const cle = l.matiere ?? "";
+    const cle = String(l.subject_id ?? "");
     let n = parMatiere.get(cle);
-    if (!n) { n = { matiere: l.matiere, total: 0, chapitres: [] }; parMatiere.set(cle, n); }
+    if (!n) {
+      n = { subject_id: l.subject_id, matiere: l.matiere, couleur: l.couleur, total: 0, chapitres: [] };
+      parMatiere.set(cle, n);
+    }
     n.chapitres.push({ chapitre: l.chapitre, n: l.n, taille: l.taille });
     n.total += l.n;
   }
@@ -152,6 +166,7 @@ export async function usage(userId: string): Promise<Usage> {
 export async function corbeille(userId: string, estAdmin: boolean): Promise<DocumentVue[]> {
   return query<DocumentVue>(
     `select ${CHAMPS} from document d join app_user u on u.id = d.uploaded_by
+      left join subject sj on sj.id = d.subject_id
       where d.deleted_at is not null
         and ($2::boolean or d.uploaded_by = $1::uuid)
       order by d.deleted_at desc limit 200`,

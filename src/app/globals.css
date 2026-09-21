@@ -47,6 +47,54 @@
   --sheet-backdrop: oklch(0.15 0 0 / 0.45);
 }
 
+/*
+ * Palette des matieres (cles : src/lib/constantes.ts, PALETTE).
+ * Luminance et saturation identiques pour toutes les teintes : aucune
+ * matiere ne crie plus fort qu'une autre, et toutes restent dans le
+ * gamut sRGB (sarcelle et cyan sont a leur maximum, 0,09). Contraste du
+ * texte : >= 5:1 sur fond clair, >= 8:1 sur fond sombre.
+ *
+ * A luminance egale, deux teintes voisines restent proches (surtout pour
+ * un daltonien) : la couleur n'est donc jamais le seul indice. Toute
+ * pastille ou carte coloree affiche aussi le nom de la matiere.
+ */
+:root {
+  --matiere-rouge: oklch(0.52 0.10 25);
+  --matiere-orange: oklch(0.52 0.10 52);
+  --matiere-ambre: oklch(0.52 0.10 80);
+  --matiere-olive: oklch(0.52 0.10 112);
+  --matiere-vert: oklch(0.52 0.10 150);
+  --matiere-sarcelle: oklch(0.52 0.09 182);
+  --matiere-cyan: oklch(0.52 0.09 212);
+  --matiere-bleu: oklch(0.52 0.10 252);
+  --matiere-indigo: oklch(0.52 0.10 276);
+  --matiere-violet: oklch(0.52 0.10 302);
+  --matiere-magenta: oklch(0.52 0.10 330);
+  --matiere-rose: oklch(0.52 0.10 356);
+}
+.dark {
+  --matiere-rouge: oklch(0.76 0.11 25);
+  --matiere-orange: oklch(0.76 0.11 52);
+  --matiere-ambre: oklch(0.76 0.11 80);
+  --matiere-olive: oklch(0.76 0.11 112);
+  --matiere-vert: oklch(0.76 0.11 150);
+  --matiere-sarcelle: oklch(0.76 0.11 182);
+  --matiere-cyan: oklch(0.76 0.11 212);
+  --matiere-bleu: oklch(0.76 0.11 252);
+  --matiere-indigo: oklch(0.76 0.11 276);
+  --matiere-violet: oklch(0.76 0.11 302);
+  --matiere-magenta: oklch(0.76 0.11 330);
+  --matiere-rose: oklch(0.76 0.11 356);
+}
+
+/* Une matiere s'applique en posant --m (style={styleMatiere(...)}). */
+.m-texte { color: var(--m, var(--muted-foreground)); }
+.m-teinte { background: color-mix(in oklab, var(--m, var(--muted-foreground)) 13%, var(--card)); }
+.m-teinte-forte { background: color-mix(in oklab, var(--m, var(--muted-foreground)) 22%, var(--card)); }
+.m-plein { background: var(--m, var(--muted-foreground)); }
+.m-bord { border-color: color-mix(in oklab, var(--m, var(--muted-foreground)) 45%, var(--border)); }
+.m-liseret { box-shadow: inset 3px 0 0 var(--m, var(--muted-foreground)); }
+
 * { border-color: var(--border); }
 
 html {

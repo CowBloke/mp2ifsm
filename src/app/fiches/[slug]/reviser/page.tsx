@@ -22,6 +22,8 @@ export default async function PageRevision({
 
   const paquet = await lirePaquet(slug, u.id);
   if (!paquet) notFound();
+  // Seuls les paquets suivis se révisent.
+  if (!paquet.abonne) redirect(`/fiches/${paquet.slug}`);
 
   const c = await prochaineCarte(u.id, paquet.id);
 

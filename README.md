@@ -320,3 +320,48 @@ Diagnostic : `systemctl status mp2ifsm-deploy.timer` et
 `journalctl -u mp2ifsm-deploy.service`. Un redéploiement ne se fait jamais en
 déplaçant manuellement la branche `production` : relancer le workflow sur le SHA
 voulu et approuver le job conserve la piste d’audit GitHub.
+
+## Matières, abonnements, retours et colles (21 septembre 2026)
+
+Migration additive : `db/schema-etudes.sql`, appliquée après
+`schema-proposals.sql` (ajoutée à `deploy/build-release.sh`). Elle est
+rejouable : les données qui ne doivent être migrées qu’une fois sont
+protégées par la table `migration_unique`.
+
+**Matières.** Table `subject` gérée dans **Profil → Administration →
+Matières** : ajouter, renommer, ordonner, colorer, archiver. Une matière
+archivée reste affichée sur le contenu existant mais n’est plus proposée ;
+« Sans matière » correspond à `subject_id` nul. Les couleurs viennent d’une
+palette fixe de 12 teintes (`PALETTE` dans `src/lib/constantes.ts`, valeurs
+`--matiere-*` dans `globals.css`) de luminance et saturation identiques,
+lisibles en clair comme en sombre. À luminance égale, deux teintes voisines
+restent proches : la couleur n’est jamais le seul indice, le nom de la
+matière est toujours affiché. L’ancienne colonne enum `matiere` reste
+synchronisée par trigger pour que le build précédent fonctionne en cas de
+retour arrière.
+
+**Abonnements aux paquets.** Tous les paquets restent visibles ; seuls les
+paquets suivis (`deck_subscription`) entrent dans la file de révision, les
+statistiques, la heatmap et les rappels. Se désabonner ne supprime ni
+`card_state` ni `review_log`. Aucun abonnement automatique pour les nouveaux
+comptes ; à la migration, les membres existants suivent les paquets qu’ils
+avaient déjà révisés. Créer ou importer un paquet y abonne son auteur.
+
+**Retours.** Bouton « Retour » en haut de chaque page (membres connectés) :
+idée, bug ou autre, avec l’auteur et la page d’envoi. Les administrateurs
+filtrent, répondent, changent le statut (ouvert, prévu, refusé, terminé) et
+archivent dans **Administration → Retours** ; l’auteur suit le statut dans
+**Profil → Mes retours**. 20 retours par jour et par membre au maximum.
+
+**Colloscope.** Les données sont dans le code : `src/lib/colloscope/`
+(`types.ts` pour le modèle, un fichier par période, registre `PERIODES`
+dans `index.ts`). Pour ajouter un semestre : copier
+`2026-2027-s1.ts`, renseigner créneaux, rotations, semaines et planning,
+puis l’ajouter à `PERIODES` ; `tests/colloscope.test.ts` vérifie la
+cohérence de chaque période. Les heures sont des heures de Paris. Seul le
+numéro de groupe est en base (`app_user.groupe_colle`) ; tant qu’il manque,
+une fenêtre le demande à chaque connexion (« Plus tard » vaut pour la
+session). Page `/colles` : semaine en calendrier, créneau de repli de P2,
+notes du colloscope. Les rappels (colles sous 36 h, cartes dues des paquets
+suivis, échéances sous 48 h) sont affichés uniquement dans le portail, sur
+l’accueil ; sans groupe, aucun rappel de colle.

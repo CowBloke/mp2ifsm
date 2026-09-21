@@ -5,7 +5,7 @@ import { z } from "zod";
 import { query } from "./db";
 import { ErreurMetier, messageFr } from "./errors";
 import { exigerUtilisateur } from "./session";
-import { MATIERES } from "./constantes";
+import { matiereDuFormulaire } from "./matieres";
 import type { Reponse } from "./actions";
 
 const Schema = z.object({
@@ -31,12 +31,11 @@ export async function ajouterEcheance(formData: FormData): Promise<Reponse<undef
     const due = new Date(p.data.dueAt);
     if (Number.isNaN(due.getTime())) return { ok: false, erreur: "Date invalide" };
 
-    const matiere = p.data.matiere && (MATIERES as readonly string[]).includes(p.data.matiere)
-      ? p.data.matiere : null;
+    const matiere = await matiereDuFormulaire(p.data.matiere);
 
     await query(
-      `insert into echeance (titre, kind, matiere, due_at, details, created_by)
-       values ($1,$2::echeance_kind,$3::matiere,$4,$5,$6::uuid)`,
+      `insert into echeance (titre, kind, subject_id, due_at, details, created_by)
+       values ($1,$2::echeance_kind,$3,$4,$5,$6::uuid)`,
       [p.data.titre, p.data.kind, matiere, due, p.data.details ?? null, u.id],
     );
 

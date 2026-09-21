@@ -4,6 +4,10 @@ import { notFound, redirect } from "next/navigation";
 import { ListeCartes } from "@/components/ListeCartes";
 import { PanneauAjoutCarte } from "@/components/PanneauAjoutCarte";
 import { SqueletteListe } from "@/components/Squelettes";
+import { BoutonSuivre } from "@/components/BoutonSuivre";
+import { MatierePaquet } from "@/components/MatierePaquet";
+import { PastilleMatiere } from "@/components/Matiere";
+import { listerMatieres } from "@/lib/matieres";
 import { heatmapClasse, lirePaquet, listerCartes, statsPaquet } from "@/lib/fiches";
 import { rendreContenu } from "@/lib/rendu";
 import { utilisateurCourant } from "@/lib/session";
@@ -23,6 +27,8 @@ export default async function PagePaquet({
   if (!paquet) notFound();
 
   const du = paquet.nouvelles + paquet.apprentissage + paquet.a_revoir;
+  const peutReclasser = u.role === "admin" || paquet.created_by === u.id;
+  const matieres = peutReclasser ? await listerMatieres(true) : [];
 
   return (
     <main className="py-4">
@@ -36,31 +42,51 @@ export default async function PagePaquet({
         Fiches
       </Link>
 
-      <header className="mt-3">
-        <p className="text-[12px] font-medium text-[var(--muted-foreground)]">
-          {paquet.matiere} · {paquet.chapitre}
-        </p>
-        <h1 className="mt-0.5 text-[19px] font-bold leading-snug">{paquet.titre}</h1>
-        {paquet.description && (
-          <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">{paquet.description}</p>
-        )}
+      <header className="mt-3 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <PastilleMatiere nom={paquet.matiere} couleur={paquet.couleur} />
+            <span className="text-[12px] font-medium text-[var(--muted-foreground)]">{paquet.chapitre}</span>
+          </div>
+          <h1 className="mt-1 text-[19px] font-bold leading-snug">{paquet.titre}</h1>
+          {paquet.description && (
+            <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">{paquet.description}</p>
+          )}
+          {peutReclasser && (
+            <div className="mt-1.5">
+              <MatierePaquet deckId={paquet.id} actuelle={paquet.subject_id} matieres={matieres} />
+            </div>
+          )}
+        </div>
+        <BoutonSuivre deckId={paquet.id} abonne={paquet.abonne} />
       </header>
 
-      <Link
-        href={`/fiches/${paquet.slug}/reviser`}
-        className={`mt-4 block rounded-[var(--radius-md)] px-4 py-3.5 text-center text-[15px]
-                    font-semibold ${
-                      du > 0
-                        ? "bg-[var(--primary)] text-[var(--primary-foreground)]"
-                        : "border text-[var(--muted-foreground)]"
-                    }`}
-      >
-        {du > 0 ? `Réviser ${du} carte${du > 1 ? "s" : ""}` : "Tout est à jour — réviser quand même"}
-      </Link>
+      {paquet.abonne ? (
+        <>
+          <Link
+            href={`/fiches/${paquet.slug}/reviser`}
+            className={`mt-4 block rounded-[var(--radius-md)] px-4 py-3.5 text-center text-[15px]
+                        font-semibold ${
+                          du > 0
+                            ? "bg-[var(--primary)] text-[var(--primary-foreground)]"
+                            : "border text-[var(--muted-foreground)]"
+                        }`}
+          >
+            {du > 0 ? `Réviser ${du} carte${du > 1 ? "s" : ""}` : "Tout est à jour"}
+          </Link>
 
-      <Suspense fallback={<div className="mt-5"><SqueletteListe n={2} /></div>}>
-        <Statistiques deckId={paquet.id} userId={u.id} slug={paquet.slug} />
-      </Suspense>
+          <Suspense fallback={<div className="mt-5"><SqueletteListe n={2} /></div>}>
+            <Statistiques deckId={paquet.id} userId={u.id} slug={paquet.slug} />
+          </Suspense>
+        </>
+      ) : (
+        <p className="mt-4 rounded-[var(--radius-md)] border border-dashed p-3 text-[13px]
+                      text-[var(--muted-foreground)]">
+          Vous ne suivez pas ce paquet : il n’entre ni dans vos révisions, ni dans vos
+          statistiques, ni dans vos rappels. Suivez-le pour le réviser — si vous
+          l’aviez déjà travaillé, votre progression reprend là où vous l’aviez laissée.
+        </p>
+      )}
 
       <Suspense fallback={<div className="mt-5"><SqueletteListe n={2} /></div>}>
         <Heatmap deckId={paquet.id} />
@@ -181,7 +207,7 @@ async function Heatmap({ deckId }: { deckId: number }) {
         Révisions de la classe
       </h2>
       <p className="mb-3 mt-0.5 text-[11px] text-[var(--muted-foreground)]">
-        21 derniers jours · seuls les membres ayant activé le partage apparaissent.
+        21 derniers jours · membres qui suivent ce paquet et ont activé le partage.
       </p>
 
       <div className="space-y-1 overflow-x-auto">

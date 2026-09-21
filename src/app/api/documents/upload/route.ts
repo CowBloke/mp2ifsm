@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { utilisateurCourant } from "@/lib/session";
 import { tx } from "@/lib/db";
 import { ErreurMetier, messageFr } from "@/lib/errors";
-import { MATIERES } from "@/lib/constantes";
+import { matiereDuFormulaire } from "@/lib/matieres";
 import { lireFormulaire, verifierQuota } from "@/lib/uploads";
 import {
   DOSSIER_DOCUMENTS, TAILLE_MAX_FICHIER, TYPES_DOCUMENTS,
@@ -21,11 +21,9 @@ export async function POST(request: Request) {
     const fichier = form.get("fichier");
     if (!(fichier instanceof File) || !fichier.size) throw new ErreurMetier("FICHIER_MANQUANT");
     if (fichier.size > TAILLE_MAX_FICHIER) throw new ErreurMetier("FICHIER_TROP_GROS");
-    const matiere = String(form.get("matiere") ?? "").trim();
+    const matiere = await matiereDuFormulaire(form.get("matiere"));
     const chapitre = String(form.get("chapitre") ?? "").trim();
-    if ((matiere && !(MATIERES as readonly string[]).includes(matiere)) || chapitre.length > 120) {
-      throw new ErreurMetier("CHAMPS_MANQUANTS");
-    }
+    if (chapitre.length > 120) throw new ErreurMetier("CHAMPS_MANQUANTS");
     const tags = [...new Set(String(form.get("tags") ?? "").split(",")
       .map(t => t.trim().toLowerCase()).filter(t => t && t.length <= 40))].slice(0, 12);
     const nom = fichier.name.replace(/[\x00-\x1f\x7f]/g, "").trim().slice(0, 255);
@@ -38,9 +36,9 @@ export async function POST(request: Request) {
       stockage = await ecrire(DOSSIER_DOCUMENTS, buf);
       const r = await c.query<{ id: number }>(
         `insert into document (storage_name, original_name, mime, taille, sha256,
-                               matiere, chapitre, tags, uploaded_by)
-         values ($1,$2,$3,$4,$5,$6::matiere,$7,$8,$9::uuid) returning id`,
-        [stockage, nom, mime, buf.length, empreinte(buf), matiere || null, chapitre || null, tags, u.id]);
+                               subject_id, chapitre, tags, uploaded_by)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9::uuid) returning id`,
+        [stockage, nom, mime, buf.length, empreinte(buf), matiere, chapitre || null, tags, u.id]);
       return r.rows[0].id;
     });
     return NextResponse.json({ ok: true, id });

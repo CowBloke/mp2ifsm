@@ -2,12 +2,15 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { BarreNavigation } from "@/components/BarreNavigation";
+import { BoutonRetour } from "@/components/BoutonRetour";
+import { DemandeGroupe } from "@/components/Groupe";
+import { GROUPE_MAX } from "@/lib/colloscope";
 import { utilisateurCourant } from "@/lib/session";
 
 export const metadata: Metadata = {
   title: "MP2I/FSM — Portail de classe",
   description:
-    "Fiches de révision, documents partagés, échéances et marché de prédiction de la classe MP2I/FSM.",
+    "Fiches de révision, colles, documents partagés, échéances et marché de prédiction de la classe MP2I/FSM.",
   applicationName: "mp2ifsm",
 };
 
@@ -30,9 +33,15 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <link rel="stylesheet" href="/katex/katex.min.css" />
       </head>
       <body>
-        <ThemeToggle />
+        <div className="mx-auto flex max-w-[560px] justify-end gap-2 px-4 pt-2">
+          {u ? <BoutonRetour /> : null}
+          <ThemeToggle />
+        </div>
         <div className="mx-auto w-full max-w-[560px] px-4">{children}</div>
         {u ? <BarreNavigation /> : null}
+        {/* Demande de groupe : à chaque connexion tant qu'il manque,
+            « Plus tard » la masque pour la session seulement. */}
+        {u && u.groupe_colle === null && !u.groupe_reporte ? <DemandeGroupe max={GROUPE_MAX} /> : null}
       </body>
     </html>
   );

@@ -7,7 +7,7 @@ import { query, queryOne, tx } from "./db";
 import { ErreurMetier, messageFr } from "./errors";
 import { exigerAdmin, exigerUtilisateur } from "./session";
 import { noteDepuisCle, noterProjection, versDb, formatIntervalle, type EtatDb } from "./fsrs";
-import { MATIERES } from "./constantes";
+import { matiereDuFormulaire } from "./matieres";
 import type { Reponse } from "./actions";
 
 function echec(err: unknown): { ok: false; erreur: string } {
@@ -50,9 +50,12 @@ export async function reviserCarte(
     const projection = verifierRevision(jeton, u.id, cardId);
     const resultat = await tx(async (c) => {
       await c.query("select pg_advisory_xact_lock(hashtextextended($1, 0))", [`${u.id}:${cardId}`]);
-      const existe = await c.query(
-        `select 1 from card where id = $1 and deleted_at is null`, [cardId]);
+      const existe = await c.query<{ abonne: boolean }>(
+        `select exists (select 1 from deck_subscription ab
+                         where ab.deck_id = k.deck_id and ab.user_id = $2::uuid) as abonne
+           from card k where k.id = $1 and k.deleted_at is null`, [cardId, u.id]);
       if (existe.rowCount === 0) throw new ErreurMetier("CARTE_INTROUVABLE");
+      if (!existe.rows[0].abonne) throw new ErreurMetier("PAS_ABONNE");
 
       // Verrou sur l'état de CE membre pour CETTE carte.
       const actuel = await c.query<EtatDb>(
@@ -119,7 +122,6 @@ export async function reviserCarte(
 
 const SchemaPaquet = z.object({
   titre: z.string().trim().min(2).max(120),
-  matiere: z.enum(MATIERES),
   chapitre: z.string().trim().min(1).max(120),
   description: z.string().trim().max(1000).optional(),
 });
@@ -129,31 +131,98 @@ export async function creerPaquet(formData: FormData): Promise<Reponse<{ slug: s
     const u = await exigerUtilisateur();
     const p = SchemaPaquet.safeParse({
       titre: formData.get("titre"),
-      matiere: formData.get("matiere"),
       chapitre: formData.get("chapitre"),
       description: formData.get("description") || undefined,
     });
     if (!p.success) return { ok: false, erreur: "Formulaire invalide" };
 
     const slug = await tx(async (c) => {
-      const base = slugifier(`${p.data.matiere}-${p.data.chapitre}-${p.data.titre}`);
+      const matiere = await matiereDuFormulaire(formData.get("matiere"), c);
+      const nom = matiere === null ? "" : (await c.query<{ nom: string }>(
+        `select nom from subject where id = $1`, [matiere])).rows[0].nom;
+      const base = slugifier(`${nom}-${p.data.chapitre}-${p.data.titre}`);
       let candidat = base;
       for (let n = 2; ; n++) {
         const pris = await c.query(`select 1 from deck where slug = $1`, [candidat]);
         if (pris.rowCount === 0) break;
         candidat = `${base.slice(0, 58)}-${n}`;
       }
-      await c.query(
-        `insert into deck (slug, titre, matiere, chapitre, description, created_by)
-         values ($1,$2,$3::matiere,$4,$5,$6::uuid)`,
-        [candidat, p.data.titre, p.data.matiere, p.data.chapitre,
+      const d = await c.query<{ id: number }>(
+        `insert into deck (slug, titre, subject_id, chapitre, description, created_by)
+         values ($1,$2,$3,$4,$5,$6::uuid) returning id`,
+        [candidat, p.data.titre, matiere, p.data.chapitre,
          p.data.description ?? null, u.id],
+      );
+      // Qui crée un paquet le suit : c'est lui qui va le remplir.
+      await c.query(
+        `insert into deck_subscription (user_id, deck_id) values ($1::uuid, $2)`,
+        [u.id, d.rows[0].id],
       );
       return candidat;
     });
 
     revalidatePath("/fiches");
     return { ok: true, data: { slug } };
+  } catch (err) {
+    return echec(err);
+  }
+}
+
+/**
+ * Suivre ou ne plus suivre un paquet. Se désabonner ne touche ni
+ * card_state ni review_log : un réabonnement reprend la planification
+ * exactement là où elle en était.
+ */
+export async function suivrePaquet(
+  deckId: number,
+  suivre: boolean,
+): Promise<Reponse<{ abonne: boolean }>> {
+  try {
+    const u = await exigerUtilisateur();
+    if (!Number.isSafeInteger(deckId) || deckId <= 0 || typeof suivre !== "boolean") {
+      throw new ErreurMetier("PAQUET_INTROUVABLE");
+    }
+    if (suivre) {
+      const r = await query(
+        `insert into deck_subscription (user_id, deck_id)
+         select $1::uuid, id from deck where id = $2 and archived_at is null
+         on conflict do nothing returning deck_id`,
+        [u.id, deckId],
+      );
+      if (r.length === 0) {
+        const existe = await queryOne(`select 1 from deck_subscription
+          where user_id = $1::uuid and deck_id = $2`, [u.id, deckId]);
+        if (!existe) throw new ErreurMetier("PAQUET_INTROUVABLE");
+      }
+    } else {
+      await query(`delete from deck_subscription where user_id = $1::uuid and deck_id = $2`,
+        [u.id, deckId]);
+    }
+    revalidatePath("/fiches");
+    revalidatePath("/");
+    return { ok: true, data: { abonne: suivre } };
+  } catch (err) {
+    return echec(err);
+  }
+}
+
+/** Reclasse un paquet : son créateur ou un administrateur. */
+export async function changerMatierePaquet(
+  deckId: number,
+  matiere: string,
+): Promise<Reponse<undefined>> {
+  try {
+    const u = await exigerUtilisateur();
+    const id = await matiereDuFormulaire(matiere);
+    const r = await query(
+      `update deck set subject_id = $2
+        where id = $1 and ($4::boolean or created_by = $3::uuid) returning id`,
+      [deckId, id, u.id, u.role === "admin"],
+    );
+    if (r.length === 0) throw new ErreurMetier("NON_AUTORISE");
+    revalidatePath("/fiches");
+    revalidatePath("/");
+    return { ok: true };
   } catch (err) {
     return echec(err);
   }
