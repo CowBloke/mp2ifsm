@@ -14,6 +14,7 @@ readonly ENV_FILE="$REPOSITORY/.env"
 readonly SERVICE=mp2ifsm.service
 readonly LOCK_FILE=/run/mp2ifsm-deploy/deploy.lock
 readonly BUILD_HELPER=/usr/local/libexec/mp2ifsm-build-release
+readonly KEEP_RELEASES=3
 
 log() {
   printf '[mp2ifsm-deploy] %s\n' "$*"
@@ -45,8 +46,16 @@ if ! as_app git -C "$REPOSITORY" merge-base --is-ancestor "$target" "$main"; the
   exit 1
 fi
 
-if [[ -f "$STATE_DIR/deployed-sha" ]] && [[ $(<"$STATE_DIR/deployed-sha") == "$target" ]]; then
-  exit 0
+if [[ -f "$STATE_DIR/deployed-sha" ]]; then
+  deployed=$(<"$STATE_DIR/deployed-sha")
+  if [[ "$deployed" == "$target" ]]; then
+    exit 0
+  fi
+  if as_app git -C "$REPOSITORY" rev-parse --verify --quiet "$deployed^{commit}" >/dev/null \
+    && as_app git -C "$REPOSITORY" merge-base --is-ancestor "$target" "$deployed"; then
+    log "refusing $target: older than the live release $deployed"
+    exit 1
+  fi
 fi
 
 release="$RELEASES/$target"
@@ -107,4 +116,18 @@ if [[ $healthy -ne 1 ]]; then
 fi
 
 printf '%s\n' "$target" > "$STATE_DIR/deployed-sha"
+
+# Drop superseded releases (~680 MiB each), newest first, never the live one.
+live=$(readlink -f "$CURRENT")
+mapfile -t stale < <(
+  find "$RELEASES" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' \
+    | sort -rn | cut -d' ' -f2- | tail -n +$((KEEP_RELEASES + 1))
+)
+for dir in "${stale[@]:-}"; do
+  [[ -n "$dir" && "$dir" != "$live" ]] || continue
+  log "pruning old release $(basename "$dir")"
+  as_app git -C "$REPOSITORY" worktree remove --force "$dir" || rm -rf "$dir"
+done
+as_app git -C "$REPOSITORY" worktree prune
+
 log "deployed $target successfully"

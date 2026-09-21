@@ -7,7 +7,7 @@ on:
 
 concurrency:
   group: mp2ifsm-production
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -50,4 +50,22 @@ jobs:
       - name: Mark this exact commit as approved
         env:
           APPROVED_SHA: ${{ github.sha }}
-        run: git push origin "$APPROVED_SHA:refs/heads/production" --force
+        run: |
+          set -euo pipefail
+
+          # production must only ever move forward. Approving an older run
+          # after a newer one has shipped would otherwise rewind the branch,
+          # and the deploy host would treat that rollback as a new release.
+          if git fetch --quiet origin '+refs/heads/production:refs/remotes/origin/production' 2>/dev/null; then
+            current=$(git rev-parse refs/remotes/origin/production)
+            if [ "$current" = "$APPROVED_SHA" ]; then
+              echo "production is already at $APPROVED_SHA"
+              exit 0
+            fi
+            if git merge-base --is-ancestor "$APPROVED_SHA" "$current"; then
+              echo "refusing to rewind production from $current to $APPROVED_SHA" >&2
+              exit 1
+            fi
+          fi
+
+          git push origin "$APPROVED_SHA:refs/heads/production"
