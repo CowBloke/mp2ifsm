@@ -175,15 +175,17 @@ export function SessionRevision({
           <span>par {carte.auteur}</span>
         </div>
 
-        <div className="mt-4 text-[17px] leading-relaxed"
-             dangerouslySetInnerHTML={{ __html: carte.rectoHtml }} />
+        <div className="contenu-carte mt-4 text-[17px] leading-relaxed"
+             dangerouslySetInnerHTML={{ __html: revele ? carte.rectoReveleHtml : carte.rectoHtml }} />
 
         {revele ? (
-          <>
-            <hr className="my-5" />
-            <div className="text-[17px] leading-relaxed"
-                 dangerouslySetInnerHTML={{ __html: carte.versoHtml }} />
-          </>
+          carte.versoHtml && (
+            <>
+              <hr className="my-5" />
+              <div className="contenu-carte text-[17px] leading-relaxed"
+                   dangerouslySetInnerHTML={{ __html: carte.versoHtml }} />
+            </>
+          )
         ) : (
           <p className="mt-8 text-center text-[13px] text-[var(--muted-foreground)]">
             Touchez la carte ou appuyez sur <kbd className="rounded border px-1.5 py-0.5">Espace</kbd>

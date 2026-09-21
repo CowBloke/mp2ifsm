@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { SessionRevision } from "@/components/SessionRevision";
 import { lirePaquet, prochaineCarte } from "@/lib/fiches";
-import { rendreContenu } from "@/lib/rendu";
+import { composerCarte } from "@/lib/rendu";
 import { utilisateurCourant } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -35,8 +35,7 @@ export default async function PageRevision({
           c && {
             jeton: c.jeton,
             cardId: c.card_id,
-            rectoHtml: rendreContenu(c.recto),
-            versoHtml: rendreContenu(c.verso),
+            ...composerCarte(c.recto, c.verso),
             auteur: c.auteur,
             signalee: c.signalee,
             apercu: c.apercu,
