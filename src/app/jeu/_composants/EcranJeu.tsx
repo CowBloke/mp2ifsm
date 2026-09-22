@@ -3,6 +3,16 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
+const COMMANDES: [string, string][] = [
+  ["Bouger", "ZQSD ou flèches"],
+  ["Sauter", "Espace (2× en l’air)"],
+  ["Dash", "Maj"],
+  ["Attaque", "J ou X (+ direction)"],
+  ["Spécial", "K ou C (+ direction)"],
+  ["Ultime", "L ou V (jauge pleine)"],
+  ["Hitboxes", "H"],
+];
+
 /*
  * Calque plein écran qui héberge le client de jeu.
  *
@@ -13,6 +23,7 @@ import { useEffect, useRef, useState } from "react";
 export function EcranJeu() {
   const conteneur = useRef<HTMLDivElement>(null);
   const [etat, setEtat] = useState<"chargement" | "pret" | "erreur">("chargement");
+  const [aide, setAide] = useState(true);
 
   useEffect(() => {
     // En développement, React monte l'effet deux fois : une partie dont
@@ -50,9 +61,24 @@ export function EcranJeu() {
                          text-[13px] font-medium hover:bg-black/60">
           ← Quitter
         </Link>
-        <p className="rounded-[var(--radius-md)] bg-black/40 px-2.5 py-1.5 text-right text-[12px] leading-relaxed text-white/75">
-          ← → ou Q D : se déplacer · Espace, ↑ ou Z : sauter (deux fois) · Maj : dash
-        </p>
+        <div className="pointer-events-auto flex flex-col items-end gap-1.5">
+          <button type="button" onClick={() => setAide(!aide)} aria-expanded={aide}
+                  className="rounded-full border border-white/20 bg-black/40 px-3 py-1.5 text-[13px]
+                             font-medium hover:bg-black/60">
+            {aide ? "Masquer l’aide" : "Commandes"}
+          </button>
+          {aide ? (
+            <dl className="grid grid-cols-[auto_auto] gap-x-3 gap-y-0.5 rounded-[var(--radius-md)] bg-black/55
+                           px-3 py-2 text-[12px] leading-snug">
+              {COMMANDES.map(([action, touches]) => (
+                <div key={action} className="contents">
+                  <dt className="text-white/55">{action}</dt>
+                  <dd className="text-right font-medium text-white/90">{touches}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : null}
+        </div>
       </div>
 
       {etat === "chargement" ? (

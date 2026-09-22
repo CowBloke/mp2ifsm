@@ -1,47 +1,68 @@
-# Jeu de combat de la classe — prototype
+# Jeu de combat de la classe
 
-Phase 1 : un mannequin (simple boîte) se déplace, saute, double-saute et
-dashe dans une arène fermée, en local dans le navigateur. Ni personnage,
-ni combat, ni multijoueur pour l'instant.
+Jeu de plateforme-combat 2D, de 2 à 4 joueurs, en manches, intégré au
+site sous `/jeu` (masqué tant que `JEU_ACTIF` ne l'ouvre pas).
 
 ## Organisation
 
 ```
 jeu/noyau/    simulation pure, en entiers, 60 ticks/s (ni DOM, ni Node, ni Pixi, ni React)
-jeu/client/   rendu PixiJS, clavier, caméra ; point d'entrée unique : monterJeu()
-jeu/serveur/  serveur Node séparé (phase 0 : santé + écho WebSocket)
+  contenu/    personnages et cartes : uniquement des données
+jeu/client/   rendu PixiJS, clavier/manette, caméra, sessions (locale, réseau)
+jeu/serveur/  serveur de partie Node séparé (WebSocket)
 jeu/tests/    tests sans navigateur (node:test)
-src/app/jeu/  page /jeu du site : un conteneur, rien d'autre
+src/app/jeu/  pages du site : conteneurs et menus, aucune logique de jeu
 ```
 
 `jeu/tests/frontieres.test.ts` fait échouer les tests si ces frontières
-sont franchies.
+sont franchies, ou si le moteur cite un personnage par son nom.
+
+## Le moteur en bref
+
+- **Unités** : positions en centièmes de pixel, vitesses par tick, durées
+  en ticks, multiplicateurs en millièmes. Tout est entier : le serveur et
+  les navigateurs calculent exactement la même chose.
+- **Un tick** (`monde.ts`) : commandes et physique de chaque combattant,
+  résolution des coups (collectés puis appliqués ensemble : les échanges
+  sont équitables), chutes, fin de frame des coups, règles de manche.
+- **Coups** (`definitions.ts`) : données de frames — hitboxes (dégâts,
+  recul, angle, hitstun, gel, groupes pour les multi-coups), mouvements
+  imposés, enchaînements, armure, invulnérabilité, contre, charge,
+  recharge, coût en jauge. Un emplacement vide retombe sur un plus
+  général (`air_bas` → `air_neutre`).
+- **Statuts** (`statuts.ts`) : bibliothèque générique (ralenti, étourdi,
+  silence, intimidé, galvanisé, marqué, armure, apesanteur).
+- **Règles** (`regles.ts`) : décompte, manches chronométrées, premier à
+  2 manches (3 au plus), départage aux dégâts infligés, chute = perte de
+  25 % des PV max puis réapparition invulnérable.
 
 ## Commandes
 
 ```bash
-npm run jeu:test     # tests du jeu (physique, horloge, caméra, serveur, frontières)
-npm run jeu:dev      # serveur de jeu sur 127.0.0.1:4270 (JEU_PORT), rechargement auto
+npm run jeu:test     # tests du jeu
+npm run jeu:dev      # serveur de jeu sur 127.0.0.1:4270 (JEU_PORT)
 npm run dev          # site ; /jeu exige JEU_ACTIF=tous (ou admins) dans .env
 ```
 
-Contrôles : ← → ou Q D, saut sur Espace, ↑ ou Z (deux fois en l'air), dash sur Maj.
+Au clavier : ZQSD ou flèches, Espace (saut), Maj (dash), J/X (attaque),
+K/C (spécial), L/V (ultime), H (boîtes de coups). Manette : stick ou
+croix, A saut, X attaque, B spécial, Y ultime, gâchettes dash.
 
-## Constats de la phase 0 (23 septembre 2026)
+## Phase 0 : constats (23 septembre 2026)
 
 Vérifiés dans Chromium, derrière nginx, avec la CSP de `deploy/nginx-mp2ifsm.conf` :
 
 - **Pixi v8 exige `import "pixi.js/unsafe-eval"`** : sans lui, le rendu
-  refuse de démarrer, car la CSP interdit `new Function`. Avec ce module :
-  WebGL2, aucune violation de CSP.
-- Pixi ne crée des workers `blob:` que pour charger des textures : quand il y
-  en aura, régler `loadTextures.config.preferWorkers = false` (ou adapter la CSP).
-- Pixi n'est chargé que par `/jeu` (import dynamique, ≈ 125 Ko gzip) ;
-  les autres pages sont inchangées.
-- WebSocket de la page vers `/ws/jeu` (même origine, via nginx) : accepté
-  par `connect-src 'self'`. Une connexion directe au port 4270 est bloquée
-  par la CSP : en production, il faut passer par nginx.
-- Bloc nginx validé (à ajouter à la phase de déploiement, avec
+  refuse de démarrer (la CSP interdit `new Function`). Avec : WebGL2,
+  aucune violation de CSP.
+- Pixi ne crée des workers `blob:` que pour charger des textures : le
+  jour où il y en aura, régler `loadTextures.config.preferWorkers = false`
+  (ou adapter la CSP).
+- Pixi n'est chargé que par `/jeu` (import dynamique) ; les autres pages
+  sont inchangées.
+- WebSocket vers `/ws/jeu` en même origine via nginx : accepté par
+  `connect-src 'self'` ; une connexion directe au port 4270 est bloquée.
+  Bloc nginx validé, à installer lors du déploiement (avec
   `wss://mp2ifsm.com` dans `connect-src` pour Safari) :
 
 ```nginx

@@ -1,8 +1,13 @@
 import type { Carte } from "./carte";
-import {
-  avancerCombattant, creerCombattant, type Combattant, type StatsCombattant,
-} from "./combattant";
+import { resoudreTouches } from "./combat";
+import { avancerCombattant, creerCombattant, type Combattant } from "./combattant";
+import { avancerFrame } from "./coups";
+import type { PersoDef } from "./definitions";
 import type { Entree } from "./entrees";
+import type { Evenement } from "./evenements";
+import {
+  DUREE_RALENTI, REGLAGES_STANDARD, avancerPhase, placerCombattants, verifierChutes, type Reglages,
+} from "./regles";
 
 /*
  * Le monde : tout l'état d'une partie à un tick donné.
@@ -13,47 +18,71 @@ import type { Entree } from "./entrees";
  * cf. horloge.ts.
  */
 
+export type Phase = "decompte" | "combat" | "finManche" | "finPartie";
+
 export type Monde = {
   tick: number;
   carte: Carte;
+  reglages: Reglages;
+  phase: Phase;
+  /** Ticks écoulés depuis le début de la phase. */
+  phaseTicks: number;
+  manche: number;
+  /** Ticks restants dans la manche (si elle est chronométrée). */
+  chrono: number;
+  /** Place du vainqueur de la dernière manche, -1 pour un nul. */
+  vainqueurManche: number;
+  /** En fin de partie : place du vainqueur, -1 pour une égalité. */
+  vainqueur: number;
   combattants: Combattant[];
+  /** Ce qui s'est passé pendant le dernier tick (effets visuels et sonores). */
+  evenements: Evenement[];
 };
 
-export function creerMonde(carte: Carte, stats: readonly StatsCombattant[]): Monde {
-  if (stats.length > carte.apparitions.length) {
-    throw new Error(`carte prévue pour ${carte.apparitions.length} combattants, ${stats.length} demandés`);
+export function creerMonde(carte: Carte, persos: readonly PersoDef[], reglages: Reglages = REGLAGES_STANDARD): Monde {
+  if (persos.length > carte.apparitions.length) {
+    throw new Error(`carte prévue pour ${carte.apparitions.length} combattants, ${persos.length} demandés`);
   }
-  return {
+  const monde: Monde = {
     tick: 0,
     carte,
-    combattants: stats.map((s, i) => creerCombattant(s, carte.apparitions[i].x, carte.apparitions[i].y)),
+    reglages,
+    phase: reglages.dureeDecompte > 0 ? "decompte" : "combat",
+    phaseTicks: 0,
+    manche: 1,
+    chrono: reglages.dureeManche,
+    vainqueurManche: -1,
+    vainqueur: -1,
+    combattants: persos.map((p, i) => creerCombattant(p, i, 0, 0)),
+    evenements: [],
   };
+  placerCombattants(monde);
+  return monde;
 }
 
 /** Un tick. `entrees[i]` est l'entrée du combattant i (aucune si absente). */
 export function avancerMonde(monde: Monde, entrees: readonly Entree[]): void {
-  for (let i = 0; i < monde.combattants.length; i++) {
-    avancerCombattant(monde.combattants[i], entrees[i] ?? 0, monde.carte);
-  }
   monde.tick++;
+  monde.evenements = [];
+  const ralenti = monde.phase === "finManche" && monde.phaseTicks < DUREE_RALENTI && monde.phaseTicks % 3 !== 0;
+  if (!ralenti) {
+    for (const c of monde.combattants) avancerCombattant(c, entrees[c.id] ?? 0, monde);
+    resoudreTouches(monde);
+    verifierChutes(monde);
+    for (const c of monde.combattants) avancerFrame(c, monde);
+  }
+  avancerPhase(monde);
 }
 
 /**
- * Empreinte (façon FNV-1a, sur des entiers 32 bits) de tout l'état
- * variable. Mêmes entrées ⇒ même empreinte : c'est ce qui permettra de
- * repérer une divergence entre la prédiction d'un client et le serveur.
+ * Empreinte (FNV-1a) de tout l'état. Mêmes entrées ⇒ même empreinte :
+ * c'est ce qui permet de vérifier le déterminisme et, plus tard, de
+ * repérer une divergence entre un client et le serveur.
  */
 export function empreinteMonde(monde: Monde): number {
+  const texte = JSON.stringify(monde, (cle, v) =>
+    cle === "carte" || cle === "perso" ? v.id : cle === "evenements" ? undefined : v);
   let h = 0x811c9dc5;
-  const melanger = (v: number) => {
-    h = Math.imul(h ^ (v | 0), 0x01000193);
-  };
-  melanger(monde.tick);
-  for (const c of monde.combattants) {
-    melanger(c.x); melanger(c.y); melanger(c.vx); melanger(c.vy);
-    melanger(c.orientation); melanger(c.auSol ? 1 : 0);
-    melanger(c.sautsRestants); melanger(c.dashsRestants);
-    melanger(c.dash); melanger(c.recharge); melanger(c.entreePrecedente);
-  }
+  for (let i = 0; i < texte.length; i++) h = Math.imul(h ^ texte.charCodeAt(i), 0x01000193);
   return h >>> 0;
 }
