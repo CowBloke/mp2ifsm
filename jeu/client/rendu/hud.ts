@@ -72,7 +72,7 @@ export function creerHud(couche: Container): Hud {
   chrono.anchor.set(0.5, 0);
   const manche = texte(13, "800", 0xaab4d8);
   manche.anchor.set(0.5, 0);
-  const grande = texte(76, "900");
+  const grande = texte(54, "900");
   grande.anchor.set(0.5);
   couche.addChild(barres, chrono, manche, grande);
 
@@ -158,7 +158,7 @@ export function creerHud(couche: Container): Hud {
         const echelle = Math.min(1, (largeur - 40) / Math.max(1, grande.width / grande.scale.x));
         grande.scale.set(echelle * (1.35 - 0.35 * e));
         grande.alpha = Math.min(1, a.depuis / 4 + 0.2);
-        grande.position.set(largeur / 2, hauteur * 0.36);
+        grande.position.set(largeur / 2, hauteur * 0.24);
       }
     },
   };

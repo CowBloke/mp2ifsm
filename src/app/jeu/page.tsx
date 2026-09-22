@@ -19,5 +19,5 @@ export default async function PageJeu() {
   if (!u) redirect("/connexion");
   if (acces === "admins" && u.role !== "admin") notFound();
 
-  return <EcranJeu />;
+  return <EcranJeu pseudo={u.display_name} />;
 }

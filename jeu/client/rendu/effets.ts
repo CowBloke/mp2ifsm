@@ -1,4 +1,4 @@
-import { Container, Sprite, Texture } from "pixi.js";
+import { Container, Graphics, Sprite, Texture } from "pixi.js";
 
 /*
  * Effets d'impact : étincelles et secousse de caméra.
@@ -22,17 +22,24 @@ type Particule = {
 export type Effets = {
   /** Gerbe d'étincelles au point d'impact, orientée dans le sens du coup. */
   etincelles(x: number, y: number, sens: number, force: number, couleur: number): void;
-  /** Poussière (atterrissage, dash). */
-  poussiere(x: number, y: number, nombre: number): void;
+  /** Poussière (atterrissage, dash) ; blanche, c'est de la craie. */
+  poussiere(x: number, y: number, nombre: number, couleur?: number): void;
+  /** Onde de choc au sol : un anneau aplati qui s'élargit. */
+  onde(x: number, y: number, couleur: number, rayon: number): void;
   secousse(amplitude: number): void;
   /** Décalage de caméra dû à la secousse, pour cette image. */
   decalage(): { x: number; y: number };
   maj(dtMs: number): void;
 };
 
+type Onde = { x: number; y: number; couleur: number; rayon: number; vie: number };
+const DUREE_ONDE = 380;
+
 export function creerEffets(couche: Container): Effets {
   const actives: Particule[] = [];
   const libres: Sprite[] = [];
+  const ondes: Onde[] = [];
+  const anneaux = couche.addChild(new Graphics());
   let amplitude = 0;
 
   function emettre(x: number, y: number, vx: number, vy: number, duree: number, taille: number, couleur: number, gravite: number) {
@@ -56,12 +63,15 @@ export function creerEffets(couche: Container): Effets {
           3 + Math.random() * 4, i % 3 === 0 ? 0xffffff : couleur, 0.0012);
       }
     },
-    poussiere(x, y, nombre) {
+    poussiere(x, y, nombre, couleur = 0x9aa3c7) {
       for (let i = 0; i < nombre; i++) {
         const angle = Math.PI + Math.random() * Math.PI;
         emettre(x + (Math.random() - 0.5) * 30, y, Math.cos(angle) * 0.18, Math.sin(angle) * 0.06,
-          260 + Math.random() * 200, 5 + Math.random() * 6, 0x9aa3c7, -0.00005);
+          260 + Math.random() * 200, 5 + Math.random() * 6, couleur, -0.00005);
       }
+    },
+    onde(x, y, couleur, rayon) {
+      ondes.push({ x, y, couleur, rayon, vie: DUREE_ONDE });
     },
     secousse(a) {
       amplitude = Math.min(24, Math.max(amplitude, a));
@@ -72,6 +82,18 @@ export function creerEffets(couche: Container): Effets {
     },
     maj(dtMs) {
       amplitude *= Math.exp(-dtMs / 70);
+      anneaux.clear();
+      for (let i = ondes.length - 1; i >= 0; i--) {
+        const o = ondes[i];
+        o.vie -= dtMs;
+        if (o.vie <= 0) {
+          ondes.splice(i, 1);
+          continue;
+        }
+        const t = 1 - o.vie / DUREE_ONDE;
+        const r = o.rayon * (0.25 + 0.75 * (1 - (1 - t) ** 2));
+        anneaux.ellipse(o.x, o.y, r, r * 0.22).stroke({ width: 6 * (1 - t) + 1, color: o.couleur, alpha: 0.85 * (1 - t) });
+      }
       for (let i = actives.length - 1; i >= 0; i--) {
         const p = actives[i];
         p.vie -= dtMs;

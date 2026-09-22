@@ -20,7 +20,7 @@ const COMMANDES: [string, string][] = [
  * jamais l'état de la partie. Le client (et Pixi avec lui) est importé à
  * la demande, donc les autres pages du site n'en chargent pas un octet.
  */
-export function EcranJeu() {
+export function EcranJeu({ pseudo }: { pseudo: string }) {
   const conteneur = useRef<HTMLDivElement>(null);
   const [etat, setEtat] = useState<"chargement" | "pret" | "erreur">("chargement");
   const [aide, setAide] = useState(true);
@@ -32,7 +32,7 @@ export function EcranJeu() {
     let partie: { detruire(): void } | null = null;
 
     import("@jeu/client")
-      .then(({ monterJeu }) => monterJeu(conteneur.current!))
+      .then(({ monterJeu }) => monterJeu(conteneur.current!, { pseudo }))
       .then((p) => {
         if (annule) p.detruire();
         else {
@@ -49,7 +49,7 @@ export function EcranJeu() {
       annule = true;
       partie?.detruire();
     };
-  }, []);
+  }, [pseudo]);
 
   return (
     <div className="fixed inset-0 z-[60] bg-[#0f1218] text-white">

@@ -90,8 +90,8 @@ function appliquer(t: Touche, monde: Monde): void {
   degats = Math.min(degats, b.pv);
   b.pv -= degats;
   a.degatsInfliges += degats;
-  // L'ultime ne recharge pas la jauge qui vient de le payer.
-  if (!coup.jauge) a.jauge = Math.min(JAUGE_MAX, a.jauge + Math.trunc((degats * GAIN_INFLIGE) / 1000));
+  // L'ultime (et sa suite) ne recharge pas la jauge qui vient de le payer.
+  if (!coup.jauge && !coup.ultime) a.jauge = Math.min(JAUGE_MAX, a.jauge + Math.trunc((degats * GAIN_INFLIGE) / 1000));
   b.jauge = Math.min(JAUGE_MAX, b.jauge + Math.trunc((degats * GAIN_SUBI) / 1000));
 
   const gel = hb.gel ?? Math.min(12, 3 + Math.trunc(degats / 12));

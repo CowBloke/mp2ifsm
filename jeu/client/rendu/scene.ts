@@ -5,20 +5,23 @@ import { SOUS_PIXELS } from "../../noyau/constantes";
 import { boiteHitbox, hitboxesActives } from "../../noyau/coups";
 import { suivreCible, type Camera } from "../camera";
 import type { VueJeu } from "../session-locale";
-import { creerVueCombattant, type VueCombattant } from "./combattants";
+import { creerVueCombattant, type ContexteEffets, type VueCombattant } from "./combattants";
 import { couleurPlace } from "./couleurs";
 import { creerDecor } from "./decor";
 import { creerEffets } from "./effets";
 import { creerHud } from "./hud";
+import { creerTextes } from "./textes";
+import { creerTrainees } from "./trainees";
 
 /*
- * Scène du jeu : couches du monde (décor, combattants, effets), caméra
- * et interface. Elle ne fait que LIRE la vue fournie par la session ;
- * elle ne modifie jamais la simulation.
+ * Scène du jeu : couches du monde (décor, emblèmes, traînées,
+ * combattants, effets, textes), caméra et interface. Elle ne fait que
+ * LIRE la vue fournie par la session ; elle ne modifie jamais la
+ * simulation.
  */
 
 /** Hauteur de monde visible pour un joueur, en pixels : fixe le zoom. */
-const VUE_HAUTEUR = 900;
+const VUE_HAUTEUR = 780;
 const px = (u: number) => u / SOUS_PIXELS;
 
 export type Scene = {
@@ -29,14 +32,19 @@ export type Scene = {
 export function creerScene(app: Application): Scene {
   const monde = new Container();
   const coucheDecor = new Container();
+  const coucheArriere = new Container();
+  const trainees = creerTrainees();
   const coucheCombattants = new Container();
   const coucheEffets = new Container();
+  const coucheTextes = new Container();
   const debug = new Graphics();
-  monde.addChild(coucheDecor, coucheCombattants, coucheEffets, debug);
+  monde.addChild(coucheDecor, coucheArriere, trainees.graphics, coucheCombattants, coucheEffets, coucheTextes, debug);
   const ecran = new Container();
   app.stage.addChild(monde, ecran);
 
   const effets = creerEffets(coucheEffets);
+  const textes = creerTextes(coucheTextes);
+  const ctx: ContexteEffets = { monde, arriere: coucheArriere, textes, trainees, effets };
   const hud = creerHud(ecran);
   const camera: Camera = { x: 0, y: 0 };
   let carte: Carte | null = null;
@@ -53,15 +61,21 @@ export function creerScene(app: Application): Scene {
       carte = m.carte;
       premiere = true;
     }
-    const s = m.combattants.map((c) => c.perso.id).join() + "|" + noms.join();
-    if (s !== signature) {
-      coucheCombattants.removeChildren().forEach((c) => c.destroy({ children: true }));
-      vues = m.combattants.map((c, i) => creerVueCombattant(c, couleurPlace(i), noms[i] ?? `J${i + 1}`));
-      // Le joueur local passe devant les autres.
-      vues.forEach((v, i) => { if (i !== vue.local) coucheCombattants.addChild(v.conteneur); });
-      if (vues[vue.local]) coucheCombattants.addChild(vues[vue.local].conteneur);
-      signature = s;
+    const s = m.combattants.map((c) => c.perso.id).join() + "|" + noms.join() + "|" + vue.local;
+    if (s === signature) return;
+    for (const v of vues) {
+      coucheCombattants.removeChild(v.conteneur);
+      v.detruire();
     }
+    // Deux exemplaires du même personnage : palettes différentes.
+    vues = m.combattants.map((c, i) => {
+      const variante = m.combattants.slice(0, i).filter((o) => o.perso.id === c.perso.id).length;
+      return creerVueCombattant(c, variante, couleurPlace(i), noms[i] ?? `J${i + 1}`, ctx);
+    });
+    // Le joueur local passe devant les autres.
+    vues.forEach((v, i) => { if (i !== vue.local) coucheCombattants.addChild(v.conteneur); });
+    if (vues[vue.local]) coucheCombattants.addChild(vues[vue.local].conteneur);
+    signature = s;
   }
 
   return {
@@ -75,12 +89,14 @@ export function creerScene(app: Application): Scene {
 
       for (const e of vue.evenements) {
         const source = m.combattants[e.source];
+        const vueSource = vues[e.source];
         switch (e.type) {
           case "touche":
           case "armure":
-            effets.etincelles(px(e.x), px(e.y), source?.orientation ?? 1, e.valeur, couleurPlace(e.source));
+            effets.etincelles(px(e.x), px(e.y), source?.orientation ?? 1, e.valeur, vueSource?.apparence.etincelles ?? couleurPlace(e.source));
             effets.secousse(Math.min(16, 2 + e.valeur / 9));
             vues[e.cible]?.flash();
+            vueSource?.touche(e);
             break;
           case "ko":
             effets.etincelles(px(e.x), px(e.y), source?.orientation ?? 1, 220, 0xffffff);
@@ -89,6 +105,7 @@ export function creerScene(app: Application): Scene {
           case "contre":
             effets.etincelles(px(e.x), px(e.y), -(m.combattants[e.cible]?.orientation ?? 1), 120, 0xffd166);
             effets.secousse(8);
+            vueSource?.contre(e);
             break;
           case "atterrissage":
             if (e.valeur > 1500) effets.poussiere(px(e.x), px(e.y), 6);
@@ -104,9 +121,11 @@ export function creerScene(app: Application): Scene {
 
       m.combattants.forEach((c, i) => {
         const p = vue.positions[i] ?? c;
-        vues[i]?.maj(c, px(p.x), px(p.y), dtMs);
+        vues[i]?.maj(c, m, px(p.x), px(p.y), vue.alpha, dtMs);
       });
       effets.maj(dtMs);
+      trainees.maj(dtMs);
+      textes.maj(dtMs);
 
       // Caméra : sur le joueur local, ou toute l'arène pour un spectateur.
       const largeur = app.screen.width;

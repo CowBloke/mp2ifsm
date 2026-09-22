@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { PERSOS } from "../noyau/contenu";
+import { TOUS_LES_PERSOS } from "../noyau/contenu";
 
 /*
  * Frontières du code du jeu, vérifiées sur les sources :
@@ -56,7 +56,7 @@ test("jeu/noyau n'utilise ni le navigateur, ni Node, ni le temps réel, ni le ha
 });
 
 test("le moteur ne connaît aucun personnage : tout passe par les données", () => {
-  const ids = PERSOS.map((p) => p.id);
+  const ids = TOUS_LES_PERSOS.map((p) => p.id);
   for (const f of sources("jeu/noyau").filter((f) => !f.includes("/contenu/"))) {
     const code = sansCommentaires(readFileSync(f, "utf8"));
     for (const id of ids) {

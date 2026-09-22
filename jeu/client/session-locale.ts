@@ -17,6 +17,8 @@ export type VueJeu = {
   positions: Point[];
   /** Événements survenus depuis l'image précédente. */
   evenements: Evenement[];
+  /** Avancement dans le tick en cours (0 à 1), pour animer entre deux frames. */
+  alpha: number;
   /** Place du joueur de cet écran, -1 pour un spectateur. */
   local: number;
 };
@@ -81,6 +83,7 @@ export function creerSessionLocale(
           return { x: a.x + (c.x - a.x) * alpha, y: a.y + (c.y - a.y) * alpha };
         }),
         evenements,
+        alpha,
         local,
       };
       evenements = [];

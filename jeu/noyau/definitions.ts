@@ -106,6 +106,8 @@ export type CoupDef = {
   recharge?: number;
   /** Coût en jauge d'ultime. */
   jauge?: number;
+  /** Fait partie d'un ultime (suite d'un ultime) : ne recharge pas la jauge. */
+  ultime?: boolean;
   /** Utilisable une seule fois par passage en l'air (coups de récupération). */
   unParSaut?: boolean;
   /** Statuts que le combattant s'applique à une frame donnée. */
