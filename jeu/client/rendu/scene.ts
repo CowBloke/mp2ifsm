@@ -1,4 +1,4 @@
-import { Container, Graphics, type Application } from "pixi.js";
+import { Container, Graphics, Text, type Application } from "pixi.js";
 import type { Carte } from "../../noyau/carte";
 import { boiteDe } from "../../noyau/combattant";
 import { SOUS_PIXELS } from "../../noyau/constantes";
@@ -7,7 +7,8 @@ import { suivreCible, type Camera } from "../camera";
 import type { VueJeu } from "../session-locale";
 import { creerVueCombattant, type ContexteEffets, type VueCombattant } from "./combattants";
 import { couleurPlace } from "./couleurs";
-import { creerDecor } from "./decor";
+import { creerRenduEntites } from "./entites";
+import { creerDecor, placerDecor, type Decor } from "./decor";
 import { creerEffets } from "./effets";
 import { creerHud } from "./hud";
 import { creerTextes } from "./textes";
@@ -34,13 +35,26 @@ export function creerScene(app: Application): Scene {
   const coucheDecor = new Container();
   const coucheArriere = new Container();
   const trainees = creerTrainees();
+  const coucheEntites = new Container();
   const coucheCombattants = new Container();
   const coucheEffets = new Container();
   const coucheTextes = new Container();
   const debug = new Graphics();
-  monde.addChild(coucheDecor, coucheArriere, trainees.graphics, coucheCombattants, coucheEffets, coucheTextes, debug);
+  monde.addChild(coucheDecor, coucheArriere, coucheEntites, trainees.graphics, coucheCombattants, coucheEffets, coucheTextes, debug);
   const ecran = new Container();
   app.stage.addChild(monde, ecran);
+  const entites = creerRenduEntites(coucheEntites);
+
+  // Mise en scène de cinéma (ultimes) : bandes noires et titre.
+  const bandes = new Graphics();
+  const titre = new Text({
+    text: "",
+    style: { fontFamily: "Georgia, 'Times New Roman', serif", fontSize: 44, fontWeight: "700", fill: 0xf4ecd8, letterSpacing: 10 },
+  });
+  titre.anchor.set(0.5);
+  ecran.addChild(bandes, titre);
+  let cinema = 0;
+  let texteCinema = "";
 
   const effets = creerEffets(coucheEffets);
   const textes = creerTextes(coucheTextes);
@@ -48,6 +62,8 @@ export function creerScene(app: Application): Scene {
   const hud = creerHud(ecran);
   const camera: Camera = { x: 0, y: 0 };
   let carte: Carte | null = null;
+  let decor: Decor | null = null;
+  let temps = 0;
   let vues: VueCombattant[] = [];
   let signature = "";
   let premiere = true;
@@ -57,7 +73,8 @@ export function creerScene(app: Application): Scene {
     const m = vue.monde;
     if (m.carte !== carte) {
       coucheDecor.removeChildren().forEach((c) => c.destroy({ children: true }));
-      coucheDecor.addChild(creerDecor(m.carte));
+      decor = creerDecor(m.carte);
+      coucheDecor.addChild(decor.conteneur);
       carte = m.carte;
       premiere = true;
     }
@@ -85,6 +102,7 @@ export function creerScene(app: Application): Scene {
 
     dessiner(vue, noms, dtMs) {
       const m = vue.monde;
+      temps += dtMs;
       reconstruire(vue, noms);
 
       for (const e of vue.evenements) {
@@ -123,6 +141,7 @@ export function creerScene(app: Application): Scene {
         const p = vue.positions[i] ?? c;
         vues[i]?.maj(c, m, px(p.x), px(p.y), vue.alpha, dtMs);
       });
+      entites.maj(m, vue.positionsEntites, vues.map((v) => v.main()), vue.alpha, dtMs);
       effets.maj(dtMs);
       trainees.maj(dtMs);
       textes.maj(dtMs);
@@ -151,6 +170,10 @@ export function creerScene(app: Application): Scene {
       const d = effets.decalage();
       monde.scale.set(echelle);
       monde.position.set(largeur / 2 - camera.x * echelle + d.x, hauteur / 2 - camera.y * echelle + d.y);
+      if (decor) {
+        placerDecor(decor, camera.x, camera.y);
+        decor.animer(temps);
+      }
 
       // Boîtes de collision et de coups (touche H).
       debug.clear();
@@ -172,6 +195,23 @@ export function creerScene(app: Application): Scene {
       }
 
       hud.maj(m, noms, largeur, hauteur, dtMs);
+
+      // Cinéma : les bandes entrent quand un coup le demande, et ressortent.
+      const scene = m.combattants.map((c, i) => (c.coup !== null ? vues[i]?.apparence.effets[c.coup]?.cinema : undefined)).find(Boolean);
+      if (scene) texteCinema = scene;
+      cinema = Math.max(0, Math.min(1, cinema + (scene ? dtMs / 250 : -dtMs / 350)));
+      // Le titre s'inscrit dans la bande du bas : les cartouches s'effacent le temps de la scène.
+      hud.voiler(cinema);
+      bandes.clear();
+      titre.visible = cinema > 0.6;
+      if (cinema > 0) {
+        const h = hauteur * 0.13 * (1 - (1 - cinema) ** 3);
+        bandes.rect(0, 0, largeur, h).fill(0x000000).rect(0, hauteur - h, largeur, h).fill(0x000000);
+        titre.text = texteCinema;
+        titre.alpha = (cinema - 0.6) / 0.4;
+        titre.position.set(largeur / 2, hauteur - h / 2);
+        titre.scale.set(Math.min(1, (h * 0.8) / 44));
+      }
     },
   };
 }

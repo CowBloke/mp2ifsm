@@ -16,6 +16,21 @@ test("chaque personnage jouable a son apparence propre", () => {
   for (const p of PERSOS) assert.equal(apparenceDe(p.id).id, p.id, `${p.nom} utilise l'apparence de repli`);
 });
 
+test("chaque entité d'un personnage jouable a son dessin, et aucun dessin n'est orphelin", () => {
+  for (const p of PERSOS) {
+    const dessins = apparenceDe(p.id).entites ?? {};
+    for (const id of Object.keys(p.entites ?? {})) assert.ok(dessins[id], `${p.nom} : entité « ${id} » sans dessin`);
+    for (const id of Object.keys(dessins)) assert.ok(p.entites?.[id], `${p.nom} : dessin « ${id} » sans entité`);
+  }
+});
+
+test("chaque coup d'un personnage jouable a son animation", () => {
+  for (const p of PERSOS) {
+    const ap = apparenceDe(p.id);
+    for (const id of Object.keys(p.coups)) assert.ok(ap.animations[id], `${p.nom} : coup « ${id} » sans animation`);
+  }
+});
+
 for (const perso of TOUS_LES_PERSOS) {
   test(`${perso.nom} : animations et effets calés sur ses coups`, () => {
     const ap = apparenceDe(perso.id);

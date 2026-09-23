@@ -1,5 +1,5 @@
 import { px } from "../constantes";
-import type { HitboxDef, MouvementDef } from "../definitions";
+import type { EntiteDef, HitboxDef, MouvementDef } from "../definitions";
 
 /*
  * Aides d'écriture du contenu : on décrit les coups en pixels et en
@@ -30,4 +30,11 @@ export function elan(de: number, a: number, v: { vx?: number; vy?: number; gravi
     ...(v.vy !== undefined ? { vy: px(v.vy) } : {}),
     ...(v.gravite !== undefined ? { gravite: v.gravite } : {}),
   };
+}
+
+type TouchePx = NonNullable<EntiteDef["touche"]>;
+
+/** Touche d'entité décrite en pixels (recul, croissance). */
+export function touche(t: TouchePx): TouchePx {
+  return { ...t, recul: px(t.recul), croissance: px(t.croissance ?? 0) };
 }

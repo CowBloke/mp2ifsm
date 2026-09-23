@@ -31,10 +31,43 @@ sont franchies, ou si le moteur cite un personnage par son nom.
   recharge, coût en jauge. Un emplacement vide retombe sur un plus
   général (`air_bas` → `air_neutre`).
 - **Statuts** (`statuts.ts`) : bibliothèque générique (ralenti, étourdi,
-  silence, intimidé, galvanisé, marqué, armure, apesanteur).
+  silence, intimidé, galvanisé, marqué, armure, apesanteur, ébloui,
+  dominé).
+- **Entités** (`entites.ts`) : tout ce qu'un coup fait apparaître —
+  projectiles, objets qui rebondissent, zones périodiques, pièges armés
+  puis déclenchés, attraction, grappin, bouclier, explosion en fin de vie
+  (`surFin`). Un seul code, entièrement piloté par les définitions
+  (`EntiteDef`) ; un objet lancé à bout portant contre un mur naît contre
+  le mur, jamais dedans.
+- **Bots** (`bots/`) : déterministes (graine), avec un temps de réaction,
+  quatre niveaux ; ils lisent les coups dans les données (`analyse.ts`),
+  jamais un nom de personnage. Un bot relève un joueur déconnecté.
 - **Règles** (`regles.ts`) : décompte, manches chronométrées, premier à
   2 manches (3 au plus), départage aux dégâts infligés, chute = perte de
   25 % des PV max puis réapparition invulnérable.
+
+## Personnages et cartes
+
+| Personnage | Style | Traits |
+|---|---|---|
+| Mr Corbiceps | lourd, corps à corps | « oui, non, non, oui », uppercut Σ, ∏ chargé, contre « Non. », ultime en série |
+| Mr Pricou | zone, projectiles | électrons, fiole → flaque ralentissante, aimant piège, propulsion, trou noir |
+| Souheil Dictador | contrôle, pression | ballon qui rebondit, porte-voix (intimidé), décret (silence), discours (galvanisé / dominé) |
+| Absolut Théodore | assassin, mobilité | triple saut, lampe (ébloui), passe-muraille (marqué), grappin, fil piège, « Absolut Cinema » |
+
+Cartes : salle d'entraînement (plateau et trois plateformes), labo de
+physique (deux paillasses séparées par un vide), toit de l'usine (deux
+toits à hauteurs différentes, cheminée, passerelles).
+
+**Ajouter un personnage** : ses données dans `noyau/contenu/persos/`
+(stats, coups, entités), son apparence dans `client/persos/` (squelette,
+poses, animations calées sur les frames des coups, effets, dessins des
+entités), puis l'inscrire dans les deux registres (`contenu/index.ts`,
+`client/persos/index.ts`) et sa présentation dans `client/catalogue.ts`.
+Les tests vérifient la cohérence des données, que chaque coup a son
+animation et chaque entité son dessin. **Ajouter une carte** : ses blocs
+dans `noyau/contenu/cartes/`, son décor (facultatif) dans
+`client/rendu/decor.ts`.
 
 ## Multijoueur
 

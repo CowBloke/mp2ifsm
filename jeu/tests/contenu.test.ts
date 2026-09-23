@@ -57,6 +57,24 @@ for (const perso of TOUS_LES_PERSOS) {
         assert.ok(STATUTS[st.statut], `${nom} : statut ${st.statut} inconnu`);
         assert.ok(st.frame < coup.duree);
       }
+      for (const e of coup.entites ?? []) {
+        const def = perso.entites?.[e.id];
+        assert.ok(def, `${nom} : entité « ${e.id} » inconnue`);
+        assert.ok(e.frame < coup.duree, `${nom} : entité lancée après la fin du coup`);
+        // Un objet qui heurte le décor naît au-dessus des pieds du lanceur :
+        // posé à cheval sur le sol, il le traverserait.
+        if ((def.solides ?? "traverser") !== "traverser") assert.ok(e.y >= def.h / 2, `${nom} : « ${e.id} » naît dans le sol`);
+      }
+    }
+
+    for (const [id, e] of Object.entries(perso.entites ?? {})) {
+      const nom = `${perso.id}.entite.${id}`;
+      assert.ok(e.l > 0 && e.h > 0 && e.duree > 0, `${nom} : taille et durée`);
+      if (e.surFin) assert.ok(perso.entites?.[e.surFin], `${nom} : surFin « ${e.surFin} » inconnue`);
+      if (e.touche?.statut) assert.ok(STATUTS[e.touche.statut], `${nom} : statut inconnu`);
+      if (e.grappin) assert.ok((e.solides ?? "arreter") !== "traverser", `${nom} : un grappin doit s'accrocher`);
+      // Une entité doit pouvoir servir : touche, déclencher, attirer, tirer ou protéger.
+      assert.ok(e.touche || e.declencheur || e.attraction || e.grappin || e.bouclier, `${nom} : sans effet`);
     }
   });
 }

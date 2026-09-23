@@ -4,6 +4,7 @@ import type { Emplacement } from "../definitions";
 import {
   ACTIONS, ATTAQUE, BAS, DASH, DROITE, GAUCHE, HAUT, SAUT, SPECIAL, TOUTES, ULTIME, type Entree,
 } from "../entrees";
+import { boiteEntite, definitionDe } from "../entites";
 import type { Monde } from "../monde";
 import { aStatut } from "../statuts";
 import { analyser, porteeTypique, type AnalyseCoup, type Zone } from "./analyse";
@@ -176,6 +177,34 @@ export function creerBot(niveau: number, graine: number): Controleur {
     }
   }
 
+  /** Un projectile adverse arrive sur nous : sauter par-dessus, ou le traverser en dash invulnérable. */
+  function eviterProjectiles(monde: Monde, moi: Combattant): boolean {
+    const b = boiteDe(moi);
+    for (const e of monde.entites) {
+      if (e.proprio === moi.id || e.detruite || e.vx === 0) continue;
+      const def = definitionDe(monde, e);
+      if (!def.touche || def.touche.degats === 0) continue;
+      const z = boiteEntite(e, def);
+      // Arrive-t-il vers nous, à notre hauteur, bientôt ?
+      const vers = e.vx > 0 ? b.gauche - z.droite : z.gauche - b.droite;
+      if (vers < 0 || z.bas < b.haut - 2000 || z.haut > b.bas + 2000) continue;
+      const ticks = vers / Math.abs(e.vx);
+      if (ticks > 14 + p.reaction / 2) continue;
+      const cle = `e${e.id}`;
+      if (esquives.has(cle)) continue;
+      esquives.add(cle);
+      if (esquives.size > 64) esquives.clear();
+      if (alea() >= p.esquive * 1.4) continue;
+      if (moi.auSol && alea() < 0.6) appuisEnAttente |= SAUT;
+      else if (moi.rechargeDash === 0 && moi.perso.stats.dashInvulnerable > 0 && (moi.auSol || moi.dashsRestants > 0)) {
+        tenues = directionVers(e.vx > 0 ? -1 : 1);
+        appuisEnAttente |= DASH;
+      } else if (moi.sautsRestants > 0) appuisEnAttente |= SAUT;
+      return true;
+    }
+    return false;
+  }
+
   /** Une attaque adverse est en préparation et nous atteindra : esquiver (ou contrer). */
   function esquiver(moi: Combattant, vus: Vu[]): boolean {
     for (const o of vus) {
@@ -274,9 +303,12 @@ export function creerBot(niveau: number, graine: number): Controleur {
     const portee = porteeTypique(moi.perso) || 8000;
     const distance = Math.abs(dx);
     const dy = cible.y - moi.y;
+    const avancait = (tenues & (GAUCHE | DROITE)) !== 0;
     tenues = 0;
     if (distance > portee * 0.8 && alea() < p.agressivite + 0.2) tenues = directionVers(dx);
     else if (distance < portee * 0.35 && alea() < 0.3) tenues = directionVers(-dx);
+    // Bloqué contre un mur (cheminée…) : sauter par-dessus.
+    if (avancait && tenues !== 0 && moi.auSol && moi.vx === 0 && distance > portee) appuisEnAttente |= SAUT;
     // Cible au-dessus, sur une plateforme : sauter la rejoindre.
     if (dy < -9000 && distance < 30_000 && moi.auSol && alea() < 0.6) appuisEnAttente |= SAUT;
     // Cible en dessous : descendre de la plateforme.
@@ -313,7 +345,7 @@ export function creerBot(niveau: number, graine: number): Controleur {
       tenues = 0;
       return emettre();
     }
-    if (esquiver(moi, vus)) return emettre();
+    if (esquiver(moi, vus) || eviterProjectiles(monde, moi)) return emettre();
     if (monde.tick < prochaineDecision) return emettre();
     prochaineDecision = monde.tick + p.reflexion;
 

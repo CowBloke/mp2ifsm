@@ -31,6 +31,10 @@ export const STATUTS: Readonly<Record<string, StatutDef>> = {
   marque: { duree: 300, degatsRecus: 1500, unique: true },
   armure: { duree: 120, armure: true },
   apesanteur: { duree: 150, gravite: 450 },
+  /** Aveuglé par un flash : immobile un instant. */
+  ebloui: { duree: 36, etourdi: true },
+  /** Sous l'emprise d'un discours : lent et sans conviction. */
+  domine: { duree: 300, vitesse: 650, degatsInfliges: 750 },
 };
 
 type Multiplicateur = "vitesse" | "gravite" | "degatsInfliges" | "degatsRecus";

@@ -13,7 +13,7 @@ import type { Carte } from "../noyau/carte";
  */
 
 /** Change à chaque évolution incompatible ; un client périmé est invité à recharger. */
-export const VERSION_PROTOCOLE = 1;
+export const VERSION_PROTOCOLE = 2;
 
 export const CHEMIN_WS = "/ws/jeu";
 

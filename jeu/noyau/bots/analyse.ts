@@ -1,4 +1,4 @@
-import type { CoupDef, Emplacement, PersoDef } from "../definitions";
+import type { CoupDef, Emplacement, EntiteDef, PersoDef } from "../definitions";
 
 /*
  * Ce qu'un bot sait des coups d'un personnage, déduit de ses données :
@@ -37,6 +37,34 @@ function elanJusque(coup: CoupDef, frame: number): number {
   return d;
 }
 
+/** Dégâts d'une entité, et de celle qui lui succède (explosion, flaque…). */
+function degatsEntite(perso: PersoDef, def: EntiteDef, profondeur = 0): number {
+  const suite = def.surFin && profondeur < 3 ? perso.entites?.[def.surFin] : undefined;
+  return (def.touche?.degats ?? 0) + (suite ? degatsEntite(perso, suite, profondeur + 1) : 0);
+}
+
+/**
+ * Zone couverte par une entité lancée depuis (x, y) : la trajectoire d'un
+ * projectile sur ~45 ticks, ou la surface d'une zone, d'un piège, de
+ * l'explosion qui lui succède.
+ */
+function zoneEntite(perso: PersoDef, def: EntiteDef, x: number, y: number): Zone {
+  const suite = def.surFin ? perso.entites?.[def.surFin] : undefined;
+  const l = Math.max(def.l, suite?.l ?? 0) / 2;
+  const h = Math.max(def.h, suite?.h ?? 0) / 2;
+  const t = Math.min(def.duree, 45);
+  const course = (def.vx ?? 0) * t;
+  // Arc d'un projectile lancé vers le haut : la zone s'étire en hauteur.
+  const monte = Math.max(0, -(def.vy ?? 0)) * 8;
+  const pose = def.gravite !== undefined && (def.solides === "arreter");
+  return {
+    gauche: x + Math.min(0, course) - l,
+    droite: x + Math.max(0, course) + l,
+    bas: pose ? 0 : y - h,
+    haut: pose ? Math.max(2 * h, 8000) : y + h + monte,
+  };
+}
+
 /** Dégâts d'un coup : un par groupe de hitboxes (le plus fort), plus sa suite sur touche. */
 function degatsDe(perso: PersoDef, coup: CoupDef, vus = new Set<CoupDef>()): number {
   if (vus.has(coup)) return 0;
@@ -47,6 +75,10 @@ function degatsDe(perso: PersoDef, coup: CoupDef, vus = new Set<CoupDef>()): num
     parGroupe.set(g, Math.max(parGroupe.get(g) ?? 0, hb.degats));
   }
   let total = [...parGroupe.values()].reduce((a, b) => a + b, 0);
+  for (const e of coup.entites ?? []) {
+    const def = perso.entites?.[e.id];
+    if (def) total += degatsEntite(perso, def);
+  }
   const suite = coup.surTouche ? perso.coups[coup.surTouche.coup] : undefined;
   if (suite) total += degatsDe(perso, suite, vus);
   return total;
@@ -62,22 +94,27 @@ export function analyser(perso: PersoDef): AnalyseCoup[] {
     const coup = perso.coups[e];
     if (!coup) continue;
     const hbs = coup.hitboxes ?? [];
-    const debut = hbs.length > 0 ? Math.min(...hbs.map((h) => h.de)) : coup.duree;
+    const lancers = (coup.entites ?? []).filter((e) => perso.entites?.[e.id] && !perso.entites[e.id].grappin);
+    const debuts = [...hbs.map((h) => h.de), ...lancers.map((e) => e.frame + 4)];
+    const debut = debuts.length > 0 ? Math.min(...debuts) : coup.duree;
     analyses.push({
       emplacement: e,
       id: e,
       debut,
       duree: coup.duree,
       degats: degatsDe(perso, coup),
-      zones: hbs.map((hb) => {
-        const d = elanJusque(coup, hb.de);
-        return {
-          gauche: hb.x - hb.l / 2 + d,
-          droite: hb.x + hb.l / 2 + d,
-          bas: hb.y - hb.h / 2,
-          haut: hb.y + hb.h / 2,
-        };
-      }),
+      zones: [
+        ...hbs.map((hb) => {
+          const d = elanJusque(coup, hb.de);
+          return {
+            gauche: hb.x - hb.l / 2 + d,
+            droite: hb.x + hb.l / 2 + d,
+            bas: hb.y - hb.h / 2,
+            haut: hb.y + hb.h / 2,
+          };
+        }),
+        ...lancers.map((e) => zoneEntite(perso, perso.entites![e.id], e.x + elanJusque(coup, e.frame), e.y)),
+      ],
       contre: coup.contre !== undefined,
       aerien: e.startsWith("air_"),
     });

@@ -1,4 +1,4 @@
-import type { Graphics } from "pixi.js";
+import type { Container, Graphics } from "pixi.js";
 
 /*
  * Apparence d'un personnage : tout ce qui se voit, rien qui compte.
@@ -101,6 +101,35 @@ export type EffetCoup = {
   accessoire?: string;
   /** Glyphe géant et discret derrière le personnage pendant le coup (ultimes). */
   embleme?: string;
+  /** Mise en scène de cinéma pendant le coup : bandes noires et titre. */
+  cinema?: string;
+  /** Le personnage devient presque invisible pendant le coup (passe-muraille). */
+  fantome?: boolean;
+};
+
+/** Ce qu'une entité montre à son dessin, à chaque image. */
+export type EtatVisuelEntite = {
+  /** Âge en ticks (fractionnaire entre deux ticks). */
+  age: number;
+  duree: number;
+  vx: number;
+  vy: number;
+  orientation: 1 | -1;
+  accroche: boolean;
+  /** Après la disparition : avancement de la rémanence, de 0 à 1 (0 tant qu'elle vit). */
+  fin: number;
+};
+
+/** Dessin d'une entité : construit une fois, animé à chaque image. */
+export type DessinEntite = {
+  creer(palette: Palette): Container;
+  animer?(c: Container, e: EtatVisuelEntite, tempsMs: number): void;
+  /** Millisecondes pendant lesquelles l'effet reste visible après la disparition. */
+  remanence?: number;
+  /** Corde tirée de la main du lanceur jusqu'à l'entité (grappin), de cette couleur. */
+  lien?: number;
+  /** Tourne sur lui-même en volant (radians par tick, dans le sens de marche). */
+  rotation?: number;
 };
 
 export type NomPose = "garde" | "saut" | "chute" | "dash" | "touche" | "ko" | "atterrissage" | "victoire";
@@ -116,4 +145,6 @@ export type Apparence = {
   effets: Readonly<Record<string, EffetCoup>>;
   /** Couleur des étincelles d'impact. */
   etincelles: number;
+  /** Dessins des entités créées par ses coups, par clé. */
+  entites?: Readonly<Record<string, DessinEntite>>;
 };

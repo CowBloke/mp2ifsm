@@ -57,6 +57,7 @@ function nouvelleManche(monde: Monde): void {
   monde.chrono = monde.reglages.dureeManche;
   monde.vainqueurManche = -1;
   placerCombattants(monde);
+  monde.entites = [];
   if (!monde.reglages.jaugeConservee) for (const c of monde.combattants) c.jauge = 0;
   changerPhase(monde, monde.reglages.dureeDecompte > 0 ? "decompte" : "combat");
 }

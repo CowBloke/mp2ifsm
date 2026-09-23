@@ -2,6 +2,7 @@ import type { Combattant } from "./combattant";
 import type { Boite } from "./collisions";
 import type { CoupDef, Emplacement, HitboxDef } from "./definitions";
 import { ATTAQUE, BAS, HAUT, SPECIAL, ULTIME, type Entree } from "./entrees";
+import { creerEntite } from "./entites";
 import { emettre } from "./evenements";
 import type { Monde } from "./monde";
 import { aStatut, appliquerStatut } from "./statuts";
@@ -112,7 +113,7 @@ export function demarrerCoup(c: Combattant, id: string, monde: Monde): void {
   if (coup.jauge) c.jauge = Math.max(0, c.jauge - coup.jauge);
   if (coup.unParSaut && !c.auSol) c.aeriensUtilises.push(id);
   emettre(monde, { type: "coup", source: c.id, x: c.x, y: c.y, cle: id });
-  entrerFrame(c);
+  entrerFrame(c, monde);
 }
 
 export function finirCoup(c: Combattant): void {
@@ -123,10 +124,14 @@ export function finirCoup(c: Combattant): void {
   c.enchainer = null;
 }
 
-/** Effets attachés à la frame dans laquelle le coup vient d'entrer. */
-function entrerFrame(c: Combattant): void {
-  for (const s of coupDe(c)?.statutsSoi ?? []) {
+/** Effets attachés à la frame dans laquelle le coup vient d'entrer : statuts, entités. */
+function entrerFrame(c: Combattant, monde: Monde): void {
+  const coup = coupDe(c);
+  for (const s of coup?.statutsSoi ?? []) {
     if (s.frame === c.frame) appliquerStatut(c, s.statut);
+  }
+  for (const e of coup?.entites ?? []) {
+    if (e.frame === c.frame) creerEntite(monde, c, e.id, e.x, e.y);
   }
 }
 
@@ -153,7 +158,7 @@ export function avancerFrame(c: Combattant, monde: Monde): void {
     return;
   }
   if (++c.frame >= coup.duree) finirCoup(c);
-  else entrerFrame(c);
+  else entrerFrame(c, monde);
 }
 
 export function mouvementA(coup: CoupDef, frame: number) {

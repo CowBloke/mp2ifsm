@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { TOUS_LES_PERSOS } from "../noyau/contenu";
@@ -97,4 +97,35 @@ test("le site n'entre dans le jeu que par @jeu/client (et la signature des ticke
       if (i.startsWith(".")) assert.ok(!cible(f, i).startsWith("jeu/"), `${relative(RACINE, f)} importe « ${i} »`);
     }
   }
+});
+
+/** Imports chargés avec le module (ni « import type », ni import() dynamique). */
+function importsStatiques(fichier: string): string[] {
+  const code = sansCommentaires(readFileSync(fichier, "utf8"));
+  const res: string[] = [];
+  for (const m of code.matchAll(/^\s*(?:import|export)\s+(type\s+)?[^;]*?\bfrom\s*["']([^"']+)["']/gm)) if (!m[1]) res.push(m[2]);
+  for (const m of code.matchAll(/^\s*import\s*["']([^"']+)["']/gm)) res.push(m[1]);
+  return res;
+}
+
+function resoudre(depuis: string, specificateur: string): string {
+  const base = resolve(dirname(depuis), specificateur);
+  for (const f of [base, `${base}.ts`, `${base}.tsx`, join(base, "index.ts")]) if (/\.tsx?$/.test(f) && existsSync(f)) return f;
+  throw new Error(`${relative(RACINE, depuis)} : import introuvable « ${specificateur} »`);
+}
+
+test("@jeu/client reste léger : Pixi n'est chargé qu'à l'affichage d'une partie", () => {
+  const vus = new Set<string>();
+  const pile: [string, string[]][] = [[join(RACINE, "jeu/client/index.ts"), []]];
+  while (pile.length > 0) {
+    const [f, chemin] = pile.pop()!;
+    if (vus.has(f)) continue;
+    vus.add(f);
+    const ici = [...chemin, relative(RACINE, f)];
+    for (const i of importsStatiques(f)) {
+      assert.ok(!/^pixi\.js(\/|$)/.test(i), `Pixi importé statiquement depuis la page : ${ici.join(" → ")}`);
+      if (i.startsWith(".")) pile.push([resoudre(f, i), ici]);
+    }
+  }
+  assert.ok(vus.size > 5, "le graphe d'imports a bien été parcouru");
 });

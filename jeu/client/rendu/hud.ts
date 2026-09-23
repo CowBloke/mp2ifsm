@@ -23,6 +23,8 @@ type Cartouche = {
 
 export type Hud = {
   maj(monde: Monde, noms: readonly string[], largeur: number, hauteur: number, dtMs: number): void;
+  /** Efface en partie les cartouches (0 : visibles, 1 : presque effacés), pour une scène de cinéma. */
+  voiler(k: number): void;
 };
 
 function texte(taille: number, poids: "600" | "800" | "900", couleur = 0xffffff): Text {
@@ -74,15 +76,21 @@ export function creerHud(couche: Container): Hud {
   manche.anchor.set(0.5, 0);
   const grande = texte(54, "900");
   grande.anchor.set(0.5);
-  couche.addChild(barres, chrono, manche, grande);
+  const cartes = new Container();
+  cartes.addChild(barres);
+  couche.addChild(cartes, chrono, manche, grande);
 
   return {
+    voiler(k) {
+      cartes.alpha = 1 - 0.8 * k;
+    },
+
     maj(m, noms, largeur, hauteur, dtMs) {
       // Cartouches en bas de l'écran, centrés.
       while (cartouches.length < m.combattants.length) {
         const c: Cartouche = { fond: new Graphics(), nom: texte(16, "800"), perso: texte(11, "600", 0xaab4d8), pv: texte(22, "900"), traine: 0, delai: 0 };
-        couche.addChildAt(c.fond, 0);
-        couche.addChild(c.nom, c.perso, c.pv);
+        cartes.addChildAt(c.fond, 0);
+        cartes.addChild(c.nom, c.perso, c.pv);
         cartouches.push(c);
       }
       const n = m.combattants.length;

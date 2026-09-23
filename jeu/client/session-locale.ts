@@ -27,6 +27,7 @@ export function creerSessionLocale(
   let controleurs = creerControleurs();
   const horloge = creerHorloge();
   let avant: Point[] = positions(monde);
+  let avantEntites = new Map<number, Point>();
   let evenements: Evenement[] = [];
 
   function positions(m: Monde): Point[] {
@@ -42,6 +43,7 @@ export function creerSessionLocale(
           controleurs = creerControleurs();
         }
         avant = positions(monde);
+        avantEntites = new Map(monde.entites.map((e) => [e.id, { x: e.x, y: e.y }]));
         const entreeLocale = lireEntree();
         const entrees = monde.combattants.map((c) =>
           c.id === local ? entreeLocale : controleurs[c.id]?.(monde, c.id) ?? 0);
@@ -64,6 +66,10 @@ export function creerSessionLocale(
           if (Math.abs(c.x - a.x) > 50_000 || Math.abs(c.y - a.y) > 50_000) return { x: c.x, y: c.y };
           return { x: a.x + (c.x - a.x) * alpha, y: a.y + (c.y - a.y) * alpha };
         }),
+        positionsEntites: new Map(monde.entites.map((e) => {
+          const a = avantEntites.get(e.id) ?? e;
+          return [e.id, { x: a.x + (e.x - a.x) * alpha, y: a.y + (e.y - a.y) * alpha }];
+        })),
         evenements,
         alpha,
         local,

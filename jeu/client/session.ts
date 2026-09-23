@@ -14,6 +14,8 @@ export type VueJeu = {
   monde: Monde;
   /** Positions affichées (interpolées ou prédites), par place. */
   positions: Point[];
+  /** Positions affichées des entités, par identifiant. */
+  positionsEntites: ReadonlyMap<number, Point>;
   /** Événements survenus depuis l'image précédente. */
   evenements: Evenement[];
   /** Avancement dans le tick en cours (0 à 1), pour animer entre deux frames. */

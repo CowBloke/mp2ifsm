@@ -1,5 +1,6 @@
 import type { Carte } from "../noyau/carte";
 import type { Combattant } from "../noyau/combattant";
+import type { Entite } from "../noyau/entites";
 import { persoParId } from "../noyau/contenu";
 import type { Evenement, TypeEvenement } from "../noyau/evenements";
 import type { Monde, Phase } from "../noyau/monde";
@@ -26,9 +27,16 @@ const NUMERIQUES = [
 ] as const satisfies readonly ChampsNumeriques[];
 const BOOLEENS = ["auSol", "ko", "horsJeu"] as const satisfies readonly ChampsBooleens[];
 
+type NumeriquesEntite = { [K in keyof Entite]: Entite[K] extends number ? K : never }[keyof Entite];
+const NUMERIQUES_ENTITE = [
+  "id", "proprio", "x", "y", "vx", "vy", "age", "rebonds", "touchesFaites", "instance", "ox", "oy",
+] as const satisfies readonly NumeriquesEntite[];
+
 const PHASES: readonly Phase[] = ["decompte", "combat", "finManche", "finPartie"];
+/** Ordre fixe : on n'ajoute qu'à la fin (l'indice voyage sur le réseau). */
 const TYPES: readonly TypeEvenement[] = [
   "touche", "armure", "contre", "ko", "chute", "coup", "saut", "dash", "atterrissage", "phase",
+  "apparition", "disparition", "declenchement",
 ];
 
 /** Événement daté du tick où il s'est produit. */
@@ -73,6 +81,24 @@ function lireCombattant(l: Lecteur): Combattant {
   return c as Combattant;
 }
 
+function ecrireEntite(e: Ecrivain, x: Entite): void {
+  for (const k of NUMERIQUES_ENTITE) e.entier(x[k]);
+  e.texte(x.def).entier(x.orientation).booleen(x.accroche).booleen(x.detruite);
+  e.naturel(x.touches.length);
+  for (const t of x.touches) e.entier(t);
+}
+
+function lireEntite(l: Lecteur): Entite {
+  const x = {} as Record<string, unknown>;
+  for (const k of NUMERIQUES_ENTITE) x[k] = l.entier();
+  x.def = l.texte();
+  x.orientation = l.entier() >= 0 ? 1 : -1;
+  x.accroche = l.booleen();
+  x.detruite = l.booleen();
+  x.touches = Array.from({ length: l.naturel() }, () => l.entier());
+  return x as Entite;
+}
+
 function ecrireEvenement(e: Ecrivain, { tick, evenement: ev }: EvenementDate): void {
   e.naturel(tick).naturel(TYPES.indexOf(ev.type)).entier(ev.source).entier(ev.cible)
     .entier(ev.x).entier(ev.y).entier(ev.valeur).texte(ev.cle);
@@ -94,6 +120,8 @@ export function ecrireInstantane(e: Ecrivain, i: Instantane): void {
     .naturel(m.chrono).entier(m.vainqueurManche).entier(m.vainqueur);
   e.naturel(m.combattants.length);
   for (const c of m.combattants) ecrireCombattant(e, c);
+  e.naturel(m.prochaineEntite).naturel(m.entites.length);
+  for (const x of m.entites) ecrireEntite(e, x);
   e.naturel(i.acks.length);
   for (const a of i.acks) e.naturel(a);
   e.naturel(i.evenements.length);
@@ -115,9 +143,13 @@ export function lireInstantane(l: Lecteur, contexte: { carte: Carte; reglages: R
     vainqueurManche: l.entier(),
     vainqueur: l.entier(),
     combattants: [],
+    entites: [],
+    prochaineEntite: 0,
     evenements: [],
   };
   monde.combattants = Array.from({ length: l.naturel() }, () => lireCombattant(l));
+  monde.prochaineEntite = l.naturel();
+  monde.entites = Array.from({ length: l.naturel() }, () => lireEntite(l));
   const acks = Array.from({ length: l.naturel() }, () => l.naturel());
   const evenements = Array.from({ length: l.naturel() }, () => lireEvenement(l));
   return { monde, acks, evenements };

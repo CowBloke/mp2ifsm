@@ -41,6 +41,8 @@ export type VueCombattant = {
   touche(e: Evenement): void;
   /** Ce combattant vient de contrer. */
   contre(e: Evenement): void;
+  /** Main avant, dans le repère du monde (cordes, objets lancés). */
+  main(): { x: number; y: number };
   detruire(): void;
 };
 
@@ -122,7 +124,9 @@ export function creerVueCombattant(c: Combattant, variante: number, couleur: num
       rig.appliquer(animer(ap, c, monde, anim, x, alpha, dtMs));
       rig.flash(flash > 0);
       rig.eteindre(c.ko);
-      rig.racine.alpha = c.invulnerable > 0 && !c.ko ? 0.55 + 0.3 * Math.sin(temps / 45) : 1;
+      const fantome = c.coup !== null && ap.effets[c.coup]?.fantome && c.invulnerable === 0;
+      rig.racine.alpha = fantome ? 0.16
+        : c.invulnerable > 0 && !c.ko ? 0.55 + 0.3 * Math.sin(temps / 45) : 1;
       ombre.visible = c.auSol;
       anneau.visible = c.auSol && !c.ko;
       nom.visible = !c.ko;
@@ -178,6 +182,10 @@ export function creerVueCombattant(c: Combattant, variante: number, couleur: num
         charge.circle(p.x, p.y, 10 + 22 * t + Math.sin(temps / 40) * 3)
           .stroke({ width: 3 + 3 * t, color: t >= 1 ? 0xffd166 : 0xffffff, alpha: 0.5 + 0.4 * t });
       }
+    },
+
+    main() {
+      return rig.point("poingAv", ctx.monde);
     },
 
     detruire() {

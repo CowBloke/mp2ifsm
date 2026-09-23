@@ -74,7 +74,9 @@ export function creerSessionReseau(connexion: ConnexionJeu, debut: DebutPartie, 
   function contextePrediction(base: Monde, k: number): Monde {
     let phase: Phase = base.phase;
     if (phase === "decompte" && base.phaseTicks + k >= base.reglages.dureeDecompte) phase = "combat";
-    return { ...base, phase, evenements: [] };
+    // Entités jetables : ce que la prédiction ferait apparaître n'altère
+    // jamais l'état reçu du serveur (qui, seul, crée les vraies).
+    return { ...base, phase, evenements: [], entites: [], prochaineEntite: 0 };
   }
 
   function etape(c: Combattant, entree: Entree, ctx: Monde): void {
@@ -163,7 +165,7 @@ export function creerSessionReseau(connexion: ConnexionJeu, debut: DebutPartie, 
 
     vue(): VueJeu {
       if (recus.length === 0) {
-        return { monde: vide(), positions: [], evenements: [], alpha: 0, local };
+        return { monde: vide(), positions: [], positionsEntites: new Map(), evenements: [], alpha: 0, local };
       }
       const t = tickRendu();
       // a : dernier instantané au plus tard à t ; b : le suivant.
@@ -195,7 +197,12 @@ export function creerSessionReseau(connexion: ConnexionJeu, debut: DebutPartie, 
         ...a.monde,
         combattants: a.monde.combattants.map((c, i) => (i === local && predit ? predit : c)),
       };
-      return { monde, positions, evenements, alpha: local >= 0 ? fractionTick(horloge) : alpha, local };
+      const suivantes = new Map((b?.monde.entites ?? []).map((e) => [e.id, e]));
+      const positionsEntites = new Map(a.monde.entites.map((e) => {
+        const eb = suivantes.get(e.id);
+        return [e.id, eb ? { x: e.x + (eb.x - e.x) * alpha, y: e.y + (eb.y - e.y) * alpha } : { x: e.x, y: e.y }];
+      }));
+      return { monde, positions, positionsEntites, evenements, alpha: local >= 0 ? fractionTick(horloge) : alpha, local };
     },
 
     detruire() {
@@ -206,7 +213,8 @@ export function creerSessionReseau(connexion: ConnexionJeu, debut: DebutPartie, 
   function vide(): Monde {
     return {
       tick: 0, carte: contexte.carte, reglages: contexte.reglages, phase: "decompte", phaseTicks: 0, manche: 1,
-      chrono: contexte.reglages.dureeManche, vainqueurManche: -1, vainqueur: -1, combattants: [], evenements: [],
+      chrono: contexte.reglages.dureeManche, vainqueurManche: -1, vainqueur: -1, combattants: [], entites: [],
+      prochaineEntite: 0, evenements: [],
     };
   }
 }

@@ -4,6 +4,7 @@ import { avancerCombattant, creerCombattant, type Combattant } from "./combattan
 import { avancerFrame } from "./coups";
 import type { PersoDef } from "./definitions";
 import type { Entree } from "./entrees";
+import { avancerEntites, nettoyerEntites, type Entite } from "./entites";
 import type { Evenement } from "./evenements";
 import {
   DUREE_RALENTI, REGLAGES_STANDARD, avancerPhase, placerCombattants, verifierChutes, type Reglages,
@@ -35,6 +36,10 @@ export type Monde = {
   /** En fin de partie : place du vainqueur, -1 pour une égalité. */
   vainqueur: number;
   combattants: Combattant[];
+  /** Projectiles, zones, pièges… en jeu. */
+  entites: Entite[];
+  /** Identifiant de la prochaine entité créée. */
+  prochaineEntite: number;
   /** Ce qui s'est passé pendant le dernier tick (effets visuels et sonores). */
   evenements: Evenement[];
 };
@@ -54,6 +59,8 @@ export function creerMonde(carte: Carte, persos: readonly PersoDef[], reglages: 
     vainqueurManche: -1,
     vainqueur: -1,
     combattants: persos.map((p, i) => creerCombattant(p, i, 0, 0)),
+    entites: [],
+    prochaineEntite: 1,
     evenements: [],
   };
   placerCombattants(monde);
@@ -67,9 +74,11 @@ export function avancerMonde(monde: Monde, entrees: readonly Entree[]): void {
   const ralenti = monde.phase === "finManche" && monde.phaseTicks < DUREE_RALENTI && monde.phaseTicks % 3 !== 0;
   if (!ralenti) {
     for (const c of monde.combattants) avancerCombattant(c, entrees[c.id] ?? 0, monde);
+    avancerEntites(monde);
     resoudreTouches(monde);
     verifierChutes(monde);
     for (const c of monde.combattants) avancerFrame(c, monde);
+    nettoyerEntites(monde);
   }
   avancerPhase(monde);
 }

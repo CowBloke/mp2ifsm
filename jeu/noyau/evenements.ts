@@ -10,7 +10,8 @@ import type { Monde } from "./monde";
 
 export type TypeEvenement =
   | "touche" | "armure" | "contre" | "ko" | "chute"
-  | "coup" | "saut" | "dash" | "atterrissage" | "phase";
+  | "coup" | "saut" | "dash" | "atterrissage" | "phase"
+  | "apparition" | "disparition" | "declenchement";
 
 export type Evenement = {
   type: TypeEvenement;

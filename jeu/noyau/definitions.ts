@@ -44,7 +44,29 @@ export type StatsCombattant = {
   dashInvulnerable: number;
 };
 
-export type HitboxDef = {
+/** Effet d'un coup reçu : commun aux hitboxes des coups et aux entités. */
+export type ToucheDef = {
+  degats: number;
+  /** Recul : force de base, plus `croissance` × part des PV déjà perdus. */
+  recul: number;
+  croissance?: number;
+  /** Angle du recul en degrés : 0 = vers l'avant, 90 = vers le haut, -90 = vers le bas. */
+  angle: number;
+  /**
+   * Ticks pendant lesquels la cible ne peut plus agir. Un coup sans recul
+   * ni hitstun est une « égratignure » : il blesse (et pose son statut)
+   * sans interrompre la cible.
+   */
+  hitstun: number;
+  /** Gel des deux combattants à l'impact (hitlag) ; calculé des dégâts sinon. */
+  gel?: number;
+  /** Statut infligé à la cible. */
+  statut?: string;
+  /** Clé d'effet visuel ; aucune incidence sur la simulation. */
+  effet?: string;
+};
+
+export type HitboxDef = ToucheDef & {
   /** Frames actives, bornes incluses ; la frame 0 est le premier tick du coup. */
   de: number;
   a: number;
@@ -53,21 +75,53 @@ export type HitboxDef = {
   y: number;
   l: number;
   h: number;
-  degats: number;
-  /** Recul : force de base, plus `croissance` × part des PV déjà perdus. */
-  recul: number;
-  croissance?: number;
-  /** Angle du recul en degrés : 0 = vers l'avant, 90 = vers le haut, -90 = vers le bas. */
-  angle: number;
-  hitstun: number;
-  /** Gel des deux combattants à l'impact (hitlag) ; calculé des dégâts sinon. */
-  gel?: number;
   /** Les hitboxes d'un même groupe touchent une cible une seule fois par coup. */
   groupe?: number;
-  /** Statut infligé à la cible. */
-  statut?: string;
-  /** Clé d'effet visuel ; aucune incidence sur la simulation. */
-  effet?: string;
+};
+
+/**
+ * Entité posée ou lancée par un coup : projectile, zone, piège, grappin…
+ * Tout son comportement est ici ; le moteur ne connaît aucune entité par
+ * son nom.
+ */
+export type EntiteDef = {
+  /** Taille de sa boîte (centrée sur sa position). */
+  l: number;
+  h: number;
+  duree: number;
+  /** Vitesse de départ (vers l'avant du lanceur, vers le bas) et gravité. */
+  vx?: number;
+  vy?: number;
+  gravite?: number;
+  /** Au contact d'un bloc : traverser (défaut), s'arrêter, rebondir ou disparaître. */
+  solides?: "traverser" | "arreter" | "rebondir" | "detruire";
+  /** Rebonds permis avant de disparaître. */
+  rebonds?: number;
+  /** Ce qu'elle fait aux adversaires qu'elle touche. */
+  touche?: ToucheDef & {
+    /** Recul vers l'extérieur de l'entité (explosions) plutôt que dans son sens de marche. */
+    radial?: boolean;
+  };
+  /** Touches avant de disparaître ; 0 ou absent : illimité (chaque cible une fois). */
+  touchesMax?: number;
+  /** Zone : les cibles présentes sont de nouveau touchées toutes les `periode` ticks. */
+  periode?: number;
+  /** Piège : inerte `armement` ticks, puis se déclenche (et disparaît) si un adversaire passe à moins de `rayon`. */
+  declencheur?: { rayon: number; armement: number };
+  /** Attire les adversaires à moins de `rayon`, de `force` unités par tick. */
+  attraction?: { rayon: number; force: number };
+  /** Grappin : accroché à un bloc, il tire son lanceur jusqu'à lui. */
+  grappin?: { vitesse: number };
+  /** Détruit les projectiles adverses qui le traversent. */
+  bouclier?: boolean;
+  /** Reste attachée à son lanceur. */
+  suitLanceur?: boolean;
+  /** Exemplaires simultanés par lanceur : au-delà, le plus ancien disparaît. */
+  max?: number;
+  /** Entité qui apparaît à sa place quand elle disparaît (explosion, flaque…). */
+  surFin?: string;
+  /** Fait partie d'un ultime : ne recharge pas la jauge. */
+  ultime?: boolean;
 };
 
 /** Mouvement imposé pendant des frames : vx vers l'avant, vy vers le bas. */
@@ -112,6 +166,8 @@ export type CoupDef = {
   unParSaut?: boolean;
   /** Statuts que le combattant s'applique à une frame donnée. */
   statutsSoi?: readonly { frame: number; statut: string }[];
+  /** Entités lancées à une frame donnée, depuis (x devant, y au-dessus des pieds). */
+  entites?: readonly { frame: number; id: string; x: number; y: number }[];
 };
 
 export type PersoDef = {
@@ -120,4 +176,6 @@ export type PersoDef = {
   stats: StatsCombattant;
   /** Coups par identifiant ; les emplacements (« neutre », « air_bas »…) sont des identifiants. */
   coups: Readonly<Record<string, CoupDef>>;
+  /** Entités que ses coups peuvent créer. */
+  entites?: Readonly<Record<string, EntiteDef>>;
 };
