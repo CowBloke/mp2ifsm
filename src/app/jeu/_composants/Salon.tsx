@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { COULEURS_PLACES, NOMS_NIVEAUX, catalogue, type EtatSalon, type PlaceVue } from "@jeu/client";
 import { CadreJeu } from "./CadreJeu";
+import { ChoixPerso } from "./ChoixPerso";
 import { EcranJeu } from "./EcranJeu";
 import { obtenirConnexion, useEtatConnexion } from "./connexion";
 
@@ -134,22 +135,7 @@ function VueSalon({ salon, moi, uid, spectateur, envoyer, copie, copier }: {
         <>
           <section>
             <h2 className="mb-2 text-[13px] font-bold uppercase tracking-[0.18em] text-white/50">Votre combattant</h2>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {CATALOGUE.persos.map((perso) => {
-                const choisi = place.perso === perso.id;
-                return (
-                  <button key={perso.id} type="button" onClick={() => envoyer({ t: "perso", id: perso.id })}
-                          aria-pressed={choisi}
-                          className={`rounded-2xl border p-4 text-left transition ${choisi
-                            ? "border-white/60 bg-white/[0.10]" : "border-white/10 bg-white/[0.04] hover:border-white/25"}`}
-                          style={choisi ? { boxShadow: `inset 4px 0 0 ${perso.couleur}` } : undefined}>
-                    <p className="text-[18px] font-extrabold">{perso.nom}</p>
-                    <p className="text-[12px] font-semibold" style={{ color: perso.couleur }}>{perso.role}</p>
-                    <p className="mt-1 text-[13px] leading-snug text-white/60">{perso.resume}</p>
-                  </button>
-                );
-              })}
-            </div>
+            <ChoixPerso choisi={place.perso} choisir={(id) => envoyer({ t: "perso", id })} />
           </section>
 
           {hote ? (

@@ -81,6 +81,10 @@ dans `noyau/contenu/cartes/`, son décor (facultatif) dans
   est prêt, tableau des résultats (manches, dégâts) en fin de partie.
 - **Décors** (`client/rendu/decor.ts`) : un thème par carte, plans en
   parallaxe, quelques détails animés.
+- **Aperçu des menus** (`client/apercu.ts`) : au choix du combattant, une
+  vraie petite simulation où il enchaîne ses coups sur un mannequin,
+  dessinée par le rendu du jeu (Pixi chargé après l'affichage de la page,
+  rien si l'utilisateur préfère réduire les animations).
 
 ## Multijoueur
 

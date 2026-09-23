@@ -27,8 +27,8 @@ import { creerSons } from "../son/sons";
 
 /** Hauteur de monde visible pour un joueur, en pixels : fixe le zoom. */
 const VUE_HAUTEUR = 780;
-/** Spectateur : marges autour des combattants cadrés, plan le plus serré. */
-const CADRAGE_SPECTATEUR = { margeX: 340, margeY: 280, hauteurMin: 760 };
+/** Spectateur : marges autour des combattants cadrés, en part de la hauteur de vue d'un joueur (le plan le plus serré). */
+const MARGES_SPECTATEUR = { x: 0.5, y: 0.36 };
 
 /** Durée des fondus entre manches, en ticks. */
 const FONDU = 24;
@@ -54,7 +54,12 @@ export type Scene = {
   detruire(): void;
 };
 
-export function creerScene(app: Application): Scene {
+/** Scène sans interface ni son, cadrée de plus près : l'aperçu des menus. */
+export type OptionsScene = { interface: boolean; sons: boolean; vueHauteur: number };
+
+export const SCENE_JEU: OptionsScene = { interface: true, sons: true, vueHauteur: VUE_HAUTEUR };
+
+export function creerScene(app: Application, options: OptionsScene = SCENE_JEU): Scene {
   const monde = new Container();
   const coucheDecor = new Container();
   const coucheArriere = new Container();
@@ -87,7 +92,8 @@ export function creerScene(app: Application): Scene {
   const textes = creerTextes(coucheTextes);
   const ctx: ContexteEffets = { monde, arriere: coucheArriere, textes, trainees, effets };
   const hud = creerHud(coucheHud);
-  const sons = creerSons();
+  const sons = options.sons ? creerSons() : null;
+  coucheHud.visible = options.interface;
   let prefs: PreferencesJeu = { ...PREFERENCES_DEFAUT };
   const camera: Camera = { x: 0, y: 0 };
   let hauteurVue = 0;
@@ -132,11 +138,11 @@ export function creerScene(app: Application): Scene {
 
     preferences(p) {
       prefs = { ...p };
-      sons.volume(p.volume);
+      sons?.volume(p.volume);
     },
 
     detruire() {
-      sons.detruire();
+      sons?.detruire();
     },
 
     dessiner(vue, noms, dtMs) {
@@ -195,7 +201,7 @@ export function creerScene(app: Application): Scene {
       let cy: number;
       const local = m.combattants[vue.local];
       if (local) {
-        echelle = hauteur / VUE_HAUTEUR;
+        echelle = hauteur / options.vueHauteur;
         const p = vue.positions[vue.local];
         cx = px(p.x);
         cy = px(p.y - local.perso.stats.hauteur / 2);
@@ -206,7 +212,9 @@ export function creerScene(app: Application): Scene {
           const p = vue.positions[i] ?? c;
           return [{ x: px(p.x), y: px(p.y - c.perso.stats.hauteur / 2) }];
         });
-        const cadre = cadrerGroupe(points, largeur / hauteur, limites, CADRAGE_SPECTATEUR);
+        const cadre = cadrerGroupe(points, largeur / hauteur, limites, {
+          margeX: MARGES_SPECTATEUR.x * options.vueHauteur, margeY: MARGES_SPECTATEUR.y * options.vueHauteur, hauteurMin: options.vueHauteur,
+        });
         hauteurVue = premiere ? cadre.hauteurVue : lisser(hauteurVue, cadre.hauteurVue, dtMs, 450);
         echelle = hauteur / hauteurVue;
         cx = cadre.x;
@@ -221,7 +229,7 @@ export function creerScene(app: Application): Scene {
         placerDecor(decor, camera.x, camera.y);
         decor.animer(temps);
       }
-      sons.maj(m, vue.evenements, { x: camera.x, demiLargeur: largeur / echelle / 2 }, vue.local);
+      sons?.maj(m, vue.evenements, { x: camera.x, demiLargeur: largeur / echelle / 2 }, vue.local);
 
       // Boîtes de collision et de coups (touche H).
       debug.clear();
@@ -244,8 +252,10 @@ export function creerScene(app: Application): Scene {
 
       const k = echelleInterface(hauteur, !local);
       coucheHud.scale.set(k);
-      hud.resolution(k * app.renderer.resolution);
-      hud.maj(m, noms, largeur / k, hauteur / k, dtMs);
+      if (options.interface) {
+        hud.resolution(k * app.renderer.resolution);
+        hud.maj(m, noms, largeur / k, hauteur / k, dtMs);
+      }
 
       // Entre deux manches : fondu au noir, puis retour sur l'arène.
       const noir = opaciteTransition(m);

@@ -6,7 +6,7 @@ import { ecouterClavier } from "../entrees/clavier";
 import { lireManettes } from "../entrees/manette";
 import type { PreferencesJeu } from "../reglages";
 import type { SessionJeu } from "../session";
-import { creerScene } from "./scene";
+import { SCENE_JEU, creerScene, type OptionsScene } from "./scene";
 
 /*
  * Rendu d'une session (locale ou réseau) dans un conteneur : application
@@ -31,6 +31,8 @@ async function chargerPolices(): Promise<void> {
 
 export async function monterRendu(
   conteneur: HTMLElement, session: SessionJeu, noms: readonly string[], preferences: PreferencesJeu,
+  /** L'aperçu des menus : ni interface, ni son, ni clavier. */
+  apercu: OptionsScene | null = null,
 ): Promise<RenduMonte> {
   const app = new Application();
   await app.init({
@@ -44,15 +46,15 @@ export async function monterRendu(
   conteneur.appendChild(app.canvas);
   await chargerPolices();
 
-  const scene = creerScene(app);
+  const scene = creerScene(app, apercu ?? SCENE_JEU);
   scene.preferences(preferences);
-  const clavier = ecouterClavier(window, { KeyH: () => scene.basculerDebug() });
-  const lireEntree = () => clavier.entree() | lireManettes(navigator);
+  const clavier = apercu ? null : ecouterClavier(window, { KeyH: () => scene.basculerDebug() });
+  const lireEntree = () => (clavier ? clavier.entree() | lireManettes(navigator) : 0);
 
   // En développement, les tests de navigateur lisent l'état et peuvent
   // figer le temps (jamais en production).
   let enPause = false;
-  if (process.env.NODE_ENV !== "production") {
+  if (process.env.NODE_ENV !== "production" && !apercu) {
     (window as unknown as { __jeu?: unknown }).__jeu = {
       monde: () => session.monde(),
       session,
@@ -72,7 +74,7 @@ export async function monterRendu(
     detruire() {
       if (detruit) return;
       detruit = true;
-      clavier.arreter();
+      clavier?.arreter();
       session.detruire?.();
       scene.detruire();
       app.destroy({ removeView: true }, { children: true });

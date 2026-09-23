@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { COULEURS_PLACES, NOMS_NIVEAUX, catalogue, type AdversaireEntrainement, type OptionsEntrainement } from "@jeu/client";
 import { CadreJeu } from "./CadreJeu";
+import { ChoixPerso } from "./ChoixPerso";
 import { EcranJeu } from "./EcranJeu";
 
 /*
@@ -33,18 +34,7 @@ export function Entrainement({ pseudo }: { pseudo: string }) {
 
       <section className="mb-6">
         <h2 className="mb-2 text-[13px] font-bold uppercase tracking-[0.18em] text-white/50">Votre combattant</h2>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {CATALOGUE.persos.map((p) => (
-            <button key={p.id} type="button" onClick={() => setPerso(p.id)} aria-pressed={perso === p.id}
-                    className={`rounded-2xl border p-4 text-left transition ${perso === p.id
-                      ? "border-white/60 bg-white/[0.10]" : "border-white/10 bg-white/[0.04] hover:border-white/25"}`}
-                    style={perso === p.id ? { boxShadow: `inset 4px 0 0 ${p.couleur}` } : undefined}>
-              <p className="text-[18px] font-extrabold">{p.nom}</p>
-              <p className="text-[12px] font-semibold" style={{ color: p.couleur }}>{p.role}</p>
-              <p className="mt-1 text-[13px] leading-snug text-white/60">{p.resume}</p>
-            </button>
-          ))}
-        </div>
+        <ChoixPerso choisi={perso} choisir={setPerso} />
       </section>
 
       <section className="mb-6">

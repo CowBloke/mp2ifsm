@@ -7,7 +7,7 @@ import type { ConnexionJeu } from "./reseau/connexion";
 import { creerSessionReseau } from "./reseau/session-reseau";
 import { nomsDistincts } from "./noms";
 import { creerSessionLocale } from "./session-locale";
-import type { PreferencesJeu } from "./reglages";
+import { PREFERENCES_DEFAUT, type PreferencesJeu } from "./reglages";
 
 /*
  * Point d'entrée du client de jeu : le SEUL module que le site importe.
@@ -67,4 +67,33 @@ export async function monterJeu(conteneur: HTMLElement, options: OptionsJeu, pre
   }
   const session = creerSessionReseau(options.connexion, options.partie);
   return monterRendu(conteneur, session, nomsDistincts(options.partie.noms), preferences);
+}
+
+export type ApercuMonte = {
+  /** Montre un autre personnage (la démonstration repart du début). */
+  changer(persoId: string): void;
+  detruire(): void;
+};
+
+/**
+ * Aperçu animé d'un personnage pour les menus : il enchaîne ses coups sur
+ * un mannequin, sans interface ni son. Pixi n'est chargé qu'à cet appel.
+ */
+export async function monterApercu(conteneur: HTMLElement, persoId: string): Promise<ApercuMonte> {
+  const [{ monterRendu }, { creerDemo, mondeApercu }] = await Promise.all([import("./rendu/monter"), import("./apercu")]);
+  let actuel = persoId;
+  // Personne ne joue : la démonstration pilote la place 0, le mannequin ne bouge pas.
+  const session = creerSessionLocale(() => mondeApercu(actuel), -1, () => [creerDemo(), null], 0);
+  const rendu = await monterRendu(conteneur, session, ["", ""], { ...PREFERENCES_DEFAUT, secousses: false },
+    { interface: false, sons: false, vueHauteur: 330 });
+  return {
+    changer(id) {
+      if (id === actuel) return;
+      actuel = id;
+      session.recommencer?.();
+    },
+    detruire() {
+      rendu.detruire();
+    },
+  };
 }
