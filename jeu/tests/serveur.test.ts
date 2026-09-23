@@ -223,6 +223,36 @@ test("déconnecté en partie, on garde sa place et on la reprend", async () => {
   retour.fermer();
 });
 
+test("un joueur déconnecté est relevé par un bot, puis reprend la main à son retour", async () => {
+  const { a, b, code } = await salonA2();
+  const salonServeur = serveur.hall.salon(code)!;
+  b.envoyer({ t: "pret", pret: true });
+  a.envoyer({ t: "lancer" });
+  await b.attendre((m) => m.t === "debut");
+  const monde = salonServeur.partie!.monde;
+  while (monde.phase !== "combat") await new Promise((r) => setTimeout(r, 20));
+  b.fermer();
+  // Relève au bout de 3 s d'absence : le salon l'annonce.
+  const { salon } = await a.attendre<Salon>((m) => m.t === "salon" && (m as Salon).salon.places[1]?.releve === true, 5000);
+  assert.equal(salon.places[1]?.connecte, false);
+  // Le bot joue : le combattant de Bob agit sans que personne ne le commande.
+  const instance = monde.combattants[1].instance;
+  const x = monde.combattants[1].x;
+  const fin = Date.now() + 4000;
+  while (Date.now() < fin && monde.combattants[1].instance === instance && monde.combattants[1].x === x) {
+    await new Promise((r) => setTimeout(r, 30));
+  }
+  assert.ok(monde.combattants[1].instance !== instance || monde.combattants[1].x !== x, "le bot fait bouger ou frapper");
+
+  const retour = await Client.entrer("bob", "Bob");
+  retour.envoyer({ t: "rejoindre", code });
+  await retour.attendre((m) => m.t === "debut");
+  const apres = await a.attendre<Salon>((m) => m.t === "salon" && (m as Salon).salon.places[1]?.connecte === true, 3000);
+  assert.equal(apres.salon.places[1]?.releve, false, "le bot rend la place");
+  a.fermer();
+  retour.fermer();
+});
+
 test("l'arrêt du serveur prévient les clients (1012)", async () => {
   const autre = creerServeurJeu({ origines: [ORIGINE], secret: SECRET, boucle: false });
   const p = await autre.ecouter(0, "127.0.0.1");

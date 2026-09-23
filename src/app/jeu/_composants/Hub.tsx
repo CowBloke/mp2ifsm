@@ -47,7 +47,7 @@ export function Hub({ urlJeu, pseudo }: { urlJeu: string | null; pseudo: string 
               className="group rounded-2xl border border-white/10 bg-white/[0.04] p-5 transition hover:border-white/25 hover:bg-white/[0.07]">
           <p className="text-[12px] font-bold uppercase tracking-[0.18em] text-[#3ddc84]">Seul</p>
           <h2 className="mt-1 text-[22px] font-extrabold">S’entraîner</h2>
-          <p className="mt-1 text-[13px] text-white/60">Contre le mannequin, sans connexion : pour apprendre les coups.</p>
+          <p className="mt-1 text-[13px] text-white/60">Contre le mannequin ou des bots, sans connexion : pour apprendre les coups.</p>
         </Link>
 
         <button type="button" onClick={creer} disabled={etat.statut !== "connecte" || creation !== null}

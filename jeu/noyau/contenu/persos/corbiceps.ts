@@ -16,7 +16,7 @@ export const CORBICEPS: PersoDef = {
   id: "corbiceps",
   nom: "Mr Corbiceps",
   stats: {
-    pv: 1150,
+    pv: 1600,
     poids: 135,
     largeur: px(76),
     hauteur: px(128),

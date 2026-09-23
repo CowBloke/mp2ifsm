@@ -31,13 +31,15 @@ export function coupDe(c: Combattant): CoupDef | undefined {
   return c.coup === null ? undefined : c.perso.coups[c.coup];
 }
 
-function resoudre(c: Combattant, e: Emplacement): string | null {
+/** Coup qui répond à cet emplacement (après repli), ou null. */
+export function resoudreEmplacement(c: Combattant, e: Emplacement): string | null {
   let id: Emplacement | undefined = e;
   while (id !== undefined && !c.perso.coups[id]) id = REPLIS[id];
   return id ?? null;
 }
 
-function disponible(c: Combattant, id: string): boolean {
+/** Coup utilisable maintenant : recharge, jauge, « une fois par saut ». */
+export function coupDisponible(c: Combattant, id: string): boolean {
   const coup = c.perso.coups[id];
   if (coup.recharge && c.recharges.some((r) => r.coup === id)) return false;
   if (coup.jauge && c.jauge < coup.jauge) return false;
@@ -56,14 +58,14 @@ export function choisirCoup(c: Combattant, entree: Entree, direction: -1 | 0 | 1
 
   if (c.tampon & ULTIME) {
     c.tampon &= ~ULTIME; // un ultime refusé n'est pas gardé en mémoire
-    if (!silence && c.perso.coups.ultime && disponible(c, "ultime")) return "ultime";
+    if (!silence && c.perso.coups.ultime && coupDisponible(c, "ultime")) return "ultime";
   }
   if (c.tampon & SPECIAL && !silence) {
     const e: Emplacement = entree & HAUT ? "special_haut"
       : entree & BAS ? "special_bas"
       : direction !== 0 ? "special_cote" : "special_neutre";
-    const id = resoudre(c, e);
-    if (id !== null && disponible(c, id)) {
+    const id = resoudreEmplacement(c, e);
+    if (id !== null && coupDisponible(c, id)) {
       c.tampon &= ~SPECIAL;
       tourner(c, direction);
       return id;
@@ -74,8 +76,8 @@ export function choisirCoup(c: Combattant, entree: Entree, direction: -1 | 0 | 1
       : entree & BAS ? (air ? "air_bas" : "bas")
       : direction !== 0 ? (air ? "air_cote" : "cote")
       : air ? "air_neutre" : "neutre";
-    const id = resoudre(c, e);
-    if (id !== null && disponible(c, id)) {
+    const id = resoudreEmplacement(c, e);
+    if (id !== null && coupDisponible(c, id)) {
       c.tampon &= ~ATTAQUE;
       tourner(c, direction);
       return id;

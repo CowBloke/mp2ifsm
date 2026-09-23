@@ -1,6 +1,7 @@
 import type { Point } from "../noyau/carte";
 import type { Entree } from "../noyau/entrees";
 import type { Evenement } from "../noyau/evenements";
+import type { Controleur } from "../noyau/bots/bot";
 import type { SessionJeu, VueJeu } from "./session";
 import { creerHorloge, fractionTick, ticksAJouer } from "../noyau/horloge";
 import { avancerMonde, type Monde } from "../noyau/monde";
@@ -11,19 +12,19 @@ import { avancerMonde, type Monde } from "../noyau/monde";
  * Aucune dépendance au rendu : testable sans navigateur.
  */
 
-/** Donne l'entrée d'un combattant non humain (bot, mannequin immobile…). */
-export type Controleur = (monde: Monde, place: number) => Entree;
 
 export type { VueJeu } from "./session";
 
 export function creerSessionLocale(
   creer: () => Monde,
   local: number,
-  controleurs: readonly (Controleur | null)[] = [],
+  /** Contrôleurs des autres places (bots), recréés à chaque nouvelle partie. */
+  creerControleurs: () => readonly (Controleur | null)[] = () => [],
   /** Délai avant de relancer une partie terminée, en ticks. */
   relance = 300,
 ): SessionJeu {
   let monde = creer();
+  let controleurs = creerControleurs();
   const horloge = creerHorloge();
   let avant: Point[] = positions(monde);
   let evenements: Evenement[] = [];
@@ -36,7 +37,10 @@ export function creerSessionLocale(
     avancer(ecouleMs, lireEntree) {
       const ticks = ticksAJouer(horloge, ecouleMs);
       for (let i = 0; i < ticks; i++) {
-        if (monde.phase === "finPartie" && monde.phaseTicks >= relance) monde = creer();
+        if (monde.phase === "finPartie" && monde.phaseTicks >= relance) {
+          monde = creer();
+          controleurs = creerControleurs();
+        }
         avant = positions(monde);
         const entreeLocale = lireEntree();
         const entrees = monde.combattants.map((c) =>

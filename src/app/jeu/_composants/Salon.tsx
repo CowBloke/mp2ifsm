@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { COULEURS_PLACES, catalogue, type EtatSalon, type PlaceVue } from "@jeu/client";
+import { COULEURS_PLACES, NOMS_NIVEAUX, catalogue, type EtatSalon, type PlaceVue } from "@jeu/client";
 import { CadreJeu } from "./CadreJeu";
 import { EcranJeu } from "./EcranJeu";
 import { obtenirConnexion, useEtatConnexion } from "./connexion";
@@ -13,7 +13,7 @@ import { obtenirConnexion, useEtatConnexion } from "./connexion";
  * l'écran de jeu prend toute la place ; à la fin, retour ici.
  */
 
-const NIVEAUX = ["Facile", "Moyen", "Difficile", "Expert"];
+const NIVEAUX = NOMS_NIVEAUX;
 const CATALOGUE = catalogue();
 const css = (c: number) => `#${c.toString(16).padStart(6, "0")}`;
 
@@ -209,7 +209,11 @@ function CartePlace({ index, place, estHote, estMoi, hote, envoyer }: {
                 {place.pret ? "Prêt" : "Pas prêt"}
               </span>
             ) : null}
-            {!place.connecte ? <span className="rounded-full bg-[#ff5a5f]/20 px-2 py-0.5 text-[#ffb3b5]">Déconnecté</span> : null}
+            {!place.connecte ? (
+              <span className="rounded-full bg-[#ff5a5f]/20 px-2 py-0.5 text-[#ffb3b5]">
+                {place.releve ? "Déconnecté · relevé par un bot" : "Déconnecté"}
+              </span>
+            ) : null}
           </div>
           {hote && !estHote ? (
             <div className="mt-3 flex flex-wrap gap-2">

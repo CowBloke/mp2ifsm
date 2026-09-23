@@ -1,3 +1,4 @@
+import { NOMS_NIVEAUX, creerBot } from "../noyau/bots/bot";
 import { CARTES, PERSOS } from "../noyau/contenu";
 import { REGLAGES_STANDARD, type Reglages } from "../noyau/regles";
 import type { DebutPartie, EtatSalon, MessageServeur } from "../protocole/messages";
@@ -12,6 +13,10 @@ import { PartieServeur, type Controleur } from "./partie";
 export const PLACES = 4;
 /** Après la fin d'une partie, retour au salon au bout de ce nombre de ticks. */
 const RETOUR_SALON = 360;
+/** Un joueur absent depuis ce nombre de ticks est relevé par un bot jusqu'à son retour. */
+const RELEVE_APRES = 180;
+/** Niveau du bot qui relève un joueur déconnecté. */
+const NIVEAU_RELEVE = 1;
 
 export type Connexion = {
   readonly id: number;
@@ -39,6 +44,8 @@ export type OptionsSalon = {
   instantaneTous?: number;
   /** Fabrique le contrôleur d'un bot (ou d'un joueur absent) pour une place de la partie. */
   controleurBot?: (niveau: number, place: number, graine: number) => Controleur;
+  /** Ticks d'absence avant la relève par un bot (tests). */
+  releveApres?: number;
 };
 
 export class Salon {
@@ -49,6 +56,9 @@ export class Salon {
   partie: PartieServeur | null = null;
   /** Pour chaque combattant de la partie, sa place dans le salon. */
   private placesPartie: number[] = [];
+  /** Par combattant de la partie : ticks d'absence de son joueur (et s'il est relevé). */
+  private absences = new Map<number, number>();
+  private graine = 0;
   derniereActivite = 0;
 
   constructor(readonly code: string, public hote: string, private readonly options: OptionsSalon = {}) {}
@@ -60,8 +70,9 @@ export class Salon {
       etat: this.etat,
       carte: this.carte,
       spectateurs: this.spectateurs.size,
-      places: this.places.map((p) => p && {
+      places: this.places.map((p, i) => p && {
         uid: p.uid, nom: p.nom, perso: p.perso, pret: p.pret, connecte: p.bot !== null || p.connexion !== null, bot: p.bot,
+        releve: this.releve(i),
       }),
     };
   }
@@ -107,6 +118,7 @@ export class Salon {
       const pp = this.placePartie(c);
       if (this.partie && pp >= 0) {
         this.partie.reprendre(pp);
+        this.absences.delete(pp);
         c.envoyer({ t: "debut", partie: this.debut(pp) });
         c.envoyerOctets(this.partie.instantane());
       }
@@ -193,7 +205,7 @@ export class Salon {
     const p = this.places[place];
     if (p && p.bot === null) return "Place occupée par un joueur.";
     this.places[place] = niveau === null ? null : {
-      uid: null, nom: `Bot ${["facile", "moyen", "difficile", "expert"][niveau]}`, perso: p?.perso ?? PERSOS[place % PERSOS.length].id,
+      uid: null, nom: `Bot ${NOMS_NIVEAUX[niveau].toLowerCase()}`, perso: p?.perso ?? PERSOS[place % PERSOS.length].id,
       pret: true, connexion: null, bot: niveau,
     };
     this.diffuser();
@@ -230,12 +242,12 @@ export class Salon {
     if (pasPrets.length > 0) return "Tout le monde n'est pas prêt.";
 
     this.placesPartie = occupees.map(([, i]) => i);
+    this.absences.clear();
+    this.graine = graine;
     this.partie = new PartieServeur(this.carte, occupees.map(([p]) => p!.perso), this.options.reglages ?? REGLAGES_STANDARD,
       this.options.instantaneTous ?? 2);
     occupees.forEach(([p], pp) => {
-      if (p!.bot !== null && this.options.controleurBot) {
-        this.partie!.controler(pp, this.options.controleurBot(p!.bot, pp, graine + pp));
-      }
+      if (p!.bot !== null) this.partie!.controler(pp, this.fabriquerBot(p!.bot, pp, graine + pp));
     });
     this.etat = "partie";
     for (const [p, i] of occupees) {
@@ -256,9 +268,30 @@ export class Salon {
     };
   }
 
+  private fabriquerBot(niveau: number, pp: number, graine: number): Controleur {
+    return (this.options.controleurBot ?? ((n, _p, g) => creerBot(n, g)))(niveau, pp, graine);
+  }
+
+  /** Place du salon tenue par un bot le temps que son joueur revienne. */
+  private releve(i: number): boolean {
+    const pp = this.placesPartie.indexOf(i);
+    return pp >= 0 && (this.absences.get(pp) ?? 0) >= (this.options.releveApres ?? RELEVE_APRES);
+  }
+
   /** Un tick de simulation ; diffuse l'instantané quand c'est son tour. */
   tick(): void {
     if (!this.partie) return;
+    const seuil = this.options.releveApres ?? RELEVE_APRES;
+    this.placesPartie.forEach((i, pp) => {
+      const p = this.places[i];
+      if (!p || p.bot !== null || p.connexion) return;
+      const n = (this.absences.get(pp) ?? 0) + 1;
+      this.absences.set(pp, n);
+      if (n === seuil) {
+        this.partie!.controler(pp, this.fabriquerBot(NIVEAU_RELEVE, pp, this.graine + 97 * (pp + 1)));
+        this.diffuser();
+      }
+    });
     const octets = this.partie.avancer();
     if (octets) for (const c of this.destinataires()) c.envoyerOctets(octets);
     const m = this.partie.monde;
@@ -269,6 +302,7 @@ export class Salon {
   private terminer(): void {
     this.partie = null;
     this.placesPartie = [];
+    this.absences.clear();
     this.etat = "attente";
     this.places.forEach((p, i) => {
       if (p && p.bot === null && !p.connexion) this.places[i] = null;

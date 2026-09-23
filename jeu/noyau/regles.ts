@@ -24,7 +24,7 @@ export type Reglages = {
 export const REGLAGES_STANDARD: Reglages = {
   manchesGagnantes: 2,
   manchesMax: 3,
-  dureeManche: 75 * 60,
+  dureeManche: 90 * 60,
   dureeDecompte: 150,
   penaliteChute: 250,
   jaugeConservee: true,

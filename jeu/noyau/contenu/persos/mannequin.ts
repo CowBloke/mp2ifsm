@@ -12,7 +12,7 @@ export const MANNEQUIN: PersoDef = {
   id: "mannequin",
   nom: "Mannequin",
   stats: {
-    pv: 1000,
+    pv: 1400,
     poids: 100,
     largeur: px(60),
     hauteur: px(110),

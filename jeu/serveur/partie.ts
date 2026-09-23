@@ -1,7 +1,9 @@
 import { carteParId, persoParId } from "../noyau/contenu";
 import { ACTIONS, TOUTES, type Entree } from "../noyau/entrees";
+import type { Controleur } from "../noyau/bots/bot";
 import { avancerMonde, creerMonde, type Monde } from "../noyau/monde";
 import type { Reglages } from "../noyau/regles";
+export type { Controleur };
 import type { EvenementDate } from "../protocole/etat";
 import { coderInstantane } from "../protocole/messages";
 
@@ -20,8 +22,6 @@ import { coderInstantane } from "../protocole/messages";
 /** Au-delà, les entrées les plus anciennes sont fusionnées dans les suivantes. */
 const FILE_CIBLE = 2;
 
-/** Donne l'entrée d'un combattant sans joueur connecté (bot, mannequin…). */
-export type Controleur = (monde: Monde, place: number) => Entree;
 
 type Joueur = {
   file: { seq: number; entree: Entree }[];

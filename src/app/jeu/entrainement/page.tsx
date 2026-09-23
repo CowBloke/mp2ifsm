@@ -1,10 +1,10 @@
 import { exigerJeu } from "../acces";
-import { EcranJeu } from "../_composants/EcranJeu";
+import { Entrainement } from "../_composants/Entrainement";
 
 export const dynamic = "force-dynamic";
 
-/** Entraînement : une partie locale contre le mannequin, sans serveur. */
+/** Entraînement : une partie locale contre le mannequin ou des bots, sans serveur. */
 export default async function PageEntrainement() {
   const u = await exigerJeu();
-  return <EcranJeu mode="entrainement" pseudo={u.display_name} />;
+  return <Entrainement pseudo={u.display_name} />;
 }

@@ -28,6 +28,8 @@ export type PlaceVue = {
   connecte: boolean;
   /** Niveau du bot (null : humain). */
   bot: number | null;
+  /** Joueur déconnecté en partie, remplacé par un bot jusqu'à son retour. */
+  releve: boolean;
 };
 
 export type EtatSalon = {

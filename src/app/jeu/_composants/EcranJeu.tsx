@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import type { ConnexionJeu, DebutPartie, EtatConnexion } from "@jeu/client";
+import type { ConnexionJeu, DebutPartie, EtatConnexion, OptionsEntrainement } from "@jeu/client";
 
 const COMMANDES: [string, string][] = [
   ["Bouger", "ZQSD ou flèches"],
@@ -15,7 +14,7 @@ const COMMANDES: [string, string][] = [
 ];
 
 type Props =
-  | { mode: "entrainement"; pseudo: string }
+  | { mode: "entrainement"; options: OptionsEntrainement; quitter: () => void }
   | { mode: "reseau"; connexion: ConnexionJeu; partie: DebutPartie; etat: EtatConnexion; quitter: () => void };
 
 /*
@@ -29,7 +28,7 @@ export function EcranJeu(props: Props) {
   const [etat, setEtat] = useState<"chargement" | "pret" | "erreur">("chargement");
   const [aide, setAide] = useState(props.mode === "entrainement");
   const [confirmer, setConfirmer] = useState(false);
-  const cle = props.mode === "reseau" ? props.partie : props.pseudo;
+  const cle = props.mode === "reseau" ? props.partie : props.options;
 
   useEffect(() => {
     // En développement, React monte l'effet deux fois : une partie dont
@@ -39,7 +38,7 @@ export function EcranJeu(props: Props) {
     import("@jeu/client")
       .then(({ monterJeu }) => monterJeu(conteneur.current!, props.mode === "reseau"
         ? { mode: "reseau", connexion: props.connexion, partie: props.partie }
-        : { mode: "entrainement", pseudo: props.pseudo }))
+        : { mode: "entrainement", ...props.options }))
       .then((p) => {
         if (annule) p.detruire();
         else {
@@ -55,7 +54,7 @@ export function EcranJeu(props: Props) {
       annule = true;
       partie?.detruire();
     };
-    // La partie (ou le pseudo) identifie le montage ; le reste des props suit.
+    // La partie (ou la configuration d'entraînement) identifie le montage.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cle]);
 
@@ -67,11 +66,11 @@ export function EcranJeu(props: Props) {
 
       <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-3 p-3">
         {props.mode === "entrainement" ? (
-          <Link href="/jeu"
-                className="pointer-events-auto rounded-full border border-white/20 bg-black/40 px-3 py-1.5 text-[13px]
-                           font-medium hover:bg-black/60">
+          <button type="button" onClick={props.quitter}
+                  className="pointer-events-auto rounded-full border border-white/20 bg-black/40 px-3 py-1.5 text-[13px]
+                             font-medium hover:bg-black/60">
             ← Quitter
-          </Link>
+          </button>
         ) : (
           <div className="pointer-events-auto flex gap-2">
             <button type="button" onClick={() => (confirmer ? props.quitter() : setConfirmer(true))}
