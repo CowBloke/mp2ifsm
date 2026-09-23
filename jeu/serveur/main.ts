@@ -22,7 +22,8 @@ if (!secret) console.error("jeu: SESSION_SECRET manquant : aucun ticket ne sera 
 const port = Number(process.env.JEU_PORT ?? 4270);
 const hote = process.env.JEU_HOTE || "127.0.0.1";
 const origine = process.env.PUBLIC_ORIGIN ?? "http://127.0.0.1:4260";
-const origines = [origine];
+// JEU_ORIGINES : autres adresses du même site (ex. https://www.mp2ifsm.com), séparées par des virgules.
+const origines = [origine, ...(process.env.JEU_ORIGINES ?? "").split(",").map((o) => o.trim()).filter(Boolean)];
 // En local, 127.0.0.1 et localhost désignent le même site.
 const url = new URL(origine);
 if (url.hostname === "127.0.0.1" || url.hostname === "localhost") {
