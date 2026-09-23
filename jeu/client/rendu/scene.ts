@@ -43,7 +43,8 @@ function opaciteTransition(m: Monde): number {
 
 /** Taille de l'interface : elle grandit avec l'écran, davantage pour un spectateur (projecteur). */
 function echelleInterface(hauteur: number, spectateur: boolean): number {
-  return spectateur ? Math.max(1, Math.min(2.4, hauteur / 640)) : Math.max(1, Math.min(2, hauteur / 760));
+  // Un téléphone à l'horizontale (≈ 390 px de haut) garde une interface compacte.
+  return spectateur ? Math.max(1, Math.min(2.4, hauteur / 640)) : Math.max(0.72, Math.min(2, hauteur / 760));
 }
 const px = (u: number) => u / SOUS_PIXELS;
 
@@ -51,6 +52,8 @@ export type Scene = {
   dessiner(vue: VueJeu, noms: readonly string[], dtMs: number): void;
   basculerDebug(): void;
   preferences(p: PreferencesJeu): void;
+  /** Largeur (px d'écran) à laisser libre de chaque côté en bas : commandes tactiles. */
+  reserverBas(px: number): void;
   detruire(): void;
 };
 
@@ -95,6 +98,7 @@ export function creerScene(app: Application, options: OptionsScene = SCENE_JEU):
   const sons = options.sons ? creerSons() : null;
   coucheHud.visible = options.interface;
   let prefs: PreferencesJeu = { ...PREFERENCES_DEFAUT };
+  let reserve = 0;
   const camera: Camera = { x: 0, y: 0 };
   let hauteurVue = 0;
   let carte: Carte | null = null;
@@ -134,6 +138,10 @@ export function creerScene(app: Application, options: OptionsScene = SCENE_JEU):
   return {
     basculerDebug() {
       afficherDebug = !afficherDebug;
+    },
+
+    reserverBas(px) {
+      reserve = px;
     },
 
     preferences(p) {
@@ -254,7 +262,7 @@ export function creerScene(app: Application, options: OptionsScene = SCENE_JEU):
       coucheHud.scale.set(k);
       if (options.interface) {
         hud.resolution(k * app.renderer.resolution);
-        hud.maj(m, noms, largeur / k, hauteur / k, dtMs);
+        hud.maj(m, noms, largeur / k, hauteur / k, dtMs, reserve / k);
       }
 
       // Entre deux manches : fondu au noir, puis retour sur l'arène.

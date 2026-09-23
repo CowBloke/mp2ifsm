@@ -40,6 +40,8 @@ export function EcranJeu(props: Props) {
   const [confirmer, setConfirmer] = useState(false);
   const [prefs, setPrefs] = useState<PreferencesJeu>(PREFERENCES_DEFAUT);
   const [pleinEcran, setPleinEcran] = useState(false);
+  const [pleinEcranPossible, setPleinEcranPossible] = useState(true);
+  const [tactile, setTactile] = useState(false);
   const [actif, setActif] = useState(true);
   const cle = props.mode === "reseau" ? props.partie : props.options;
   const spectateur = props.mode === "reseau" && props.partie.place < 0;
@@ -80,6 +82,14 @@ export function EcranJeu(props: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [menu]);
 
+  // Téléphone ou tablette : pas d'aide clavier ; l'iPhone n'a pas de plein écran pour une page.
+  useEffect(() => {
+    const doigt = window.matchMedia?.("(pointer: coarse)").matches ?? false;
+    setTactile(doigt);
+    if (doigt) setAide(false);
+    setPleinEcranPossible(document.fullscreenEnabled === true);
+  }, []);
+
   // Souris immobile : le curseur disparaît (et, pour un spectateur, les boutons aussi).
   useEffect(() => {
     let minuteur = setTimeout(() => setActif(false), 2500);
@@ -101,8 +111,14 @@ export function EcranJeu(props: Props) {
   }, []);
 
   function basculerPleinEcran() {
-    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-    else racine.current?.requestFullscreen().catch(() => {});
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+      return;
+    }
+    racine.current?.requestFullscreen()
+      // Sur téléphone (Android), on en profite pour bloquer l'écran à l'horizontale.
+      .then(() => (screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> }).lock?.("landscape"))
+      .catch(() => {});
   }
 
   useEffect(() => {
@@ -146,7 +162,7 @@ export function EcranJeu(props: Props) {
                        duration-500 ${spectateur && !actif && !menu ? "opacity-0" : ""}`}>
         <div className="pointer-events-auto flex gap-2">
           <button type="button" onClick={() => ouvrirMenu(!menu)} aria-expanded={menu} className={BOUTON}>
-            Menu <span className="text-white/45">Échap</span>
+            Menu{tactile ? null : <span className="text-white/45"> Échap</span>}
           </button>
           {spectateur ? (
             <span className="self-center rounded-full bg-black/40 px-3 py-1 text-[12px] font-semibold text-white/75">
@@ -161,10 +177,12 @@ export function EcranJeu(props: Props) {
         </div>
         <div className="pointer-events-auto flex flex-col items-end gap-1.5">
           <div className="flex gap-2">
-            <button type="button" onClick={basculerPleinEcran} className={BOUTON}>
-              {pleinEcran ? "Quitter le plein écran" : "Plein écran"}
-            </button>
-            {spectateur ? null : (
+            {pleinEcranPossible ? (
+              <button type="button" onClick={basculerPleinEcran} className={BOUTON}>
+                {pleinEcran ? "Quitter le plein écran" : "Plein écran"}
+              </button>
+            ) : null}
+            {spectateur || tactile ? null : (
               <button type="button" onClick={() => setAide(!aide)} aria-expanded={aide} className={BOUTON}>
                 {aide ? "Masquer l’aide" : "Commandes"}
               </button>
@@ -227,6 +245,12 @@ export function EcranJeu(props: Props) {
         </div>
       ) : null}
 
+      {tactile && !spectateur ? (
+        <p className="pointer-events-none absolute inset-x-0 top-1/3 mx-auto hidden w-fit rounded-full bg-black/70 px-4 py-2
+                      text-[14px] font-semibold portrait:block">
+          Tournez le téléphone pour jouer ↻
+        </p>
+      ) : null}
       {reconnexion ? (
         <p className="absolute inset-x-0 top-16 mx-auto w-fit rounded-full bg-[#ff5a5f]/90 px-4 py-1.5 text-[13px] font-semibold">
           Connexion perdue, reconnexion…

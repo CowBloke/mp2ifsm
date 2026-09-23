@@ -27,7 +27,8 @@ type Ligne = { rang: Text; nom: Text; perso: Text; manches: Text; degats: Text }
 const RESULTATS_APRES = 45;
 
 export type Hud = {
-  maj(monde: Monde, noms: readonly string[], largeur: number, hauteur: number, dtMs: number): void;
+  /** `reserve` : largeur à laisser libre de chaque côté des cartouches (commandes tactiles). */
+  maj(monde: Monde, noms: readonly string[], largeur: number, hauteur: number, dtMs: number, reserve?: number): void;
   /** Efface en partie les cartouches (0 : visibles, 1 : presque effacés), pour une scène de cinéma. */
   voiler(k: number): void;
   /** Résolution des textes : l'interface agrandie reste nette. */
@@ -162,7 +163,7 @@ export function creerHud(couche: Container): Hud {
       for (const t of textes()) t.resolution = r;
     },
 
-    maj(m, noms, largeur, hauteur, dtMs) {
+    maj(m, noms, largeur, hauteur, dtMs, reserve = 0) {
       // Cartouches en bas de l'écran, centrés.
       while (cartouches.length < m.combattants.length) {
         const c: Cartouche = { fond: new Graphics(), nom: texte(16, "800"), perso: texte(11, "600", 0xaab4d8), pv: texte(22, "900"), traine: 0, delai: 0 };
@@ -172,7 +173,9 @@ export function creerHud(couche: Container): Hud {
         cartouches.push(c);
       }
       const n = m.combattants.length;
-      const l = Math.min(290, (largeur - 32 - (n - 1) * 12) / n);
+      const place = (dispo: number) => Math.min(290, (dispo - 32 - (n - 1) * 12) / n);
+      // Entre les commandes tactiles s'il y a la place ; sinon, par-dessus.
+      const l = place(largeur - 2 * reserve) >= 150 ? place(largeur - 2 * reserve) : place(largeur);
       const h = 74;
       const x0 = (largeur - (n * l + (n - 1) * 12)) / 2;
       const y0 = hauteur - h - 14;

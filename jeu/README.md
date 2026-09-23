@@ -126,7 +126,16 @@ la même origine. Les deux lisent le même `SESSION_SECRET`.
 
 Au clavier : ZQSD ou flèches, Espace (saut), Maj (dash), J/X (attaque),
 K/C (spécial), L/V (ultime), H (boîtes de coups). Manette : stick ou
-croix, A saut, X attaque, B spécial, Y ultime, gâchettes dash.
+croix, A saut, X attaque, B spécial, Y ultime, gâchettes dash, Start
+(menu). Sur téléphone ou tablette, commandes tactiles : stick flottant à
+gauche, boutons à droite (`client/entrees/tactile.ts`).
+
+**Jouer sur des téléphones du même réseau** (partage de connexion, wifi) :
+dans `.env`, `PUBLIC_ORIGIN=http://IP_DU_PC:4260`,
+`JEU_WS_URL=ws://IP_DU_PC:4270/ws/jeu` et `JEU_HOTE=0.0.0.0` ; ouvrir les
+ports 4260 et 4270 au pare-feu ; lancer `npx next dev -p 4260 -H 0.0.0.0`
+et `npm run jeu:dev` ; tout le monde (le PC compris) ouvre
+`http://IP_DU_PC:4260`.
 
 ## Phase 0 : constats (23 septembre 2026)
 

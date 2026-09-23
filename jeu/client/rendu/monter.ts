@@ -2,7 +2,9 @@
 // 'unsafe-eval') ferait sinon échouer la création du rendu.
 import "pixi.js/unsafe-eval";
 import { Application, type Ticker } from "pixi.js";
+import { JAUGE_MAX } from "../../noyau/coups";
 import { ecouterClavier } from "../entrees/clavier";
+import { creerTactile } from "../entrees/tactile";
 import { lireManettes } from "../entrees/manette";
 import type { PreferencesJeu } from "../reglages";
 import type { SessionJeu } from "../session";
@@ -49,7 +51,8 @@ export async function monterRendu(
   const scene = creerScene(app, apercu ?? SCENE_JEU);
   scene.preferences(preferences);
   const clavier = apercu ? null : ecouterClavier(window, { KeyH: () => scene.basculerDebug() });
-  const lireEntree = () => (clavier ? clavier.entree() | lireManettes(navigator) : 0);
+  const tactile = apercu ? null : creerTactile(conteneur);
+  const lireEntree = () => (clavier ? clavier.entree() | lireManettes(navigator) | (tactile?.entree() ?? 0) : 0);
 
   // En développement, les tests de navigateur lisent l'état et peuvent
   // figer le temps (jamais en production).
@@ -65,7 +68,15 @@ export async function monterRendu(
   app.ticker.add((ticker: Ticker) => {
     const dt = enPause ? 0 : ticker.deltaMS;
     session.avancer(dt, lireEntree);
-    scene.dessiner(session.vue(), noms, dt);
+    const vue = session.vue();
+    if (tactile) {
+      // Commandes tactiles : pour qui joue, et pas sur l'écran des résultats.
+      const moi = vue.monde.combattants[vue.local];
+      tactile.afficher(moi !== undefined && vue.monde.phase !== "finPartie");
+      tactile.ultimePret(moi !== undefined && moi.jauge >= JAUGE_MAX && !moi.ko);
+      scene.reserverBas(tactile.emprise());
+    }
+    scene.dessiner(vue, noms, dt);
   });
 
   let detruit = false;
@@ -75,6 +86,7 @@ export async function monterRendu(
       if (detruit) return;
       detruit = true;
       clavier?.arreter();
+      tactile?.arreter();
       session.detruire?.();
       scene.detruire();
       app.destroy({ removeView: true }, { children: true });
