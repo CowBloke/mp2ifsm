@@ -79,10 +79,21 @@ test("le client et le serveur de jeu ne s'importent pas l'un l'autre, ni le site
   }
 });
 
-test("le site n'entre dans le jeu que par @jeu/client", () => {
+test("jeu/protocole ne dépend que du noyau", () => {
+  for (const f of sources("jeu/protocole")) {
+    for (const i of imports(f)) {
+      assert.ok(i.startsWith("."), `${relative(RACINE, f)} importe « ${i} »`);
+      const c = cible(f, i);
+      assert.ok(c.startsWith("jeu/protocole/") || c.startsWith("jeu/noyau/"), `${relative(RACINE, f)} importe « ${i} »`);
+    }
+  }
+});
+
+test("le site n'entre dans le jeu que par @jeu/client (et la signature des tickets)", () => {
+  const permis = ["@jeu/client", "@jeu/protocole/ticket"];
   for (const f of sources("src")) {
     for (const i of imports(f)) {
-      if (i.startsWith("@jeu/")) assert.equal(i, "@jeu/client", `${relative(RACINE, f)} importe « ${i} »`);
+      if (i.startsWith("@jeu/")) assert.ok(permis.includes(i), `${relative(RACINE, f)} importe « ${i} »`);
       if (i.startsWith(".")) assert.ok(!cible(f, i).startsWith("jeu/"), `${relative(RACINE, f)} importe « ${i} »`);
     }
   }

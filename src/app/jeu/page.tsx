@@ -1,23 +1,13 @@
-import { notFound, redirect } from "next/navigation";
-import { utilisateurCourant } from "@/lib/session";
-import { EcranJeu } from "./_composants/EcranJeu";
+import { exigerJeu, urlServeurJeu } from "./acces";
+import { Hub } from "./_composants/Hub";
 
 export const dynamic = "force-dynamic";
 
 /*
- * Jeu de combat de la classe — prototype.
- *
- * Fermé tant que JEU_ACTIF ne l'ouvre pas : « tous » pour les membres,
- * « admins » pour les administrateurs, sinon la page n'existe pas. Le
- * jeu peut donc arriver sur main sans être visible.
+ * Jeu de combat de la classe : accueil (entraînement, salons).
+ * Fermé tant que JEU_ACTIF ne l'ouvre pas, cf. acces.ts.
  */
 export default async function PageJeu() {
-  const acces = process.env.JEU_ACTIF;
-  if (acces !== "tous" && acces !== "admins") notFound();
-
-  const u = await utilisateurCourant();
-  if (!u) redirect("/connexion");
-  if (acces === "admins" && u.role !== "admin") notFound();
-
-  return <EcranJeu pseudo={u.display_name} />;
+  const u = await exigerJeu();
+  return <Hub urlJeu={urlServeurJeu()} pseudo={u.display_name} />;
 }

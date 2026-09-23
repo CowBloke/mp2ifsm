@@ -36,6 +36,26 @@ sont franchies, ou si le moteur cite un personnage par son nom.
   2 manches (3 au plus), départage aux dégâts infligés, chute = perte de
   25 % des PV max puis réapparition invulnérable.
 
+## Multijoueur
+
+- **Serveur autoritaire** (`jeu/serveur`) : un processus Node séparé, une
+  horloge à 60 ticks/s pour toutes les parties. Les clients n'envoient que
+  leurs entrées (champ de bits numéroté) ; le serveur les consomme une par
+  tick (répète la dernière si rien n'arrive, fusionne si la file
+  s'allonge) et diffuse l'état complet ~30 fois par seconde, en binaire
+  (varints, < 1 Ko à trois combattants).
+- **Client** (`jeu/client/reseau`) : son propre combattant est prédit
+  (même code que le serveur, rejoué depuis chaque état officiel), les
+  autres sont interpolés un peu dans le passé ; reconnexion automatique
+  avec reprise de sa place.
+- **Identité** : le site signe un ticket de deux minutes (HMAC-SHA256,
+  secret de session, préfixe propre au jeu, `src/app/jeu/actions.ts`) ; le
+  serveur de jeu le vérifie, sans base de données ni cookie.
+- **Salons** (en mémoire) : code de 4 caractères, hôte, 4 places, bots,
+  spectateurs ; un joueur déconnecté garde sa place pendant la partie.
+- **Pages** : `/jeu` (accueil), `/jeu/entrainement`, `/jeu/salon/CODE`
+  (lien à partager), `/jeu/regarder/CODE` (spectateur, projecteur).
+
 ## Commandes
 
 ```bash
@@ -43,6 +63,11 @@ npm run jeu:test     # tests du jeu
 npm run jeu:dev      # serveur de jeu sur 127.0.0.1:4270 (JEU_PORT)
 npm run dev          # site ; /jeu exige JEU_ACTIF=tous (ou admins) dans .env
 ```
+
+En développement, le site et le serveur de jeu tournent côte à côte : le
+navigateur rejoint directement `ws://127.0.0.1:4270/ws/jeu` si
+`JEU_WS_URL` le dit (dans `.env`) ; en production, il passe par nginx sur
+la même origine. Les deux lisent le même `SESSION_SECRET`.
 
 Au clavier : ZQSD ou flèches, Espace (saut), Maj (dash), J/X (attaque),
 K/C (spécial), L/V (ultime), H (boîtes de coups). Manette : stick ou
