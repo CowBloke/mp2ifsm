@@ -32,6 +32,12 @@ export type OptionsConnexion = {
   ticket: () => Promise<string>;
   /** Implémentation WebSocket (tests sous Node). */
   WebSocket?: typeof WebSocket;
+  /**
+   * N'ouvrir la connexion qu'au premier abonné. Un composant React crée la
+   * connexion pendant son rendu mais ne s'abonne qu'une fois monté : le
+   * ticket (action serveur) n'est ainsi jamais demandé en pleine hydratation.
+   */
+  auPremierAbonne?: boolean;
 };
 
 export type ConnexionJeu = {
@@ -151,12 +157,17 @@ export function connecterJeu(options: OptionsConnexion): ConnexionJeu {
     };
   }
 
-  ouvrir();
+  let ouverte = !options.auPremierAbonne;
+  if (ouverte) ouvrir();
 
   return {
     etat: () => etat,
     abonner(f) {
       abonnes.add(f);
+      if (!ouverte && !ferme) {
+        ouverte = true;
+        ouvrir();
+      }
       return () => abonnes.delete(f);
     },
     envoyer(m) {

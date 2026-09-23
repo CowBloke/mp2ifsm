@@ -131,3 +131,31 @@ test("coupure : la connexion revient toute seule et reprend la partie", async ()
   alice.fermer();
   bob.fermer();
 });
+
+test("connexion différée : aucune socket (ni ticket) avant le premier abonné", () => {
+  let sockets = 0;
+  let tickets = 0;
+  class FausseSocket {
+    binaryType = "";
+    onopen: (() => void) | null = null;
+    constructor() {
+      sockets++;
+    }
+    send() {}
+    close() {}
+  }
+  const c = connecterJeu({
+    url: "ws://exemple.invalid/ws/jeu",
+    ticket: async () => (tickets++, "t"),
+    WebSocket: FausseSocket as unknown as typeof WebSocket,
+    auPremierAbonne: true,
+  });
+  assert.equal(sockets, 0, "rien n'est ouvert pendant le rendu");
+  const desabonner = c.abonner(() => {});
+  assert.equal(sockets, 1, "le premier abonné ouvre la connexion");
+  c.abonner(() => {});
+  assert.equal(sockets, 1, "une seule fois");
+  assert.equal(tickets, 0, "le ticket attend l'ouverture de la socket");
+  desabonner();
+  c.fermer();
+});

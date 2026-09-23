@@ -7,9 +7,20 @@ import { NOM_JEU } from "@jeu/client";
 import { CadreJeu } from "./CadreJeu";
 import { obtenirConnexion, useEtatConnexion } from "./connexion";
 
+/** [action, clavier, manette] */
+const COMMANDES: [string, string, string][] = [
+  ["Bouger", "ZQSD ou flèches", "stick ou croix"],
+  ["Sauter", "Espace", "A"],
+  ["Dash", "Maj", "gâchettes"],
+  ["Attaque", "J ou X", "X"],
+  ["Spécial", "K ou C", "B"],
+  ["Ultime", "L ou V", "Y"],
+  ["Menu", "Échap", "Start"],
+];
+
 /*
  * Accueil du jeu : s'entraîner seul, créer un salon, en rejoindre un ou
- * regarder une partie par son code.
+ * regarder une partie par son code ; les règles et les commandes.
  */
 export function Hub({ urlJeu, pseudo }: { urlJeu: string | null; pseudo: string }) {
   const router = useRouter();
@@ -34,7 +45,7 @@ export function Hub({ urlJeu, pseudo }: { urlJeu: string | null; pseudo: string 
   return (
     <CadreJeu retour={{ href: "/", libelle: "Portail", avant: () => connexion.fermer() }}>
       <section className="mb-8 text-center">
-        <h1 className="bg-gradient-to-r from-[#4f8cff] via-white to-[#ff5a5f] bg-clip-text text-[40px] font-black
+        <h1 className="bg-gradient-to-r from-[#4f8cff] via-white to-[#ff5a5f] bg-clip-text pb-[0.12em] text-[40px] font-black
                        leading-none tracking-tight text-transparent sm:text-[64px]">
           {NOM_JEU}
         </h1>
@@ -87,6 +98,29 @@ export function Hub({ urlJeu, pseudo }: { urlJeu: string | null; pseudo: string 
       {etat.erreur ? (
         <p className="mt-4 rounded-xl bg-[#ff5a5f]/15 px-4 py-3 text-[13px] text-[#ffb3b5]">{etat.erreur}</p>
       ) : null}
+
+      <section className="mt-8 grid gap-3 sm:grid-cols-2">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+          <h2 className="text-[13px] font-bold uppercase tracking-[0.18em] text-white/50">Règles</h2>
+          <ul className="mt-2 grid gap-1.5 text-[13px] leading-snug text-white/70">
+            <li>Chacun a ses points de vie : à zéro, K.O. Le dernier debout gagne la manche.</li>
+            <li>Tomber de l’arène coûte un quart de ses PV, puis on réapparaît.</li>
+            <li>Premier à deux manches ; au chrono, la plus grande part de PV l’emporte.</li>
+            <li>Frapper et encaisser remplit la jauge : pleine, l’ultime est prêt.</li>
+          </ul>
+        </div>
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+          <h2 className="text-[13px] font-bold uppercase tracking-[0.18em] text-white/50">Commandes</h2>
+          <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-[13px] leading-snug">
+            {COMMANDES.map(([action, clavier, manette]) => (
+              <div key={action} className="contents">
+                <dt className="text-white/50">{action}</dt>
+                <dd className="text-white/80">{clavier} <span className="text-white/40">· {manette}</span></dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      </section>
     </CadreJeu>
   );
 }

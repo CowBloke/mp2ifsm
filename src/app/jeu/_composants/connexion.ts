@@ -14,7 +14,7 @@ let connexion: ConnexionJeu | null = null;
 
 export function obtenirConnexion(url: string | null): ConnexionJeu {
   if (!connexion || connexion.etat().statut === "ferme" || connexion.etat().statut === "refuse") {
-    connexion = connecterJeu({ url, ticket: () => ticketJeu() });
+    connexion = connecterJeu({ url, ticket: () => ticketJeu(), auPremierAbonne: true });
   }
   return connexion;
 }

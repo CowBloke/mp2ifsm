@@ -13,7 +13,7 @@ const COMMANDES: [string, string][] = [
   ["Attaque", "J ou X (+ direction)"],
   ["Spécial", "K ou C (+ direction)"],
   ["Ultime", "L ou V (jauge pleine)"],
-  ["Menu", "Échap"],
+  ["Menu", "Échap (Start)"],
   ["Hitboxes", "H"],
 ];
 
@@ -58,7 +58,7 @@ export function EcranJeu(props: Props) {
     partie.current?.preferences(p);
   }
 
-  // Échap ouvre et ferme le menu.
+  // Échap (ou Start à la manette) ouvre et ferme le menu.
   useEffect(() => {
     const touche = (e: KeyboardEvent) => {
       if (e.code !== "Escape" || e.repeat) return;
@@ -66,7 +66,16 @@ export function EcranJeu(props: Props) {
       ouvrirMenu(!menu);
     };
     window.addEventListener("keydown", touche);
-    return () => window.removeEventListener("keydown", touche);
+    let start = true;
+    const manettes = setInterval(() => {
+      const appui = [...(navigator.getGamepads?.() ?? [])].some((m) => m?.buttons[9]?.pressed === true);
+      if (appui && !start) ouvrirMenu(!menu);
+      start = appui;
+    }, 80);
+    return () => {
+      window.removeEventListener("keydown", touche);
+      clearInterval(manettes);
+    };
     // ouvrirMenu ne lit que des références stables ; seul `menu` change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [menu]);
