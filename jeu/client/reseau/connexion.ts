@@ -1,4 +1,5 @@
 import type { Entree } from "../../noyau/entrees";
+import { EMPREINTE_CONTENU } from "../../noyau/contenu/empreinte";
 import {
   B_ETAT, B_PING, B_PONG, CHEMIN_WS, VERSION_PROTOCOLE, coderEntree, coderPing, decoderBinaire,
   type DebutPartie, type EtatSalon, type MessageClient, type MessageServeur,
@@ -125,7 +126,7 @@ export function connecterJeu(options: OptionsConnexion): ConnexionJeu {
     s.binaryType = "arraybuffer";
     s.onopen = () => {
       options.ticket()
-        .then((ticket) => envoyerBrut(JSON.stringify({ t: "bonjour", v: VERSION_PROTOCOLE, ticket })))
+        .then((ticket) => envoyerBrut(JSON.stringify({ t: "bonjour", v: VERSION_PROTOCOLE, contenu: EMPREINTE_CONTENU, ticket })))
         .catch(() => s.close());
       ping = setInterval(() => envoyerBrut(coderPing(B_PING, Math.round(performance.now() - origine))), 1000);
     };

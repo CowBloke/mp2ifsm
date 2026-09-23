@@ -14,7 +14,8 @@
     "test": "node --conditions=react-server --import tsx --test tests/*.test.ts",
     "typecheck": "tsc --noEmit",
     "jeu:dev": "tsx watch jeu/serveur/main.ts",
-    "jeu:test": "node --import tsx --test jeu/tests/*.test.ts"
+    "jeu:test": "node --import tsx --test jeu/tests/*.test.ts",
+    "jeu:equilibrage": "tsx jeu/outils/equilibrage.ts"
   },
   "dependencies": {
     "adm-zip": "^0.6.1",

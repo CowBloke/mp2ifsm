@@ -13,7 +13,7 @@ import type { Carte } from "../noyau/carte";
  */
 
 /** Change à chaque évolution incompatible ; un client périmé est invité à recharger. */
-export const VERSION_PROTOCOLE = 2;
+export const VERSION_PROTOCOLE = 3;
 
 export const CHEMIN_WS = "/ws/jeu";
 
@@ -51,7 +51,8 @@ export type DebutPartie = {
 };
 
 export type MessageClient =
-  | { t: "bonjour"; v: number; ticket: string }
+  /** `contenu` : empreinte des données du jeu (noyau/contenu/empreinte.ts). */
+  | { t: "bonjour"; v: number; contenu: string; ticket: string }
   | { t: "creer" }
   | { t: "rejoindre"; code: string }
   | { t: "regarder"; code: string }

@@ -15,6 +15,11 @@ import { elan, frappe } from "../outils";
 export const CORBICEPS: PersoDef = {
   id: "corbiceps",
   nom: "Mr Corbiceps",
+  fiche: {
+    role: "Lourd · corps à corps",
+    resume: "Prof de maths bâti comme un pilier. Lent, mais chaque coup fait mal : « oui, non, non, oui ! »",
+    couleur: 0xff4d5a,
+  },
   stats: {
     pv: 1550,
     poids: 135,

@@ -13,6 +13,11 @@ import { elan, frappe, touche } from "../outils";
 export const THEODORE: PersoDef = {
   id: "theodore",
   nom: "Absolut Théodore",
+  fiche: {
+    role: "Assassin · mobilité",
+    resume: "Délégué en costume, urbexeur, cinéaste. Triple saut, pièges et passe-muraille, mais peu de PV.",
+    couleur: 0xe8c872,
+  },
   stats: {
     pv: 1350,
     poids: 86,

@@ -12,6 +12,11 @@ import { elan, frappe, touche } from "../outils";
 export const PRICOU: PersoDef = {
   id: "pricou",
   nom: "Mr Pricou",
+  fiche: {
+    role: "Zone · projectiles",
+    resume: "Prof de physique : électrons, fioles, aimants et un trou noir. Fragile de près, redoutable de loin.",
+    couleur: 0x5ad1ff,
+  },
   stats: {
     pv: 1300,
     poids: 92,

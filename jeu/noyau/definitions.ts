@@ -173,6 +173,12 @@ export type CoupDef = {
 export type PersoDef = {
   id: string;
   nom: string;
+  /**
+   * Présentation dans les menus (obligatoire pour un personnage jouable) :
+   * rôle en quelques mots, résumé d'une ou deux phrases, couleur dominante
+   * lisible sur fond sombre. Aucun effet sur le jeu.
+   */
+  fiche?: { role: string; resume: string; couleur: number };
   stats: StatsCombattant;
   /** Coups par identifiant ; les emplacements (« neutre », « air_bas »…) sont des identifiants. */
   coups: Readonly<Record<string, CoupDef>>;

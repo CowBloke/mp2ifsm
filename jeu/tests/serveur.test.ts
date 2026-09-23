@@ -4,6 +4,7 @@ import { once } from "node:events";
 import type { IncomingMessage } from "node:http";
 import WebSocket from "ws";
 import { DROITE } from "../noyau/entrees";
+import { EMPREINTE_CONTENU } from "../noyau/contenu/empreinte";
 import {
   B_ETAT, VERSION_PROTOCOLE, coderEntree, decoderBinaire, type MessageClient, type MessageServeur,
 } from "../protocole/messages";
@@ -42,7 +43,7 @@ class Client {
   /** Connexion authentifiée sous le compte `uid`. */
   static async entrer(uid: string, nom = uid): Promise<Client> {
     const c = await Client.ouvrir();
-    c.envoyer({ t: "bonjour", v: VERSION_PROTOCOLE, ticket: await signerTicket({ uid, nom, role: "member", exp: Date.now() + 60_000 }, SECRET) });
+    c.envoyer({ t: "bonjour", v: VERSION_PROTOCOLE, contenu: EMPREINTE_CONTENU, ticket: await signerTicket({ uid, nom, role: "member", exp: Date.now() + 60_000 }, SECRET) });
     await c.attendre((m) => m.t === "bienvenue");
     return c;
   }
@@ -110,13 +111,20 @@ test("sans ticket valide, rien n'est possible", async () => {
   assert.equal((await sans.fermeture)[0], 4003, "message avant authentification");
 
   const faux = await Client.ouvrir();
-  faux.envoyer({ t: "bonjour", v: VERSION_PROTOCOLE, ticket: "faux.ticket" });
+  faux.envoyer({ t: "bonjour", v: VERSION_PROTOCOLE, contenu: EMPREINTE_CONTENU, ticket: "faux.ticket" });
   assert.equal((await faux.attendre((m) => m.t === "refus")).t, "refus");
   assert.equal((await faux.fermeture)[0], 4003);
 
   const vieux = await Client.ouvrir();
-  vieux.envoyer({ t: "bonjour", v: VERSION_PROTOCOLE - 1, ticket: "x" });
+  vieux.envoyer({ t: "bonjour", v: VERSION_PROTOCOLE - 1, contenu: EMPREINTE_CONTENU, ticket: "x" });
   assert.equal((await vieux.fermeture)[0], 4000, "version périmée");
+
+  // Même protocole, autres données (un personnage ajouté, un dégât retouché) : page périmée aussi.
+  const perime = await Client.ouvrir();
+  perime.envoyer({ t: "bonjour", v: VERSION_PROTOCOLE, contenu: "00000000", ticket: "x" });
+  const refus = await perime.attendre<{ t: "refus"; raison: string }>((m) => m.t === "refus");
+  assert.match(refus.raison, /rechargez la page/);
+  assert.equal((await perime.fermeture)[0], 4000, "données périmées");
 
   const bavard = await Client.ouvrir();
   bavard.ws.send("{pas du json");

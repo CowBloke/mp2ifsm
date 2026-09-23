@@ -28,7 +28,9 @@ export function validerMessage(texte: string): MessageClient | null {
   switch (m.t) {
     case "bonjour":
       return Number.isInteger(m.v) && typeof m.ticket === "string" && m.ticket.length < 2048
-        ? { t: "bonjour", v: m.v as number, ticket: m.ticket } : null;
+        && (m.contenu === undefined || (typeof m.contenu === "string" && m.contenu.length <= 32))
+        // Un client d'avant l'empreinte n'en envoie pas : il sera refusé comme périmé.
+        ? { t: "bonjour", v: m.v as number, contenu: typeof m.contenu === "string" ? m.contenu : "", ticket: m.ticket } : null;
     case "creer":
     case "quitter":
     case "lancer":

@@ -13,6 +13,11 @@ import { elan, frappe, touche } from "../outils";
 export const SOUHEIL: PersoDef = {
   id: "souheil",
   nom: "Souheil Dictador",
+  fiche: {
+    role: "Contrôle · pression",
+    resume: "Footballeur et général d'opérette : ballon qui rebondit, porte-voix qui intimide, décrets qui font taire.",
+    couleur: 0x6f9bff,
+  },
   stats: {
     pv: 1500,
     poids: 108,

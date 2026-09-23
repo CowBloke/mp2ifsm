@@ -1,4 +1,5 @@
 import type { Entree } from "../noyau/entrees";
+import { EMPREINTE_CONTENU } from "../noyau/contenu/empreinte";
 import { VERSION_PROTOCOLE, type MessageClient } from "../protocole/messages";
 import { verifierTicket } from "../protocole/ticket";
 import { Salon, type Connexion, type OptionsSalon } from "./salon";
@@ -55,7 +56,8 @@ export class Hall {
 
   async recevoir(c: Connexion, m: MessageClient): Promise<void> {
     if (m.t === "bonjour") {
-      if (m.v !== VERSION_PROTOCOLE) {
+      // Autre version du jeu (protocole ou données) : ce navigateur a une page périmée.
+      if (m.v !== VERSION_PROTOCOLE || m.contenu !== EMPREINTE_CONTENU) {
         c.envoyer({ t: "refus", raison: "Nouvelle version du jeu : rechargez la page." });
         c.fermer(4000, "version");
         return;

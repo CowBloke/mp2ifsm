@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { deplacementY, horsDe } from "../noyau/collisions";
-import { CARTES, TOUS_LES_PERSOS } from "../noyau/contenu";
+import { CARTES, PERSOS, TOUS_LES_PERSOS } from "../noyau/contenu";
 import type { CoupDef } from "../noyau/definitions";
 import { STATUTS } from "../noyau/statuts";
 import { valeursEntieres } from "./outils";
@@ -78,6 +78,18 @@ for (const perso of TOUS_LES_PERSOS) {
     }
   });
 }
+
+test("chaque personnage jouable a sa fiche de présentation, et les identifiants sont uniques", () => {
+  for (const p of PERSOS) {
+    assert.ok(p.fiche, `${p.nom} : fiche manquante`);
+    assert.ok(p.fiche.role.length > 0 && p.fiche.role.length <= 32, `${p.nom} : rôle vide ou trop long`);
+    assert.ok(p.fiche.resume.length >= 20 && p.fiche.resume.length <= 140, `${p.nom} : résumé de 20 à 140 caractères`);
+    assert.ok(Number.isInteger(p.fiche.couleur) && p.fiche.couleur >= 0 && p.fiche.couleur <= 0xffffff, `${p.nom} : couleur`);
+  }
+  const ids = TOUS_LES_PERSOS.map((p) => p.id);
+  assert.equal(new Set(ids).size, ids.length, "deux personnages ont le même identifiant");
+  assert.ok(ids.every((id) => /^[a-z][a-z0-9_]*$/.test(id)), "identifiants en minuscules, sans espace");
+});
 
 for (const carte of CARTES) {
   test(`carte « ${carte.nom} » : apparitions posées, dans la zone de vie`, () => {

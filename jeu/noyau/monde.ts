@@ -6,6 +6,7 @@ import type { PersoDef } from "./definitions";
 import type { Entree } from "./entrees";
 import { avancerEntites, nettoyerEntites, type Entite } from "./entites";
 import type { Evenement } from "./evenements";
+import { fnv1a } from "./hachage";
 import {
   DUREE_RALENTI, REGLAGES_STANDARD, avancerPhase, placerCombattants, verifierChutes, type Reglages,
 } from "./regles";
@@ -89,9 +90,6 @@ export function avancerMonde(monde: Monde, entrees: readonly Entree[]): void {
  * repérer une divergence entre un client et le serveur.
  */
 export function empreinteMonde(monde: Monde): number {
-  const texte = JSON.stringify(monde, (cle, v) =>
-    cle === "carte" || cle === "perso" ? v.id : cle === "evenements" ? undefined : v);
-  let h = 0x811c9dc5;
-  for (let i = 0; i < texte.length; i++) h = Math.imul(h ^ texte.charCodeAt(i), 0x01000193);
-  return h >>> 0;
+  return fnv1a(JSON.stringify(monde, (cle, v) =>
+    cle === "carte" || cle === "perso" ? v.id : cle === "evenements" ? undefined : v));
 }
