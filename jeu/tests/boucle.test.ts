@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { suivreCible } from "../client/camera";
+import { cadrerGroupe, lisser, suivreCible } from "../client/camera";
 import { RATTRAPAGE_MAX, creerHorloge, fractionTick, ticksAJouer } from "../noyau/horloge";
 
 test("l'horloge convertit le temps réel en ticks entiers, à 60 par seconde", () => {
@@ -40,4 +40,26 @@ test("la caméra suit la cible sans jamais montrer l'extérieur de l'arène", ()
 
   suivreCible(cam, 0, 0, Infinity, 5000, 900, limites);
   assert.equal(cam.x, 1600, "arène plus étroite que la vue : centrée");
+});
+
+test("cadrage spectateur : tous les combattants dans le plan, ni trop serré ni plus large que l'arène", () => {
+  const limites = { gauche: 0, haut: 0, droite: 3200, bas: 1400 };
+  const marges = { margeX: 300, margeY: 250, hauteurMin: 700 };
+  const ratio = 16 / 9;
+
+  const proches = cadrerGroupe([{ x: 1500, y: 900 }, { x: 1600, y: 900 }], ratio, limites, marges);
+  assert.deepEqual(proches, { x: 1550, y: 900, hauteurVue: 700 }, "deux voisins : plan serré au minimum");
+
+  const eloignes = cadrerGroupe([{ x: 500, y: 900 }, { x: 2500, y: 700 }], ratio, limites, marges);
+  assert.equal(eloignes.x, 1500);
+  assert.equal(eloignes.hauteurVue, (2000 + 600) / ratio, "la largeur commande : 2000 px d'écart et les marges");
+  for (const x of [500, 2500]) assert.ok(Math.abs(x - eloignes.x) + 300 <= (eloignes.hauteurVue * ratio) / 2 + 1e-9);
+
+  const extremes = cadrerGroupe([{ x: -900, y: 0 }, { x: 4000, y: 1400 }], ratio, limites, marges);
+  assert.equal(extremes.hauteurVue, 1800, "jamais plus large que l'arène entière (3200 de large en 16/9)");
+
+  assert.deepEqual(cadrerGroupe([], ratio, limites, marges), { x: 1600, y: 700, hauteurVue: 1800 }, "personne : toute l'arène");
+  assert.equal(lisser(0, 100, Infinity, 250), 100);
+  const v = lisser(0, 100, 16, 250);
+  assert.ok(v > 0 && v < 100);
 });

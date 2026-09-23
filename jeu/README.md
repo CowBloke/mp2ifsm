@@ -88,6 +88,11 @@ dans `noyau/contenu/cartes/`, son décor (facultatif) dans
   spectateurs ; un joueur déconnecté garde sa place pendant la partie.
 - **Pages** : `/jeu` (accueil), `/jeu/entrainement`, `/jeu/salon/CODE`
   (lien à partager), `/jeu/regarder/CODE` (spectateur, projecteur).
+- **Spectateur** : aucune prise sur la partie ; la caméra cadre le groupe
+  des combattants et zoome selon leur écartement, l'interface grandit avec
+  l'écran, les boutons et le curseur s'effacent quand la souris ne bouge
+  plus, et l'écran d'attente affiche l'adresse pour rejoindre. Il suit
+  les parties successives du salon sans rien faire.
 
 ## Commandes
 

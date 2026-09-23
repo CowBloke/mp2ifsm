@@ -25,6 +25,8 @@ export type Hud = {
   maj(monde: Monde, noms: readonly string[], largeur: number, hauteur: number, dtMs: number): void;
   /** Efface en partie les cartouches (0 : visibles, 1 : presque effacés), pour une scène de cinéma. */
   voiler(k: number): void;
+  /** Résolution des textes : l'interface agrandie reste nette. */
+  resolution(r: number): void;
 };
 
 function texte(taille: number, poids: "600" | "800" | "900", couleur = 0xffffff): Text {
@@ -79,10 +81,18 @@ export function creerHud(couche: Container): Hud {
   const cartes = new Container();
   cartes.addChild(barres);
   couche.addChild(cartes, chrono, manche, grande);
+  let nettete = 1;
+  const textes = (): Text[] => [chrono, manche, grande, ...cartouches.flatMap((c) => [c.nom, c.perso, c.pv])];
 
   return {
     voiler(k) {
       cartes.alpha = 1 - 0.8 * k;
+    },
+
+    resolution(r) {
+      if (r === nettete) return;
+      nettete = r;
+      for (const t of textes()) t.resolution = r;
     },
 
     maj(m, noms, largeur, hauteur, dtMs) {
@@ -91,6 +101,7 @@ export function creerHud(couche: Container): Hud {
         const c: Cartouche = { fond: new Graphics(), nom: texte(16, "800"), perso: texte(11, "600", 0xaab4d8), pv: texte(22, "900"), traine: 0, delai: 0 };
         cartes.addChildAt(c.fond, 0);
         cartes.addChild(c.nom, c.perso, c.pv);
+        for (const t of [c.nom, c.perso, c.pv]) t.resolution = nettete;
         cartouches.push(c);
       }
       const n = m.combattants.length;

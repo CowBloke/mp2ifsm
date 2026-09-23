@@ -90,6 +90,7 @@ function VueSalon({ salon, moi, uid, spectateur, envoyer, copie, copier }: {
   const attente = salon.places.filter((p, i) => p && p.bot === null && p.uid !== salon.hote && !p.pret && i !== -1);
   const lancable = occupees >= 2 && attente.length === 0;
   const origine = typeof location === "undefined" ? "" : location.origin;
+  const hoteSite = typeof location === "undefined" ? "" : location.host;
 
   return (
     <div className="grid gap-6">
@@ -118,10 +119,17 @@ function VueSalon({ salon, moi, uid, spectateur, envoyer, copie, copier }: {
       </section>
 
       {spectateur || !place ? (
-        <p className="text-center text-[14px] text-white/60">
-          Vous regardez ce salon{salon.spectateurs > 1 ? ` avec ${salon.spectateurs - 1} autre(s) spectateur(s)` : ""}.
-          La partie s’affichera ici dès qu’elle commencera.
-        </p>
+        <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 text-center">
+          <p className="text-[13px] font-bold uppercase tracking-[0.18em] text-white/50">Pour rejoindre</p>
+          <p className="mt-1 break-all text-[26px] font-extrabold">
+            {hoteSite}/jeu/salon/<span className="tracking-[0.12em] text-[#8fb4ff]">{salon.code}</span>
+          </p>
+          <p className="mt-2 text-[14px] text-white/60">
+            Carte : {CATALOGUE.cartes.find((c) => c.id === salon.carte)?.nom ?? salon.carte}.
+            {" "}Vous regardez ce salon{salon.spectateurs > 1 ? ` avec ${salon.spectateurs - 1} autre(s) spectateur(s)` : ""} ;
+            la partie s’affichera ici dès qu’elle commencera.
+          </p>
+        </section>
       ) : (
         <>
           <section>

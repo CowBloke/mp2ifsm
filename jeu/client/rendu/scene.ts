@@ -3,7 +3,7 @@ import type { Carte } from "../../noyau/carte";
 import { boiteDe } from "../../noyau/combattant";
 import { SOUS_PIXELS } from "../../noyau/constantes";
 import { boiteHitbox, hitboxesActives } from "../../noyau/coups";
-import { suivreCible, type Camera } from "../camera";
+import { cadrerGroupe, lisser, suivreCible, type Camera } from "../camera";
 import type { VueJeu } from "../session-locale";
 import { creerVueCombattant, type ContexteEffets, type VueCombattant } from "./combattants";
 import { couleurPlace } from "./couleurs";
@@ -23,6 +23,13 @@ import { creerTrainees } from "./trainees";
 
 /** Hauteur de monde visible pour un joueur, en pixels : fixe le zoom. */
 const VUE_HAUTEUR = 780;
+/** Spectateur : marges autour des combattants cadrés, plan le plus serré. */
+const CADRAGE_SPECTATEUR = { margeX: 340, margeY: 280, hauteurMin: 760 };
+
+/** Taille de l'interface : elle grandit avec l'écran, davantage pour un spectateur (projecteur). */
+function echelleInterface(hauteur: number, spectateur: boolean): number {
+  return spectateur ? Math.max(1, Math.min(2.4, hauteur / 640)) : Math.max(1, Math.min(2, hauteur / 760));
+}
 const px = (u: number) => u / SOUS_PIXELS;
 
 export type Scene = {
@@ -52,15 +59,17 @@ export function creerScene(app: Application): Scene {
     style: { fontFamily: "Georgia, 'Times New Roman', serif", fontSize: 44, fontWeight: "700", fill: 0xf4ecd8, letterSpacing: 10 },
   });
   titre.anchor.set(0.5);
-  ecran.addChild(bandes, titre);
+  const coucheHud = new Container();
+  ecran.addChild(bandes, titre, coucheHud);
   let cinema = 0;
   let texteCinema = "";
 
   const effets = creerEffets(coucheEffets);
   const textes = creerTextes(coucheTextes);
   const ctx: ContexteEffets = { monde, arriere: coucheArriere, textes, trainees, effets };
-  const hud = creerHud(ecran);
+  const hud = creerHud(coucheHud);
   const camera: Camera = { x: 0, y: 0 };
+  let hauteurVue = 0;
   let carte: Carte | null = null;
   let decor: Decor | null = null;
   let temps = 0;
@@ -161,9 +170,17 @@ export function creerScene(app: Application): Scene {
         cx = px(p.x);
         cy = px(p.y - local.perso.stats.hauteur / 2);
       } else {
-        echelle = Math.min(largeur / (limites.droite - limites.gauche), hauteur / (limites.bas - limites.haut));
-        cx = (limites.gauche + limites.droite) / 2;
-        cy = (limites.haut + limites.bas) / 2;
+        // Spectateur : le plan suit le groupe, et zoome selon son étendue.
+        const points = m.combattants.flatMap((c, i) => {
+          if (c.horsJeu) return [];
+          const p = vue.positions[i] ?? c;
+          return [{ x: px(p.x), y: px(p.y - c.perso.stats.hauteur / 2) }];
+        });
+        const cadre = cadrerGroupe(points, largeur / hauteur, limites, CADRAGE_SPECTATEUR);
+        hauteurVue = premiere ? cadre.hauteurVue : lisser(hauteurVue, cadre.hauteurVue, dtMs, 450);
+        echelle = hauteur / hauteurVue;
+        cx = cadre.x;
+        cy = cadre.y;
       }
       suivreCible(camera, cx, cy, premiere ? Infinity : dtMs, largeur / echelle, hauteur / echelle, limites);
       premiere = false;
@@ -194,7 +211,10 @@ export function creerScene(app: Application): Scene {
           .stroke({ width: 4, color: 0xff3b3b, alpha: 0.5 });
       }
 
-      hud.maj(m, noms, largeur, hauteur, dtMs);
+      const k = echelleInterface(hauteur, !local);
+      coucheHud.scale.set(k);
+      hud.resolution(k * app.renderer.resolution);
+      hud.maj(m, noms, largeur / k, hauteur / k, dtMs);
 
       // Cinéma : les bandes entrent quand un coup le demande, et ressortent.
       const scene = m.combattants.map((c, i) => (c.coup !== null ? vues[i]?.apparence.effets[c.coup]?.cinema : undefined)).find(Boolean);
