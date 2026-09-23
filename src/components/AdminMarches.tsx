@@ -49,7 +49,7 @@ export function FormulaireMarche({ proposition = false }: { proposition?: boolea
   }
 
   return (
-    <form action={envoyer} className="rounded-[var(--radius-lg)] border bg-[var(--card)] p-4">
+    <form action={envoyer} className="app-surface rounded-[var(--radius-lg)] border p-4 lg:p-5">
       <h2 className="text-[15px] font-semibold">{proposition ? "Proposer un pari" : "Nouveau marché"}</h2>
       {proposition && <p className="mt-1 text-sm text-[var(--muted-foreground)]">Une idée amusante pour la classe ? Un administrateur la validera avant son ouverture.</p>}
 
@@ -191,7 +191,7 @@ export function CarteResolution({ marche }: { marche: MarcheVue }) {
   }
 
   return (
-    <div className="rounded-[var(--radius-lg)] border bg-[var(--card)] p-4">
+    <div className="app-surface rounded-[var(--radius-lg)] border p-4 lg:p-5">
       <div className="flex items-baseline justify-between gap-2 text-[11px]
                       text-[var(--muted-foreground)]">
         <span>

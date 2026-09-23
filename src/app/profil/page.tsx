@@ -28,11 +28,11 @@ export default async function PageMoi({ searchParams }: { searchParams: Promise<
   const adminTab = u.role === "admin" && (await searchParams).onglet === "admin";
 
   return (
-    <main className="py-4">
-      <header className="mb-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-[22px] font-bold leading-tight">{u.display_name}</h1>
-          <p className="text-[13px] text-[var(--muted-foreground)]">{u.email}</p>
+    <main className="py-4 lg:py-7">
+      <header className="page-heading mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="break-words text-[22px] font-bold leading-tight lg:text-[32px]">{u.display_name}</h1>
+          <p className="mt-1 break-all text-[13px] text-[var(--muted-foreground)] lg:text-[15px]">{u.email}</p>
         </div>
         <form action={deconnexion}>
           <button
@@ -45,11 +45,13 @@ export default async function PageMoi({ searchParams }: { searchParams: Promise<
         </form>
       </header>
 
-      {u.role === "admin" && <nav aria-label="Rubriques du profil" className="mb-5 flex gap-2">
+      {u.role === "admin" && <nav aria-label="Rubriques du profil" className="page-toolbar mb-5 flex flex-wrap gap-2">
         <Link href="/profil" aria-current={!adminTab ? "page" : undefined} className={`rounded-lg border px-4 py-2 text-sm ${!adminTab ? 'bg-[var(--secondary)]' : ''}`}>Mon profil</Link>
         <Link href="/profil?onglet=admin" aria-current={adminTab ? "page" : undefined} className={`rounded-lg border px-4 py-2 text-sm ${adminTab ? 'bg-[var(--secondary)]' : ''}`}>Administration</Link>
       </nav>}
       {adminTab ? <Administration userId={u.id} /> : <>
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)] lg:items-start">
+      <div className="min-w-0">
       <h2 className="mb-2 text-[12px] font-semibold uppercase tracking-wide
                      text-[var(--muted-foreground)]">
         Marché — portefeuille
@@ -61,15 +63,19 @@ export default async function PageMoi({ searchParams }: { searchParams: Promise<
       <Suspense fallback={<div className="mt-6"><SqueletteListe n={1} /></div>}>
         <Reglages userId={u.id} estAdmin={u.role === "admin"} groupe={u.groupe_colle} />
       </Suspense>
+      </div>
 
-      <Suspense fallback={<div className="mt-6"><SqueletteListe n={2} /></div>}>
+      <div className="min-w-0 space-y-6">
+      <Suspense fallback={<SqueletteListe n={2} />}>
         <MesRetours userId={u.id} />
       </Suspense>
+      <section><h2 className="mb-2 font-semibold">Mes propositions de paris</h2><ProposalList items={JSON.parse(JSON.stringify(await proposals(u.id)))} /></section>
+      </div>
+      </div>
 
       <Suspense fallback={<div className="mt-6"><SqueletteListe n={3} /></div>}>
         <Positions userId={u.id} />
       </Suspense>
-      <section className="mt-6"><h2 className="mb-2 font-semibold">Mes propositions de paris</h2><ProposalList items={JSON.parse(JSON.stringify(await proposals(u.id)))} /></section>
       </>}
     </main>
   );
@@ -93,7 +99,7 @@ async function Reglages({
       </div>
       {estAdmin && (
         <Link href="/profil?onglet=admin"
-              className="mt-2 block rounded-[var(--radius-md)] border bg-[var(--card)] p-3
+              className="app-surface mt-2 block rounded-[var(--radius-md)] border p-3
                          text-[14px] font-medium transition-colors hover:bg-[var(--muted)]">
           Ouvrir l’administration →
         </Link>
@@ -105,7 +111,7 @@ async function Reglages({
 async function MesRetours({ userId }: { userId: string }) {
   const retours = await mesRetours(userId);
   return (
-    <section id="mes-retours" className="mt-6 scroll-mt-4">
+    <section id="mes-retours" className="scroll-mt-24">
       <h2 className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
         Mes retours
       </h2>
@@ -117,7 +123,7 @@ async function MesRetours({ userId }: { userId: string }) {
       ) : (
         <ul className="space-y-2">
           {retours.map((r) => (
-            <li key={r.id} className="rounded-[var(--radius-md)] border bg-[var(--card)] p-3">
+            <li key={r.id} className="app-surface rounded-[var(--radius-md)] border p-4">
               <div className="flex flex-wrap items-center gap-2 text-[11px] text-[var(--muted-foreground)]">
                 <BadgeStatut statut={r.statut} />
                 <span className="font-semibold">{NOM_CATEGORIE[r.categorie]}</span>
@@ -150,13 +156,13 @@ async function Positions({ userId }: { userId: string }) {
   ]);
 
   return (
-    <>
+    <div className="page-grid mt-6 items-start">
       <Section titre="Positions en cours" vide="Aucune mise en cours.">
         {ouvertes.map((p) => (
           <Link
             key={p.bet_id}
             href={`/marche/${p.slug}`}
-            className="block rounded-[var(--radius-md)] border bg-[var(--card)] p-3
+            className="app-surface block rounded-[var(--radius-md)] border p-3
                        transition-colors hover:bg-[var(--muted)]"
           >
             <p className="truncate text-[13px] font-medium">{p.question}</p>
@@ -182,7 +188,7 @@ async function Positions({ userId }: { userId: string }) {
             <Link
               key={p.bet_id}
               href={`/marche/${p.slug}`}
-              className="block rounded-[var(--radius-md)] border bg-[var(--card)] p-3
+              className="app-surface block rounded-[var(--radius-md)] border p-3
                          transition-colors hover:bg-[var(--muted)]"
             >
               <p className="truncate text-[13px] font-medium">{p.question}</p>
@@ -203,7 +209,7 @@ async function Positions({ userId }: { userId: string }) {
       </Section>
 
       <Section titre="Relevé du compte" vide="Aucun mouvement.">
-        <ul className="divide-y rounded-[var(--radius-md)] border bg-[var(--card)]">
+        <ul className="app-surface divide-y rounded-[var(--radius-md)] border">
           {relevé.map((m) => (
             <li key={`${m.id}-${m.kind}`} className="flex items-center justify-between gap-3 p-3">
               <div className="min-w-0">
@@ -225,7 +231,7 @@ async function Positions({ userId }: { userId: string }) {
           ))}
         </ul>
       </Section>
-    </>
+    </div>
   );
 }
 
@@ -247,7 +253,7 @@ function Section({
     || (liste.length === 1 && Array.isArray(liste[0]) && liste[0].length === 0);
 
   return (
-    <section className="mt-6">
+    <section className="min-w-0">
       <h2 className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
         {titre}
       </h2>

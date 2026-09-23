@@ -122,7 +122,7 @@ export function FeuillePari({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center"
+      className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4"
       style={{ background: "var(--sheet-backdrop)", animation: "fade-in 150ms ease-out" }}
       onClick={onFermer}
       role="dialog"
@@ -130,8 +130,8 @@ export function FeuillePari({
       aria-label="Placer une mise"
     >
       <div
-        className="w-full max-w-[560px] rounded-t-2xl border-t bg-[var(--card)]
-                   px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3 shadow-2xl"
+        className="app-surface max-h-[calc(100dvh-1rem)] w-full max-w-[560px] overflow-y-auto rounded-t-2xl border-t bg-[var(--card)]
+                   px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3 shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-[var(--radius-lg)] sm:border sm:p-6"
         style={{ animation: "sheet-in 220ms cubic-bezier(0.32,0.72,0,1)" }}
         onClick={(e) => e.stopPropagation()}
       >

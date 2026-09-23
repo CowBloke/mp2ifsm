@@ -63,18 +63,18 @@ export function ListeCartes({
   }
 
   return (
-    <ul className="space-y-2">
+    <ul className="page-grid page-grid--two items-start">
       {cartes.map((c) => {
         const peutModifier = estAdmin || c.author_id === moi;
         const estOuverte = ouverte === c.id;
 
         return (
-          <li key={c.id} className="rounded-[var(--radius-md)] border bg-[var(--card)]">
+          <li key={c.id} className="app-surface min-w-0 rounded-[var(--radius-md)] border">
             <button
               type="button"
               onClick={() => setOuverte(estOuverte ? null : c.id)}
               aria-expanded={estOuverte}
-              className="w-full p-3 text-left"
+              className="w-full p-4 text-left"
             >
               <div className="contenu-carte text-[14px] font-medium"
                    dangerouslySetInnerHTML={{ __html: c.rectoHtml }} />

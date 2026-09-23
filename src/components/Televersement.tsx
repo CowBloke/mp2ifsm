@@ -51,7 +51,7 @@ export function Televersement({
   }
 
   return (
-    <form action={envoyer} className="rounded-[var(--radius-lg)] border bg-[var(--card)] p-4">
+    <form action={envoyer} className="app-surface rounded-[var(--radius-lg)] border p-4">
       <h2 className="text-[15px] font-semibold">Déposer un document</h2>
 
       {/* Bannière de droits : visible avant le choix du fichier. */}
@@ -70,10 +70,10 @@ export function Televersement({
                    file:text-[13px] file:font-medium"
       />
 
-      <div className="mt-2 grid grid-cols-2 gap-2">
+      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-1">
         <ChoixMatiere matieres={matieres} />
         <input name="chapitre" maxLength={120} placeholder="Chapitre"
-               className="rounded-[var(--radius-md)] border-2 px-3 py-2 text-[14px]
+               className="min-w-0 rounded-[var(--radius-md)] border-2 px-3 py-2 text-[14px]
                           outline-none focus:border-[var(--ring)]" />
       </div>
 

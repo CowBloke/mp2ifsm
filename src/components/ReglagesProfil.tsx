@@ -15,8 +15,7 @@ export function ReglagePartageStats({ initial }: { initial: boolean }) {
   const [enCours, demarrer] = useTransition();
 
   return (
-    <label className="flex cursor-pointer items-start gap-3 rounded-[var(--radius-md)] border
-                      bg-[var(--card)] p-3">
+    <label className="app-surface flex cursor-pointer items-start gap-3 rounded-[var(--radius-md)] border p-3">
       <input
         type="checkbox"
         checked={actif}

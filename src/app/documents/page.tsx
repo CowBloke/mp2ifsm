@@ -28,18 +28,24 @@ export default async function PageDocuments({ searchParams }: { searchParams: Pa
   const vue = p.vue ?? (recherche ? "recherche" : p.matiere !== undefined ? "matiere" : "recents");
 
   return (
-    <main className="py-4">
-      <h1 className="text-[22px] font-bold leading-tight">Documents</h1>
-      <p className="mb-4 text-[13px] text-[var(--muted-foreground)]">
+    <main className="py-4 lg:py-7">
+      <header className="page-heading mb-5">
+      <h1 className="text-[22px] font-bold leading-tight lg:text-[32px]">Documents</h1>
+      <p className="mt-1 text-[13px] text-[var(--muted-foreground)] lg:text-[15px]">
         Cours, corrigés et fiches partagés par la classe.
       </p>
+      </header>
 
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)] lg:items-start">
+      <aside className="min-w-0">
       <Suspense fallback={<div className="skeleton h-16 w-full" />}>
         <Occupation userId={u.id} />
       </Suspense>
+      </aside>
 
+      <div className="min-w-0">
       {/* Recherche : nom de fichier, mots-clés, déposant. */}
-      <form action="/documents" className="mt-4">
+      <form action="/documents">
         <input
           type="search" name="q" defaultValue={recherche}
           placeholder="Rechercher un document, un mot-clé, un nom…"
@@ -48,7 +54,7 @@ export default async function PageDocuments({ searchParams }: { searchParams: Pa
         />
       </form>
 
-      <nav className="mt-3 flex gap-2 text-[13px]">
+      <nav className="page-toolbar mt-3 flex flex-wrap gap-2 text-[13px]">
         <Onglet href="/documents?vue=recents" actif={vue === "recents"} label="Récents" />
         <Onglet href="/documents?vue=classement" actif={vue === "classement" || vue === "matiere"}
                 label="Par matière" />
@@ -70,6 +76,8 @@ export default async function PageDocuments({ searchParams }: { searchParams: Pa
             <Recents userId={u.id} estAdmin={u.role === "admin"} />
           )}
         </Suspense>
+      </div>
+      </div>
       </div>
     </main>
   );
@@ -101,7 +109,7 @@ async function Occupation({ userId }: { userId: string }) {
   const restant = Math.max(0, us.quota_membre - us.utilise_membre);
 
   return (
-    <div className="rounded-[var(--radius-lg)] border bg-[var(--card)] p-3">
+    <div className="app-surface rounded-[var(--radius-lg)] border p-4 lg:p-5">
       <Jauge
         label="Votre espace" part={partMembre}
         detail={`${formatTaille(us.utilise_membre)} / ${formatTaille(us.quota_membre)}`}
@@ -185,9 +193,9 @@ async function Arborescence() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="grid gap-5 xl:grid-cols-2">
       {noeuds.map((n) => (
-        <section key={n.subject_id ?? "sans"}>
+        <section key={n.subject_id ?? "sans"} className="min-w-0">
           <h2 className="mb-2 flex items-center gap-2">
             <PastilleMatiere nom={n.matiere} couleur={n.couleur} />
             <span className="tabular text-[11px] text-[var(--muted-foreground)]">{n.total}</span>
@@ -198,8 +206,8 @@ async function Arborescence() {
                 <Link
                   href={`/documents?matiere=${encodeURIComponent(n.subject_id ?? "")}` +
                         `&chapitre=${encodeURIComponent(c.chapitre ?? "")}`}
-                  className="flex items-center justify-between rounded-[var(--radius-md)] border
-                             bg-[var(--card)] px-3 py-2.5 transition-colors hover:bg-[var(--muted)]"
+                  className="app-surface flex items-center justify-between gap-3 rounded-[var(--radius-md)] border
+                             px-3 py-2.5 transition-colors hover:bg-[var(--muted)]"
                 >
                   <span className="min-w-0 flex-1 truncate text-[14px]">
                     {c.chapitre ?? "Sans chapitre"}

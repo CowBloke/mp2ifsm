@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CarteMarche } from "@/components/CarteMarche";
-import { SqueletteFil } from "@/components/Squelettes";
+import { SqueletteCarte } from "@/components/Squelettes";
 import { formatCentimes } from "@/lib/money";
 import { listerMarches, soldeCentimes } from "@/lib/queries";
 import { utilisateurCourant } from "@/lib/session";
@@ -15,19 +15,24 @@ export default async function PageMarche() {
   if (!u) redirect("/connexion");
 
   return (
-    <main className="py-4">
-      <header className="mb-4 flex items-center justify-between gap-3">
+    <main className="py-4 lg:py-7">
+      <header className="page-heading mb-5 flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-[22px] font-bold leading-tight">Marché</h1>
-          <p className="text-[13px] text-[var(--muted-foreground)]">Salut {u.display_name}</p>
+          <h1 className="text-[22px] font-bold leading-tight lg:text-[32px]">Marché</h1>
+          <p className="mt-1 text-[13px] text-[var(--muted-foreground)] lg:text-[15px]">Salut {u.display_name}</p>
         </div>
         <Suspense fallback={<div className="skeleton h-9 w-24 rounded-full" />}>
           <PastilleSolde userId={u.id} />
         </Suspense>
       </header>
 
-      <div className="mb-4"><FormulaireMarche proposition /></div>
-      <Suspense fallback={<SqueletteFil />}>
+      <div className="mb-6 max-w-[640px]"><FormulaireMarche proposition /></div>
+      <Suspense fallback={
+        <div className="page-grid page-grid--two" aria-busy="true" aria-live="polite">
+          <span className="sr-only">Chargement des marchés…</span>
+          <SqueletteCarte /><SqueletteCarte /><SqueletteCarte /><SqueletteCarte />
+        </div>
+      }>
         <Fil userId={u.id} />
       </Suspense>
     </main>
@@ -52,7 +57,7 @@ async function Fil({ userId }: { userId: string }) {
 
   if (marches.length === 0) {
     return (
-      <div className="rounded-[var(--radius-lg)] border border-dashed p-8 text-center">
+      <div className="app-surface rounded-[var(--radius-lg)] border border-dashed p-8 text-center">
         <p className="text-[15px] font-medium">Aucun marché pour l’instant</p>
         <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">
           Les marchés sont créés par les administrateurs de la classe.
@@ -65,9 +70,9 @@ async function Fil({ userId }: { userId: string }) {
   const autres = marches.filter((m) => m.status !== "open");
 
   return (
-    <div className="space-y-6">
+    <div className="page-stack">
       {ouverts.length > 0 && (
-        <section className="space-y-3">
+        <section className="page-grid page-grid--two items-start">
           {ouverts.map((m) => <CarteMarche key={m.id} marche={m} />)}
         </section>
       )}
@@ -77,7 +82,7 @@ async function Fil({ userId }: { userId: string }) {
           <h2 className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
             Terminés
           </h2>
-          <div className="space-y-3">
+          <div className="page-grid page-grid--two items-start">
             {autres.map((m) => <CarteMarche key={m.id} marche={m} />)}
           </div>
         </section>

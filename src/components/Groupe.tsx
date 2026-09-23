@@ -48,7 +48,7 @@ export function ReglageGroupe({ groupe, max = 16 }: { groupe: number | null; max
   }
 
   return (
-    <div className="rounded-[var(--radius-md)] border bg-[var(--card)] p-3">
+    <div className="app-surface rounded-[var(--radius-md)] border p-4">
       <label htmlFor="groupe-colle" className="block text-[14px] font-medium">Groupe de colles</label>
       <p className="mb-2 mt-0.5 text-[12px] text-[var(--muted-foreground)]">
         Sert au calendrier des colles et aux rappels, affichés uniquement dans le portail.
@@ -112,7 +112,7 @@ export function DemandeGroupe({ max = 16 }: { max?: number }) {
          style={{ background: "var(--sheet-backdrop)", animation: "fade-in .15s ease-out" }}
          onClick={(e) => { if (e.target === e.currentTarget) fermer(); }}>
       <div ref={dialogue} role="dialog" aria-modal="true" aria-labelledby="demande-groupe-titre"
-           className="w-full max-w-[420px] rounded-[var(--radius-lg)] border bg-[var(--card)] p-4 shadow-xl">
+           className="app-surface max-h-[calc(100dvh-2rem)] w-full max-w-[420px] overflow-y-auto rounded-[var(--radius-lg)] border bg-[var(--card)] p-5 shadow-xl">
         <h2 id="demande-groupe-titre" className="text-[16px] font-bold">Quel est votre groupe de colles ?</h2>
         <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">
           Il affiche vos colles de la semaine et active les rappels dans le portail.

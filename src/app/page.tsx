@@ -41,8 +41,8 @@ export default async function Accueil() {
   const activite = activiteFiches(u.id);
 
   return (
-    <main className="py-3">
-      <header className="mb-3 flex items-end justify-between gap-3">
+    <main className="dashboard py-3">
+      <header className="page-heading mb-3 flex items-end justify-between gap-3">
         <div className="min-w-0">
           <h1 className="truncate text-[20px] font-bold leading-tight">
             {salutation}, {u.display_name}
@@ -60,31 +60,40 @@ export default async function Accueil() {
         </Link>
       </header>
 
-      <div className="space-y-2.5">
+      <div className="dashboard-grid">
+        <div className="dashboard-reminders">
         <Suspense fallback={null}>
           <Rappels groupe={u.groupe_colle} fiches={fiches} />
         </Suspense>
-
+        </div>
+        <div className="dashboard-metrics">
         <Suspense fallback={<div className="skeleton h-[62px]" />}>
           <Chiffres fiches={fiches} activite={activite} />
         </Suspense>
-
+        </div>
+        <div className="dashboard-details">
+        <div className="dashboard-colles">
         <Suspense fallback={<SqueletteCarte />}>
           <CarteColles groupe={u.groupe_colle} />
         </Suspense>
-
+        </div>
+        <div className="dashboard-fiches">
         <Suspense fallback={<SqueletteCarte />}>
           <CarteFiches fiches={fiches} activite={activite} />
         </Suspense>
-
+        </div>
+        <div className="dashboard-echeances">
         <Suspense fallback={<SqueletteCarte />}>
           <CarteEcheances />
         </Suspense>
-
-        <div className="grid gap-2.5 sm:grid-cols-2">
+        </div>
+        </div>
+        <div className="dashboard-documents">
           <Suspense fallback={<SqueletteCarte />}>
             <CarteDocuments />
           </Suspense>
+        </div>
+        <div className="dashboard-marches">
           <Suspense fallback={<SqueletteCarte />}>
             <CarteMarches userId={u.id} />
           </Suspense>
@@ -101,9 +110,9 @@ function Bloc({
   titre: string; lien?: string; lienLabel?: string; children: React.ReactNode; className?: string;
 }) {
   return (
-    <section className={`rounded-[var(--radius-lg)] border bg-[var(--card)] p-3 ${className}`}>
-      <div className="mb-2 flex items-baseline justify-between gap-2">
-        <h2 className="text-[11px] font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
+    <section className={`app-surface dashboard-card rounded-[var(--radius-lg)] border p-4 lg:p-6 ${className}`}>
+      <div className="mb-4 flex items-baseline justify-between gap-2">
+        <h2 className="text-[14px] font-semibold tracking-tight text-[var(--foreground)]">
           {titre}
         </h2>
         {lien && (
@@ -128,7 +137,7 @@ async function Rappels({ groupe, fiches }: { groupe: number | null; fiches: Prom
   if (liste.length === 0) return null;
 
   return (
-    <section aria-label="Rappels" className="space-y-1.5">
+    <section aria-label="Rappels" className="grid gap-2 lg:grid-cols-3">
       {liste.map((r) => (
         <Link
           key={r.id}
@@ -179,13 +188,13 @@ async function Chiffres({ fiches, activite }: Donnees) {
     { valeur: a.retention === null ? "—" : `${Math.round(a.retention * 100)} %`, label: "rétention 30 j" },
   ];
   return (
-    <dl className="grid grid-cols-4 divide-x rounded-[var(--radius-lg)] border bg-[var(--card)] py-2">
+    <dl className="app-surface dashboard-stats grid grid-cols-4 divide-x rounded-[var(--radius-lg)] border py-4 lg:py-6">
       {tuiles.map((t) => (
         <div key={t.label} className="flex flex-col-reverse px-1 text-center">
           <dt className="truncate text-[10px] text-[var(--muted-foreground)]">
             {t.label}{t.detail && <span className="hidden min-[380px]:inline"> · {t.detail}</span>}
           </dt>
-          <dd className="tabular text-[18px] font-bold leading-tight">{t.valeur}</dd>
+          <dd className="tabular text-[24px] font-semibold leading-tight lg:text-[36px]">{t.valeur}</dd>
         </div>
       ))}
     </dl>

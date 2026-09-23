@@ -22,7 +22,7 @@ export function PanneauAjoutCarte({ deckId }: { deckId: number }) {
   }
 
   return (
-    <div className="rounded-[var(--radius-md)] border bg-[var(--card)] p-3">
+    <div className="app-surface rounded-[var(--radius-md)] border p-4">
       <EditeurCarte deckId={deckId} onFini={() => setOuvert(false)} />
     </div>
   );

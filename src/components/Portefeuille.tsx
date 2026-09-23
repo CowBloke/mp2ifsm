@@ -57,7 +57,7 @@ export function Portefeuille({ solde }: { solde: number }) {
   }
 
   return (
-    <div className="rounded-[var(--radius-lg)] border bg-[var(--card)] p-5">
+    <div className="app-surface rounded-[var(--radius-lg)] border p-5">
       <p className="text-[11px] font-medium uppercase tracking-wide text-[var(--muted-foreground)]">
         Solde disponible
       </p>
