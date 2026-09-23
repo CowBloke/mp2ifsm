@@ -69,6 +69,19 @@ animation et chaque entité son dessin. **Ajouter une carte** : ses blocs
 dans `noyau/contenu/cartes/`, son décor (facultatif) dans
 `client/rendu/decor.ts`.
 
+## Présentation
+
+- **Sons** (`client/son/sons.ts`) : synthétisés par Web Audio, sans aucun
+  fichier ; chaque événement de la simulation choisit sa recette d'après
+  les données (dégâts, entité qui explose, coup qui coûte la jauge…), avec
+  panoramique selon la position à l'écran.
+- **Menu** (Échap) : volume et secousses d'écran (gardés dans le
+  navigateur) ; à l'entraînement, pause et « Recommencer ».
+- **Manches** : fondu au noir entre deux manches, halo doré quand l'ultime
+  est prêt, tableau des résultats (manches, dégâts) en fin de partie.
+- **Décors** (`client/rendu/decor.ts`) : un thème par carte, plans en
+  parallaxe, quelques détails animés.
+
 ## Multijoueur
 
 - **Serveur autoritaire** (`jeu/serveur`) : un processus Node séparé, une

@@ -35,4 +35,6 @@ export type SessionJeu = {
   /** Monde courant, sans consommer les événements (outils de test). */
   monde(): Monde;
   detruire?(): void;
+  /** Partie locale : repart de zéro (nouvelle partie, mêmes réglages). */
+  recommencer?(): void;
 };

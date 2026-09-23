@@ -21,6 +21,11 @@ type Cartouche = {
   delai: number;
 };
 
+type Ligne = { rang: Text; nom: Text; perso: Text; manches: Text; degats: Text };
+
+/** Tableau des résultats : il apparaît peu après la fin de la partie. */
+const RESULTATS_APRES = 45;
+
 export type Hud = {
   maj(monde: Monde, noms: readonly string[], largeur: number, hauteur: number, dtMs: number): void;
   /** Efface en partie les cartouches (0 : visibles, 1 : presque effacés), pour une scène de cinéma. */
@@ -80,13 +85,75 @@ export function creerHud(couche: Container): Hud {
   grande.anchor.set(0.5);
   const cartes = new Container();
   cartes.addChild(barres);
-  couche.addChild(cartes, chrono, manche, grande);
+  const resultats = new Container();
+  const fondResultats = new Graphics();
+  const titreResultats = texte(12, "800", 0xaab4d8);
+  const enTetes = [texte(11, "800", 0x7d88ad), texte(11, "800", 0x7d88ad)];
+  titreResultats.text = "RÉSULTATS";
+  enTetes[0].text = "MANCHES";
+  enTetes[1].text = "DÉGÂTS";
+  for (const t of enTetes) t.anchor.set(1, 0);
+  resultats.addChild(fondResultats, titreResultats, ...enTetes);
+  const lignes: Ligne[] = [];
+  couche.addChild(cartes, chrono, manche, resultats, grande);
   let nettete = 1;
-  const textes = (): Text[] => [chrono, manche, grande, ...cartouches.flatMap((c) => [c.nom, c.perso, c.pv])];
+  let voile = 0;
+  const textes = (): Text[] => [
+    chrono, manche, grande, titreResultats, ...enTetes,
+    ...cartouches.flatMap((c) => [c.nom, c.perso, c.pv]),
+    ...lignes.flatMap((l) => [l.rang, l.nom, l.perso, l.manches, l.degats]),
+  ];
+
+  /** Le tableau prend la place des cartouches, en bas : le vainqueur reste visible au centre. */
+  function tableau(m: Monde, noms: readonly string[], largeur: number, bas: number) {
+    const ordre = m.combattants.map((_, i) => i).sort((a, b) => {
+      const [ca, cb] = [m.combattants[a], m.combattants[b]];
+      return Number(b === m.vainqueur) - Number(a === m.vainqueur) || cb.victoires - ca.victoires || cb.degatsInfliges - ca.degatsInfliges;
+    });
+    while (lignes.length < ordre.length) {
+      const l: Ligne = { rang: texte(22, "900"), nom: texte(18, "800"), perso: texte(11, "600", 0xaab4d8), manches: texte(20, "900"), degats: texte(20, "900") };
+      l.manches.anchor.set(1, 0);
+      l.degats.anchor.set(1, 0);
+      for (const t of [l.rang, l.nom, l.perso, l.manches, l.degats]) t.resolution = nettete;
+      resultats.addChild(l.rang, l.nom, l.perso, l.manches, l.degats);
+      lignes.push(l);
+    }
+    const lw = Math.min(520, largeur - 32);
+    const lh = 50;
+    const x0 = (largeur - lw) / 2;
+    const h = 40 + ordre.length * lh + 10;
+    const haut = bas - h;
+    fondResultats.clear().roundRect(x0, haut, lw, h, 14).fill({ color: 0x0b0e17, alpha: 0.9 })
+      .stroke({ width: 1.5, color: 0xffffff, alpha: 0.12 });
+    titreResultats.position.set(x0 + 18, haut + 14);
+    enTetes[0].position.set(x0 + lw - 120, haut + 15);
+    enTetes[1].position.set(x0 + lw - 18, haut + 15);
+    lignes.forEach((l, r) => {
+      const visible = r < ordre.length;
+      for (const t of [l.rang, l.nom, l.perso, l.manches, l.degats]) t.visible = visible;
+      if (!visible) return;
+      const i = ordre[r];
+      const c = m.combattants[i];
+      const y = haut + 40 + r * lh;
+      if (r > 0) fondResultats.rect(x0 + 14, y - 2, lw - 28, 1).fill({ color: 0xffffff, alpha: 0.07 });
+      l.rang.text = `${r + 1}`;
+      l.rang.style.fill = r === 0 && i === m.vainqueur ? 0xffd166 : 0x7d88ad;
+      l.rang.position.set(x0 + 18, y + 8);
+      l.nom.text = noms[i] ?? `J${i + 1}`;
+      l.nom.style.fill = couleurPlace(i);
+      l.nom.position.set(x0 + 52, y + 4);
+      l.perso.text = c.perso.nom;
+      l.perso.position.set(x0 + 52, y + 26);
+      l.manches.text = String(c.victoires);
+      l.manches.position.set(x0 + lw - 120, y + 9);
+      l.degats.text = String(c.degatsInfliges);
+      l.degats.position.set(x0 + lw - 18, y + 9);
+    });
+  }
 
   return {
     voiler(k) {
-      cartes.alpha = 1 - 0.8 * k;
+      voile = k;
     },
 
     resolution(r) {
@@ -166,6 +233,17 @@ export function creerHud(couche: Container): Hud {
       chrono.position.set(largeur / 2, 12);
       manche.text = `MANCHE ${m.manche}`;
       manche.position.set(largeur / 2, chronometre ? 52 : 14);
+
+      // Fin de partie : le tableau des résultats, sous l'annonce du vainqueur.
+      const fin = m.phase === "finPartie" ? m.phaseTicks - RESULTATS_APRES : -1;
+      const apparition = fin >= 0 ? Math.min(1, fin / 20) : 0;
+      resultats.visible = fin >= 0;
+      if (fin >= 0) {
+        resultats.alpha = apparition;
+        resultats.position.set(0, 24 * (1 - apparition) ** 2);
+        tableau(m, noms, largeur, hauteur - 14);
+      }
+      cartes.alpha = (1 - 0.8 * voile) * (1 - apparition);
 
       // Annonce : apparaît en grossissant, puis se stabilise.
       const a = annonce(m, noms);

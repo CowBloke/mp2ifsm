@@ -56,6 +56,14 @@ export function creerSessionLocale(
       return monde;
     },
 
+    recommencer() {
+      monde = creer();
+      controleurs = creerControleurs();
+      avant = positions(monde);
+      avantEntites = new Map();
+      evenements = [];
+    },
+
     vue() {
       const alpha = fractionTick(horloge);
       const vue: VueJeu = {

@@ -1,7 +1,7 @@
 import { Container, Graphics, Text } from "pixi.js";
 import type { Combattant } from "../../noyau/combattant";
 import { SOUS_PIXELS } from "../../noyau/constantes";
-import { coupDe, dans } from "../../noyau/coups";
+import { JAUGE_MAX, coupDe, dans } from "../../noyau/coups";
 import type { Evenement } from "../../noyau/evenements";
 import type { Monde } from "../../noyau/monde";
 import { animer, creerEtatAnimation } from "../persos/animateur";
@@ -65,6 +65,10 @@ export function creerVueCombattant(c: Combattant, variante: number, couleur: num
   const conteneur = new Container();
   const ombre = new Graphics().ellipse(0, 0, largeur * 0.62, 7).fill({ color: 0x000000, alpha: 0.4 });
   const anneau = new Graphics().ellipse(0, 0, largeur * 0.55, 6).stroke({ width: 3, color: couleur, alpha: 0.85 });
+  // Ultime prêt : un halo doré qui respire autour des pieds.
+  const pret = new Graphics()
+    .ellipse(0, 0, largeur * 0.95, 13).fill({ color: 0xffd166, alpha: 0.16 })
+    .ellipse(0, 0, largeur * 0.8, 10).stroke({ width: 3, color: 0xffd166, alpha: 0.9 });
   const charge = new Graphics();
   const nom = new Text({
     text: etiquette,
@@ -72,7 +76,7 @@ export function creerVueCombattant(c: Combattant, variante: number, couleur: num
   });
   nom.anchor.set(0.5, 1);
   nom.y = -hauteur - 16;
-  conteneur.addChild(ombre, anneau, rig.racine, charge, nom);
+  conteneur.addChild(ombre, pret, anneau, rig.racine, charge, nom);
 
   const embleme = new Text({
     text: "",
@@ -129,6 +133,12 @@ export function creerVueCombattant(c: Combattant, variante: number, couleur: num
         : c.invulnerable > 0 && !c.ko ? 0.55 + 0.3 * Math.sin(temps / 45) : 1;
       ombre.visible = c.auSol;
       anneau.visible = c.auSol && !c.ko;
+      pret.visible = c.jauge >= JAUGE_MAX && !c.ko && !c.horsJeu;
+      if (pret.visible) {
+        const souffle = 0.5 + 0.5 * Math.sin(temps / 160);
+        pret.alpha = 0.55 + 0.45 * souffle;
+        pret.scale.set(0.92 + 0.12 * souffle);
+      }
       nom.visible = !c.ko;
 
       // Effets attachés au coup en cours, déclenchés une fois par exécution.

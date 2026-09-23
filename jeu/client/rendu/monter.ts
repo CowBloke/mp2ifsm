@@ -4,6 +4,7 @@ import "pixi.js/unsafe-eval";
 import { Application, type Ticker } from "pixi.js";
 import { ecouterClavier } from "../entrees/clavier";
 import { lireManettes } from "../entrees/manette";
+import type { PreferencesJeu } from "../reglages";
 import type { SessionJeu } from "../session";
 import { creerScene } from "./scene";
 
@@ -15,6 +16,10 @@ import { creerScene } from "./scene";
 
 export type RenduMonte = {
   detruire(): void;
+  preferences(p: PreferencesJeu): void;
+  /** Partie locale seulement : le temps s'arrête (le réseau, lui, n'attend personne). */
+  pause?(v: boolean): void;
+  recommencer?(): void;
 };
 
 /** Polices des textes de coups (KaTeX, déclarée par la feuille du site) : chargées avant le premier affichage. */
@@ -24,7 +29,9 @@ async function chargerPolices(): Promise<void> {
   await Promise.race([Promise.all(polices), new Promise((r) => setTimeout(r, 1500))]).catch(() => {});
 }
 
-export async function monterRendu(conteneur: HTMLElement, session: SessionJeu, noms: readonly string[]): Promise<RenduMonte> {
+export async function monterRendu(
+  conteneur: HTMLElement, session: SessionJeu, noms: readonly string[], preferences: PreferencesJeu,
+): Promise<RenduMonte> {
   const app = new Application();
   await app.init({
     resizeTo: conteneur,
@@ -38,6 +45,7 @@ export async function monterRendu(conteneur: HTMLElement, session: SessionJeu, n
   await chargerPolices();
 
   const scene = creerScene(app);
+  scene.preferences(preferences);
   const clavier = ecouterClavier(window, { KeyH: () => scene.basculerDebug() });
   const lireEntree = () => clavier.entree() | lireManettes(navigator);
 
@@ -53,18 +61,33 @@ export async function monterRendu(conteneur: HTMLElement, session: SessionJeu, n
   }
 
   app.ticker.add((ticker: Ticker) => {
-    session.avancer(enPause ? 0 : ticker.deltaMS, lireEntree);
-    scene.dessiner(session.vue(), noms, ticker.deltaMS);
+    const dt = enPause ? 0 : ticker.deltaMS;
+    session.avancer(dt, lireEntree);
+    scene.dessiner(session.vue(), noms, dt);
   });
 
   let detruit = false;
+  const recommencer = session.recommencer;
   return {
     detruire() {
       if (detruit) return;
       detruit = true;
       clavier.arreter();
       session.detruire?.();
+      scene.detruire();
       app.destroy({ removeView: true }, { children: true });
     },
+    preferences(p) {
+      scene.preferences(p);
+    },
+    ...(recommencer ? {
+      pause(v: boolean) {
+        enPause = v;
+      },
+      recommencer() {
+        recommencer();
+        enPause = false;
+      },
+    } : {}),
   };
 }

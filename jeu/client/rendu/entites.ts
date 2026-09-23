@@ -19,6 +19,7 @@ type Vivante = {
   dessin: DessinEntite;
   etat: EtatVisuelEntite;
   proprio: number;
+  def: string;
   /** Instant de la disparition (ms, horloge du rendu), null tant qu'elle vit. */
   disparue: number | null;
   x: number;
@@ -51,6 +52,13 @@ export function creerRenduEntites(couche: Container): RenduEntites {
       for (const e of monde.entites) {
         presentes.add(e.id);
         let v = vivantes.get(e.id);
+        // Nouvelle partie : les numéros repartent de zéro. Un dessin qui s'efface
+        // ou qui montre autre chose ne sert pas à la nouvelle entité.
+        if (v && (v.disparue !== null || v.def !== e.def || v.proprio !== e.proprio)) {
+          v.conteneur.destroy({ children: true });
+          vivantes.delete(e.id);
+          v = undefined;
+        }
         if (!v) {
           const proprio = monde.combattants[e.proprio];
           const ap = apparenceDe(proprio.perso.id);
@@ -60,7 +68,7 @@ export function creerRenduEntites(couche: Container): RenduEntites {
           couche.addChild(conteneur);
           const def = proprio.perso.entites?.[e.def];
           v = {
-            conteneur, dessin, proprio: e.proprio, disparue: null, x: 0, y: 0,
+            conteneur, dessin, proprio: e.proprio, def: e.def, disparue: null, x: 0, y: 0,
             etat: { age: 0, duree: def?.duree ?? 1, vx: 0, vy: 0, orientation: 1, accroche: false, fin: 0 },
           };
           vivantes.set(e.id, v);

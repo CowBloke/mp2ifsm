@@ -3,6 +3,8 @@ import type { Carte } from "../../noyau/carte";
 import { boiteDe } from "../../noyau/combattant";
 import { SOUS_PIXELS } from "../../noyau/constantes";
 import { boiteHitbox, hitboxesActives } from "../../noyau/coups";
+import type { Monde } from "../../noyau/monde";
+import { DUREE_FIN_MANCHE } from "../../noyau/regles";
 import { cadrerGroupe, lisser, suivreCible, type Camera } from "../camera";
 import type { VueJeu } from "../session-locale";
 import { creerVueCombattant, type ContexteEffets, type VueCombattant } from "./combattants";
@@ -13,6 +15,8 @@ import { creerEffets } from "./effets";
 import { creerHud } from "./hud";
 import { creerTextes } from "./textes";
 import { creerTrainees } from "./trainees";
+import { PREFERENCES_DEFAUT, type PreferencesJeu } from "../reglages";
+import { creerSons } from "../son/sons";
 
 /*
  * Scène du jeu : couches du monde (décor, emblèmes, traînées,
@@ -26,6 +30,17 @@ const VUE_HAUTEUR = 780;
 /** Spectateur : marges autour des combattants cadrés, plan le plus serré. */
 const CADRAGE_SPECTATEUR = { margeX: 340, margeY: 280, hauteurMin: 760 };
 
+/** Durée des fondus entre manches, en ticks. */
+const FONDU = 24;
+
+/** Opacité du voile noir : la fin d'une manche qui en appelle une autre s'assombrit, la suivante s'éclaire. */
+function opaciteTransition(m: Monde): number {
+  if (m.phase === "decompte") return Math.max(0, 1 - m.phaseTicks / FONDU);
+  if (m.phase !== "finManche") return 0;
+  const derniere = m.combattants.some((c) => c.victoires >= m.reglages.manchesGagnantes) || m.manche >= m.reglages.manchesMax;
+  return derniere ? 0 : Math.max(0, (m.phaseTicks - (DUREE_FIN_MANCHE - FONDU)) / FONDU);
+}
+
 /** Taille de l'interface : elle grandit avec l'écran, davantage pour un spectateur (projecteur). */
 function echelleInterface(hauteur: number, spectateur: boolean): number {
   return spectateur ? Math.max(1, Math.min(2.4, hauteur / 640)) : Math.max(1, Math.min(2, hauteur / 760));
@@ -35,6 +50,8 @@ const px = (u: number) => u / SOUS_PIXELS;
 export type Scene = {
   dessiner(vue: VueJeu, noms: readonly string[], dtMs: number): void;
   basculerDebug(): void;
+  preferences(p: PreferencesJeu): void;
+  detruire(): void;
 };
 
 export function creerScene(app: Application): Scene {
@@ -60,7 +77,9 @@ export function creerScene(app: Application): Scene {
   });
   titre.anchor.set(0.5);
   const coucheHud = new Container();
-  ecran.addChild(bandes, titre, coucheHud);
+  // Voile noir des transitions entre manches, sous l'interface.
+  const voile = new Graphics();
+  ecran.addChild(voile, bandes, titre, coucheHud);
   let cinema = 0;
   let texteCinema = "";
 
@@ -68,6 +87,8 @@ export function creerScene(app: Application): Scene {
   const textes = creerTextes(coucheTextes);
   const ctx: ContexteEffets = { monde, arriere: coucheArriere, textes, trainees, effets };
   const hud = creerHud(coucheHud);
+  const sons = creerSons();
+  let prefs: PreferencesJeu = { ...PREFERENCES_DEFAUT };
   const camera: Camera = { x: 0, y: 0 };
   let hauteurVue = 0;
   let carte: Carte | null = null;
@@ -107,6 +128,15 @@ export function creerScene(app: Application): Scene {
   return {
     basculerDebug() {
       afficherDebug = !afficherDebug;
+    },
+
+    preferences(p) {
+      prefs = { ...p };
+      sons.volume(p.volume);
+    },
+
+    detruire() {
+      sons.detruire();
     },
 
     dessiner(vue, noms, dtMs) {
@@ -184,13 +214,14 @@ export function creerScene(app: Application): Scene {
       }
       suivreCible(camera, cx, cy, premiere ? Infinity : dtMs, largeur / echelle, hauteur / echelle, limites);
       premiere = false;
-      const d = effets.decalage();
+      const d = prefs.secousses ? effets.decalage() : { x: 0, y: 0 };
       monde.scale.set(echelle);
       monde.position.set(largeur / 2 - camera.x * echelle + d.x, hauteur / 2 - camera.y * echelle + d.y);
       if (decor) {
         placerDecor(decor, camera.x, camera.y);
         decor.animer(temps);
       }
+      sons.maj(m, vue.evenements, { x: camera.x, demiLargeur: largeur / echelle / 2 }, vue.local);
 
       // Boîtes de collision et de coups (touche H).
       debug.clear();
@@ -215,6 +246,11 @@ export function creerScene(app: Application): Scene {
       coucheHud.scale.set(k);
       hud.resolution(k * app.renderer.resolution);
       hud.maj(m, noms, largeur / k, hauteur / k, dtMs);
+
+      // Entre deux manches : fondu au noir, puis retour sur l'arène.
+      const noir = opaciteTransition(m);
+      voile.clear();
+      if (noir > 0) voile.rect(0, 0, largeur, hauteur).fill({ color: 0x000000, alpha: noir });
 
       // Cinéma : les bandes entrent quand un coup le demande, et ressortent.
       const scene = m.combattants.map((c, i) => (c.coup !== null ? vues[i]?.apparence.effets[c.coup]?.cinema : undefined)).find(Boolean);
