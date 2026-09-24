@@ -31,7 +31,7 @@ export default async function PagePaquet({
   const matieres = peutReclasser ? await listerMatieres(true) : [];
 
   return (
-    <main className="py-4">
+    <main className="py-4 lg:py-7">
       <Link href="/fiches"
             className="inline-flex items-center gap-1 text-[13px] font-medium
                        text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
@@ -42,13 +42,13 @@ export default async function PagePaquet({
         Fiches
       </Link>
 
-      <header className="mt-3 flex items-start justify-between gap-3">
+      <header className="page-heading mt-4 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <PastilleMatiere nom={paquet.matiere} couleur={paquet.couleur} />
             <span className="text-[12px] font-medium text-[var(--muted-foreground)]">{paquet.chapitre}</span>
           </div>
-          <h1 className="mt-1 text-[19px] font-bold leading-snug">{paquet.titre}</h1>
+          <h1 className="mt-1 text-[22px] font-bold leading-snug lg:text-[32px]">{paquet.titre}</h1>
           {paquet.description && (
             <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">{paquet.description}</p>
           )}
@@ -61,11 +61,13 @@ export default async function PagePaquet({
         <BoutonSuivre deckId={paquet.id} abonne={paquet.abonne} />
       </header>
 
+      <div className="page-grid page-grid--two mt-5 items-start">
+      <div className="min-w-0">
       {paquet.abonne ? (
         <>
           <Link
             href={`/fiches/${paquet.slug}/reviser`}
-            className={`mt-4 block rounded-[var(--radius-md)] px-4 py-3.5 text-center text-[15px]
+            className={`block rounded-[var(--radius-md)] px-4 py-3.5 text-center text-[15px]
                         font-semibold ${
                           du > 0
                             ? "bg-[var(--primary)] text-[var(--primary-foreground)]"
@@ -80,24 +82,26 @@ export default async function PagePaquet({
           </Suspense>
         </>
       ) : (
-        <p className="mt-4 rounded-[var(--radius-md)] border border-dashed p-3 text-[13px]
+        <p className="app-surface rounded-[var(--radius-md)] border border-dashed p-4 text-[13px]
                       text-[var(--muted-foreground)]">
           Vous ne suivez pas ce paquet : il n’entre ni dans vos révisions, ni dans vos
           statistiques, ni dans vos rappels. Suivez-le pour le réviser — si vous
           l’aviez déjà travaillé, votre progression reprend là où vous l’aviez laissée.
         </p>
       )}
+      </div>
 
-      <Suspense fallback={<div className="mt-5"><SqueletteListe n={2} /></div>}>
+      <Suspense fallback={<SqueletteListe n={2} />}>
         <Heatmap deckId={paquet.id} />
       </Suspense>
+      </div>
 
       <section className="mt-6">
         <h2 className="mb-2 text-[12px] font-semibold uppercase tracking-wide
                        text-[var(--muted-foreground)]">
           Cartes ({paquet.total})
         </h2>
-        <PanneauAjoutCarte deckId={paquet.id} />
+        <div className="max-w-[720px]"><PanneauAjoutCarte deckId={paquet.id} /></div>
         <div className="mt-3">
           <Suspense fallback={<SqueletteListe n={4} />}>
             <Cartes deckId={paquet.id} userId={u.id} estAdmin={u.role === "admin"} />
@@ -133,7 +137,7 @@ async function Statistiques({
   const maxJour = Math.max(1, ...s.a_venir.map((j) => j.n));
 
   return (
-    <section className="mt-5 rounded-[var(--radius-lg)] border bg-[var(--card)] p-4">
+    <section className="app-surface mt-5 min-w-0 rounded-[var(--radius-lg)] border p-4 lg:p-5">
       <div className="mb-3 flex items-baseline justify-between">
         <h2 className="text-[12px] font-semibold uppercase tracking-wide
                        text-[var(--muted-foreground)]">
@@ -201,7 +205,7 @@ async function Heatmap({ deckId }: { deckId: number }) {
   const max = Math.max(1, ...lignes.flatMap((l) => l.jours.map((j) => j.n)));
 
   return (
-    <section className="mt-5 rounded-[var(--radius-lg)] border bg-[var(--card)] p-4">
+    <section className="app-surface min-w-0 rounded-[var(--radius-lg)] border p-4 lg:p-5">
       <h2 className="text-[12px] font-semibold uppercase tracking-wide
                      text-[var(--muted-foreground)]">
         Révisions de la classe

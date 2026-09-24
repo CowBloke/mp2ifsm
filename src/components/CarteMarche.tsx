@@ -21,7 +21,7 @@ export function CarteMarche({ marche }: { marche: MarcheVue }) {
   return (
     <Link
       href={`/marche/${marche.slug}`}
-      className="block rounded-[var(--radius-lg)] border bg-[var(--card)] p-4
+      className="app-surface block h-full min-w-0 rounded-[var(--radius-lg)] border p-4 lg:p-5
                  transition-[transform,box-shadow] active:scale-[0.99]
                  hover:shadow-sm focus-visible:outline-2 focus-visible:outline-[var(--ring)]"
     >

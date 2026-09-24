@@ -33,7 +33,7 @@ export function PanneauPari({ marche, solde }: { marche: MarcheVue; solde: numbe
                   setIssueOuverte(issue.id);
                   setOuvert(true);
                 }}
-                className="w-full rounded-[var(--radius-md)] border bg-[var(--card)] p-3 text-left
+                className="app-surface w-full rounded-[var(--radius-md)] border p-4 text-left
                            transition-[transform,background-color] enabled:active:scale-[0.99]
                            enabled:hover:bg-[var(--muted)] disabled:opacity-70"
                 style={gagnante ? { borderColor: couleurIssue(i), borderWidth: 2 } : undefined}

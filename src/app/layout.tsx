@@ -1,4 +1,6 @@
 import { ThemeToggle } from "@/components/ThemeToggle";
+import Link from "next/link";
+import { GlassLayer } from "@/components/GlassLayer";
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { BarreNavigation } from "@/components/BarreNavigation";
@@ -17,7 +19,6 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
   themeColor: "#f7f7f7",
 };
 
@@ -32,12 +33,23 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             donc pas à autoriser d'origine tierce pour les formules. */}
         <link rel="stylesheet" href="/katex/katex.min.css" />
       </head>
-      <body>
-        <div className="mx-auto flex max-w-[560px] justify-end gap-2 px-4 pt-2">
-          {u ? <BoutonRetour /> : null}
-          <ThemeToggle />
-        </div>
-        <div className="mx-auto w-full max-w-[560px] px-4">{children}</div>
+      <body className={u ? "has-navigation" : undefined}>
+        <a href="#contenu" className="skip-link">Aller au contenu</a>
+        <header className="app-header app-shell">
+          <div className="app-header__bar">
+            <GlassLayer />
+            <Link href="/" className="app-brand" aria-label="MP2I/FSM — Accueil">
+              <span className="app-brand__mark" aria-hidden="true">m</span>
+              <span>MP2I<span className="app-brand__separator">/</span>FSM</span>
+            </Link>
+            <div className="app-header__actions">
+              {u ? <span className="app-member">{u.display_name}</span> : null}
+              {u ? <BoutonRetour /> : null}
+              <ThemeToggle />
+            </div>
+          </div>
+        </header>
+        <div id="contenu" tabIndex={-1} className="app-content app-shell">{children}</div>
         {u ? <BarreNavigation /> : null}
         {/* Demande de groupe : à chaque connexion tant qu'il manque,
             « Plus tard » la masque pour la session seulement. */}

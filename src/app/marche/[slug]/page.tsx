@@ -19,7 +19,7 @@ export default async function PageMarche({
   if (!u) redirect("/connexion");
 
   return (
-    <main className="py-4">
+    <main className="py-4 lg:py-7">
       <Link
         href="/"
         className="inline-flex items-center gap-1 text-[13px] font-medium text-[var(--muted-foreground)]
@@ -50,7 +50,9 @@ async function Detail({ slug, userId }: { slug: string; userId: string }) {
   const gagnante = (marche.issues ?? []).find((i) => i.id === marche.resolved_outcome_id);
 
   return (
-    <div className="mt-3">
+    <div className="mt-4 grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:items-start">
+      <div className="min-w-0">
+      <header className="page-heading">
       <div className="flex items-center gap-2 text-[12px]">
         <span
           className={`rounded-full px-2 py-0.5 font-medium ${
@@ -66,16 +68,17 @@ async function Detail({ slug, userId }: { slug: string; userId: string }) {
         </span>
       </div>
 
-      <h1 className="mt-2 text-[19px] font-bold leading-snug">{marche.question}</h1>
+      <h1 className="mt-2 text-[22px] font-bold leading-snug lg:text-[30px]">{marche.question}</h1>
 
       {marche.description && (
         <p className="mt-2 text-[14px] leading-relaxed text-[var(--muted-foreground)]">
           {marche.description}
         </p>
       )}
+      </header>
 
-      <dl className="tabular mt-4 grid grid-cols-3 gap-2 rounded-[var(--radius-lg)] border
-                     bg-[var(--card)] p-3 text-center">
+      <dl className="app-surface tabular mt-5 grid grid-cols-3 gap-2 rounded-[var(--radius-lg)] border
+                     p-3 text-center">
         <div>
           <dt className="text-[11px] text-[var(--muted-foreground)]">Cagnotte</dt>
           <dd className="text-[15px] font-bold">{formatCentimes(marche.cagnotte)}</dd>
@@ -91,7 +94,7 @@ async function Detail({ slug, userId }: { slug: string; userId: string }) {
       </dl>
 
       {marche.status === "resolved" && (
-        <div className="mt-4 rounded-[var(--radius-md)] border bg-[var(--card)] p-3">
+        <div className="app-surface mt-4 rounded-[var(--radius-md)] border p-4">
           <p className="text-[13px]">
             Issue retenue : <strong>{gagnante?.label ?? "—"}</strong>
           </p>
@@ -106,15 +109,17 @@ async function Detail({ slug, userId }: { slug: string; userId: string }) {
           )}
         </div>
       )}
+      </div>
 
-      <h2 className="mb-2 mt-5 text-[12px] font-semibold uppercase tracking-wide
+      <div className="min-w-0">
+      <h2 className="mb-3 text-[12px] font-semibold uppercase tracking-wide
                      text-[var(--muted-foreground)]">
         {ferme ? "Issues" : "Sur quoi misez-vous ?"}
       </h2>
 
       <PanneauPari marche={marche} solde={solde} />
 
-      <section className="mt-6 rounded-[var(--radius-md)] border bg-[var(--muted)]/40 p-3">
+      <section className="app-surface mt-6 rounded-[var(--radius-md)] border bg-[var(--muted)]/40 p-4">
         <h3 className="text-[12px] font-semibold">Comment le gain est calculé</h3>
         <p className="mt-1 text-[12px] leading-relaxed text-[var(--muted-foreground)]">
           Toutes les mises vont dans une cagnotte commune. À la résolution, elle
@@ -126,6 +131,7 @@ async function Detail({ slug, userId }: { slug: string; userId: string }) {
           Une mise est définitive : elle ne peut pas être revendue ni annulée.
         </p>
       </section>
+      </div>
     </div>
   );
 }

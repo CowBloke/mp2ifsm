@@ -48,7 +48,7 @@ export function ProposalList({ items, admin=false }: { items: Proposal[]; admin?
 function ProposalCard({p,admin}:{p:Proposal;admin:boolean}) {
  const [note,setNote]=useState('');const [message,setMessage]=useState('');const [busy,start]=useTransition();const router=useRouter();
  function review(approve:boolean){start(async()=>{const r=await examinerProposition(p.id,approve,note);setMessage(r.ok?(approve?'Pari publié':'Proposition refusée'):r.erreur);if(r.ok)router.refresh();});}
- return <article className="rounded-lg border bg-[var(--card)] p-4">
+ return <article className="app-surface rounded-[var(--radius-md)] border p-4">
   <p className="text-xs text-[var(--muted-foreground)]">{p.status==='pending'?'En attente':p.status==='approved'?'Approuvée':'Refusée'}{admin?` · ${p.display_name}`:''}</p>
   <h3 className="mt-1 break-words font-semibold">{p.question}</h3><p className="mt-2 whitespace-pre-wrap break-words text-sm">{p.description}</p>
   <p className="mt-2 text-sm">{p.issues.join(' / ')}</p><p className="mt-1 text-xs">Fermeture : {new Date(p.closes_at).toLocaleString('fr-FR',{timeZone:'Europe/Paris'})} (Paris)</p>

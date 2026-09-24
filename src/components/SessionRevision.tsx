@@ -139,7 +139,7 @@ export function SessionRevision({
   </div>;
 
   return (
-    <div className="flex min-h-[calc(100dvh-8rem)] flex-col">
+    <div className="reading-column flex min-h-[calc(100dvh-13rem)] flex-col">
       {/* Progression + reste à faire */}
       <div className="pt-3">
         <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--muted)]"
@@ -167,7 +167,7 @@ export function SessionRevision({
         type="button"
         onClick={() => !revele && setRevele(true)}
         aria-label={revele ? "Carte révélée" : "Révéler la réponse"}
-        className={`mt-3 flex-1 rounded-[var(--radius-lg)] border bg-[var(--card)] p-5 text-left
+        className={`app-surface mt-3 flex-1 rounded-[var(--radius-lg)] border p-5 text-left lg:p-8
                     ${revele ? "cursor-default" : "cursor-pointer active:scale-[0.995]"}`}
       >
         <div className="flex items-center justify-between text-[11px] text-[var(--muted-foreground)]">
@@ -175,14 +175,15 @@ export function SessionRevision({
           <span>par {carte.auteur}</span>
         </div>
 
-        <div className="contenu-carte mt-4 text-[17px] leading-relaxed"
+        <div key={`${carte.cardId}-${revele ? "answer" : "question"}`}
+             className="revision-face contenu-carte mt-4 text-[17px] leading-relaxed"
              dangerouslySetInnerHTML={{ __html: revele ? carte.rectoReveleHtml : carte.rectoHtml }} />
 
         {revele ? (
           carte.versoHtml && (
             <>
               <hr className="my-5" />
-              <div className="contenu-carte text-[17px] leading-relaxed"
+              <div className="revision-face contenu-carte text-[17px] leading-relaxed"
                    dangerouslySetInnerHTML={{ __html: carte.versoHtml }} />
             </>
           )
@@ -208,7 +209,7 @@ export function SessionRevision({
       )}
 
       {/* Les quatre notes, avec l'intervalle calculé par le serveur. */}
-      <div className="sticky bottom-0 mt-3 pb-3">
+      <div className="revision-controls sticky bottom-[var(--bottom-nav-clearance)] mt-3 pb-3">
         {revele ? (
           <div className="grid grid-cols-4 gap-1.5">
             {carte.apercu.map((a) => (

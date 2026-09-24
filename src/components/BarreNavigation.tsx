@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { CSSProperties } from "react";
+import { GlassLayer } from "@/components/GlassLayer";
 
 /*
  * Navigation basse, six sections de poids égal.
@@ -27,27 +29,26 @@ const ONGLETS = [
 
 export function BarreNavigation() {
   const chemin = usePathname();
+  const indexActif = ONGLETS.findIndex((o) =>
+    o.href === "/" ? chemin === "/" : chemin.startsWith(o.href),
+  );
 
   return (
-    <nav
-      aria-label="Navigation principale"
-      className="fixed inset-x-0 bottom-0 z-40 border-t bg-[var(--card)]/95 backdrop-blur
-                 pb-[env(safe-area-inset-bottom)]"
-    >
-      <ul className="mx-auto flex w-full max-w-[560px]">
-        {ONGLETS.map((o) => {
-          const actif = o.href === "/" ? chemin === "/" : chemin.startsWith(o.href);
+    <nav aria-label="Navigation principale" className="bottom-nav">
+      <GlassLayer />
+      <ul
+        className="bottom-nav__tabs"
+        data-has-active={indexActif >= 0}
+        style={{ "--active-tab": Math.max(indexActif, 0) } as CSSProperties}
+      >
+        {ONGLETS.map((o, index) => {
+          const actif = index === indexActif;
           return (
-            <li key={o.href} className="flex-1">
+            <li key={o.href} className="min-w-0">
               <Link
                 href={o.href}
                 aria-current={actif ? "page" : undefined}
-                className={`flex h-16 flex-col items-center justify-center gap-1 text-[10px]
-                            font-medium transition-colors ${
-                              actif
-                                ? "text-[var(--primary)]"
-                                : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-                            }`}
+                className="bottom-nav__link"
               >
                 <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true"
                      fill="none" stroke="currentColor" strokeWidth={actif ? 2.1 : 1.6}

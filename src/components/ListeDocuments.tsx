@@ -54,13 +54,13 @@ export function ListeDocuments({
 
   return (
     <>
-      <ul className="space-y-2">
+      <ul className="space-y-3">
         {documents.map((d) => {
           const previsualisable = d.mime === "application/pdf" || d.mime.startsWith("image/");
           const peutSupprimer = estAdmin || d.uploaded_by === moi;
 
           return (
-            <li key={d.id} className="rounded-[var(--radius-md)] border bg-[var(--card)] p-3">
+            <li key={d.id} className="app-surface min-w-0 rounded-[var(--radius-md)] border p-4">
               <div className="flex items-start gap-3">
                 <span className="mt-0.5 shrink-0 rounded-[var(--radius-sm)] bg-[var(--muted)]
                                  px-1.5 py-1 text-[9px] font-bold tracking-wide
@@ -98,7 +98,7 @@ export function ListeDocuments({
                     </p>
                   )}
 
-                  <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[12px]">
+                  <div className="page-toolbar mt-3 flex flex-wrap gap-x-4 gap-y-2 text-[12px]">
                     {corbeille ? (
                       peutSupprimer && (
                         <button
@@ -164,7 +164,7 @@ function Apercu({ doc, onFermer }: { doc: DocVue; onFermer: () => void }) {
       className="fixed inset-0 m-0 h-dvh max-h-none w-screen max-w-none flex-col bg-[var(--background)] text-[var(--foreground)] open:flex"
       role="dialog" aria-modal="true" aria-label={`Aperçu de ${doc.original_name}`}
     >
-      <div className="flex items-center gap-3 border-b px-4 py-2.5">
+      <div className="app-surface flex items-center gap-3 border-b px-4 py-3 lg:px-6">
         <p className="min-w-0 flex-1 truncate text-[13px] font-medium">{doc.original_name}</p>
         <a href={`/api/documents/${doc.id}?dl=1`}
            className="shrink-0 text-[12px] font-medium text-[var(--primary)]">

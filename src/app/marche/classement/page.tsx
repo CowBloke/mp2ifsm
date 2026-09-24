@@ -12,11 +12,13 @@ export default async function PageClassement() {
   if (!u) redirect("/connexion");
 
   return (
-    <main className="py-4">
-      <h1 className="text-[22px] font-bold leading-tight">Classement</h1>
-      <p className="mb-4 text-[13px] text-[var(--muted-foreground)]">
+    <main className="reading-column py-4 lg:py-7">
+      <header className="page-heading mb-5">
+      <h1 className="text-[22px] font-bold leading-tight lg:text-[32px]">Classement</h1>
+      <p className="mt-1 text-[13px] text-[var(--muted-foreground)] lg:text-[15px]">
         Classé par gain net, pas par solde : déposer plus ne fait pas monter.
       </p>
+      </header>
 
       <Suspense fallback={<SqueletteListe n={8} />}>
         <Tableau moi={u.id} />
@@ -38,13 +40,13 @@ async function Tableau({ moi }: { moi: string }) {
   }
 
   return (
-    <ol className="divide-y overflow-hidden rounded-[var(--radius-lg)] border bg-[var(--card)]">
+    <ol className="app-surface divide-y overflow-hidden rounded-[var(--radius-lg)] border">
       {lignes.map((l, i) => {
         const cestMoi = l.user_id === moi;
         return (
           <li
             key={l.user_id}
-            className={`flex items-center gap-3 p-3 ${cestMoi ? "bg-[var(--secondary)]/40" : ""}`}
+            className={`flex items-center gap-3 p-4 lg:gap-5 ${cestMoi ? "bg-[var(--secondary)]/40" : ""}`}
           >
             <span
               className={`tabular flex h-7 w-7 shrink-0 items-center justify-center rounded-full

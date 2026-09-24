@@ -29,12 +29,14 @@ export default async function PageColles({
 
   if (groupe === null) {
     return (
-      <main className="py-4">
-        <h1 className="text-[22px] font-bold leading-tight">Colles</h1>
-        <p className="mb-4 mt-1 text-[13px] text-[var(--muted-foreground)]">
+      <main className="reading-column py-4 lg:py-7">
+        <header className="page-heading mb-5">
+        <h1 className="text-[22px] font-bold leading-tight lg:text-[32px]">Colles</h1>
+        <p className="mt-1 text-[13px] text-[var(--muted-foreground)] lg:text-[15px]">
           Indiquez votre groupe de colles pour voir votre semaine et recevoir les
           rappels dans le portail.
         </p>
+        </header>
         <ReglageGroupe groupe={null} max={GROUPE_MAX} />
       </main>
     );
@@ -55,17 +57,17 @@ export default async function PageColles({
   const prochaineSemaine = aVenir.find((c) => lundiDe(jourParis(new Date(c.debut))) > lundi);
 
   return (
-    <main className="py-4">
-      <header className="flex items-start justify-between gap-3">
+    <main className="py-4 lg:py-7">
+      <header className="page-heading flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-[22px] font-bold leading-tight">Colles</h1>
-          <p className="text-[13px] text-[var(--muted-foreground)]">
+          <h1 className="text-[22px] font-bold leading-tight lg:text-[32px]">Colles</h1>
+          <p className="mt-1 text-[13px] text-[var(--muted-foreground)] lg:text-[15px]">
             Groupe {groupe}
             {autreGroupe && " (consultation)"}
             {semaine.periode && ` · ${semaine.periode.libelle} ${semaine.periode.anneeScolaire}`}
           </p>
         </div>
-        <form action="/colles" className="flex items-center gap-1.5">
+        <form action="/colles" className="page-toolbar flex items-center gap-1.5">
           <input type="hidden" name="semaine" value={lundi} />
           <label className="sr-only" htmlFor="groupe-vue">Voir le groupe</label>
           <select id="groupe-vue" name="groupe" defaultValue={groupe}
@@ -81,9 +83,11 @@ export default async function PageColles({
         </form>
       </header>
 
+      <div className="mt-5 grid gap-6 lg:grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)] lg:items-start">
+      <div className="min-w-0">
       {/* Navigation de semaine */}
-      <nav aria-label="Semaine" className="mt-4 flex items-center justify-between gap-2
-                                           rounded-[var(--radius-lg)] border bg-[var(--card)] p-1.5">
+      <nav aria-label="Semaine" className="app-surface flex items-center justify-between gap-2
+                                           rounded-[var(--radius-lg)] border p-1.5">
         <Link href={lien(ajouterJours(lundi, -7))} aria-label="Semaine précédente"
               className="rounded-[var(--radius-md)] px-3 py-1.5 text-[16px] hover:bg-[var(--muted)]">‹</Link>
         <div className="text-center">
@@ -108,7 +112,7 @@ export default async function PageColles({
       )}
 
       {/* Calendrier de la semaine : une ligne par jour ouvré. */}
-      <ol className="mt-3 divide-y rounded-[var(--radius-lg)] border bg-[var(--card)]">
+      <ol className="app-surface mt-3 divide-y rounded-[var(--radius-lg)] border">
         {JOURS.map((nom, i) => {
           const jour = ajouterJours(lundi, i);
           const colles = semaine.colles.filter((c) => jourParis(new Date(c.debut)) === jour);
@@ -118,7 +122,7 @@ export default async function PageColles({
           const estAujourdhui = jour === aujourdhui;
           if (i === 5 && colles.length === 0 && replis.length === 0) return null; // samedi vide
           return (
-            <li key={jour} className="flex gap-3 px-3 py-2.5">
+            <li key={jour} className="flex gap-3 px-3 py-3 lg:gap-5 lg:px-5 lg:py-4">
               <div className={`w-11 shrink-0 text-center ${estAujourdhui ? "text-[var(--primary)]" : ""}`}>
                 <p className="text-[10px] font-semibold uppercase tracking-wide">{nom.slice(0, 3)}</p>
                 <p className={`tabular text-[18px] font-bold leading-tight ${estAujourdhui ? "" : "text-[var(--foreground)]"}`}>
@@ -143,8 +147,10 @@ export default async function PageColles({
           Prochaine colle{"\u00a0"}: {jourCourt(prochaineSemaine.debut)} →
         </Link>
       )}
+      </div>
 
-      <section className="mt-6">
+      <aside className="min-w-0 space-y-6">
+      <section>
         <h2 className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
           À venir
         </h2>
@@ -154,10 +160,10 @@ export default async function PageColles({
             Aucune colle prévue dans le colloscope actuel.
           </p>
         ) : (
-          <ul className="divide-y rounded-[var(--radius-lg)] border bg-[var(--card)]">
+          <ul className="app-surface divide-y rounded-[var(--radius-lg)] border">
             {aVenir.map((c) => (
               <li key={c.id} style={styleMatiere(c.couleur)} className="m-liseret flex items-center gap-3 py-2 pl-3.5 pr-3">
-                <span className="tabular w-20 shrink-0 text-[12px] font-medium">{jourCourt(c.debut)}</span>
+                <span className="tabular w-16 shrink-0 text-[12px] font-medium">{jourCourt(c.debut)}</span>
                 <span className="m-texte min-w-0 flex-1 truncate text-[13px] font-semibold">{c.matiere}</span>
                 <span className="tabular shrink-0 text-[12px] text-[var(--muted-foreground)]">
                   {heure(c.debut)} · {salle(c.salle)}
@@ -169,7 +175,7 @@ export default async function PageColles({
       </section>
 
       {semaine.periode && semaine.periode.notes.length > 0 && (
-        <section className="mt-6">
+        <section>
           <h2 className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
             Consignes du colloscope
           </h2>
@@ -180,13 +186,15 @@ export default async function PageColles({
       )}
 
       {!autreGroupe && (
-        <section className="mt-6">
+        <section>
           <h2 className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
             Mon groupe
           </h2>
           <ReglageGroupe groupe={u.groupe_colle} max={GROUPE_MAX} />
         </section>
       )}
+      </aside>
+      </div>
     </main>
   );
 }

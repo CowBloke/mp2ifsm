@@ -13,7 +13,7 @@ export function OutilsPaquets({ matieres }: { matieres: Matieres }) {
 
   if (!vue) {
     return (
-      <div className="flex gap-2">
+      <div className="page-toolbar flex gap-2">
         <button type="button" onClick={() => setVue("creer")}
                 className="flex-1 rounded-[var(--radius-md)] bg-[var(--primary)] px-4 py-2.5
                            text-[14px] font-semibold text-[var(--primary-foreground)]">
@@ -29,7 +29,7 @@ export function OutilsPaquets({ matieres }: { matieres: Matieres }) {
   }
 
   return (
-    <div className="rounded-[var(--radius-lg)] border bg-[var(--card)] p-4">
+    <div className="app-surface rounded-[var(--radius-lg)] border p-4 lg:p-5">
       {vue === "creer"
         ? <FormulairePaquet matieres={matieres} onFini={() => setVue(null)} />
         : <FormulaireImport matieres={matieres} onFini={() => setVue(null)} />}
