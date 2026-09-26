@@ -1,0 +1,49 @@
+[Unit]
+Description=mp2ifsm.com — serveur de jeu (Taupe Fighter)
+Documentation=file:/home/cowbloke/projects/mp2ifsm/deploy/JEU.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cowbloke
+Group=cowbloke
+# Même release que le site : le navigateur et le serveur de jeu viennent
+# toujours du même commit (même protocole, mêmes données).
+WorkingDirectory=/var/lib/mp2ifsm-deploy/current
+
+# SESSION_SECRET (vérification des tickets), PUBLIC_ORIGIN (origine
+# acceptée), JEU_PORT. JEU_HOTE doit y rester vide : loopback.
+EnvironmentFile=/home/cowbloke/projects/mp2ifsm/.env
+Environment=NODE_ENV=production
+
+# tsx (installé par npm ci dans la release) exécute le TypeScript du jeu.
+ExecStart=/usr/local/bin/node --import tsx jeu/serveur/main.ts
+# SIGTERM : le serveur prévient les navigateurs (code 1012) et s'arrête.
+KillSignal=SIGTERM
+TimeoutStopSec=5
+Restart=on-failure
+RestartSec=3
+
+# Le public passe par nginx : même si l'adresse d'écoute était mal
+# réglée, rien d'autre que la machine elle-même ne peut le joindre.
+IPAddressAllow=localhost
+IPAddressDeny=any
+
+MemoryMax=300M
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

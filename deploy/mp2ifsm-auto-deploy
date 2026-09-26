@@ -12,12 +12,31 @@ readonly RELEASES="$STATE_DIR/releases"
 readonly CURRENT="$STATE_DIR/current"
 readonly ENV_FILE="$REPOSITORY/.env"
 readonly SERVICE=mp2ifsm.service
+# Serveur de jeu : redémarré avec le site quand il est installé (deploy/JEU.md).
+readonly SERVICE_JEU=mp2ifsm-jeu.service
 readonly LOCK_FILE=/run/mp2ifsm-deploy/deploy.lock
 readonly BUILD_HELPER=/usr/local/libexec/mp2ifsm-build-release
 readonly KEEP_RELEASES=3
 
 log() {
   printf '[mp2ifsm-deploy] %s\n' "$*"
+}
+
+jeu_installe() {
+  systemctl cat "$SERVICE_JEU" >/dev/null 2>&1
+}
+
+redemarrer() {
+  systemctl restart "$SERVICE"
+  if jeu_installe; then systemctl restart "$SERVICE_JEU"; fi
+}
+
+en_bonne_sante() {
+  curl --fail --silent --show-error --max-time 3 \
+    -H 'Host: mp2ifsm.com' http://127.0.0.1:4260/ >/dev/null || return 1
+  if jeu_installe; then
+    curl --fail --silent --show-error --max-time 3 http://127.0.0.1:4270/ws/jeu/sante >/dev/null || return 1
+  fi
 }
 
 as_app() {
@@ -92,12 +111,11 @@ ln -sfn "$release" "$CURRENT.new"
 mv -Tf "$CURRENT.new" "$CURRENT"
 
 log "activating $target"
-systemctl restart "$SERVICE"
+redemarrer
 
 healthy=0
 for _ in {1..30}; do
-  if curl --fail --silent --show-error --max-time 3 \
-    -H 'Host: mp2ifsm.com' http://127.0.0.1:4260/ >/dev/null; then
+  if en_bonne_sante; then
     healthy=1
     break
   fi
@@ -110,7 +128,7 @@ if [[ $healthy -ne 1 ]]; then
     log "rolling code back to $previous"
     ln -sfn "$previous" "$CURRENT.new"
     mv -Tf "$CURRENT.new" "$CURRENT"
-    systemctl restart "$SERVICE"
+    redemarrer
   fi
   exit 1
 fi

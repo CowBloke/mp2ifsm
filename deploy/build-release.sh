@@ -17,6 +17,7 @@ cd "$release_dir"
 export NEXT_TELEMETRY_DISABLED=1
 npm ci --no-audit --no-fund --cache /tmp/mp2ifsm-npm-cache
 npm test
+npm run jeu:test
 npm run typecheck
 NEXT_BUILD_DIR=.next-production npm run build
 

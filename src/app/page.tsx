@@ -15,6 +15,7 @@ import { heure, jourCourt, plage, prochainesColles, salle } from "@/lib/colles";
 import { listerMatieres } from "@/lib/matieres";
 import { rappels } from "@/lib/rappels";
 import { utilisateurCourant } from "@/lib/session";
+import { jeuOuvertPour } from "./jeu/acces";
 
 export const dynamic = "force-dynamic";
 
@@ -53,11 +54,24 @@ export default async function Accueil() {
             })}
           </p>
         </div>
-        <Link href="/colles"
-              className="shrink-0 rounded-full border bg-[var(--card)] px-2.5 py-1 text-[12px] font-medium
-                         hover:bg-[var(--muted)]">
-          {u.groupe_colle ? `Groupe ${u.groupe_colle}` : "Groupe ?"}
-        </Link>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {/* Le jeu de la classe : une simple icône, seulement quand il est ouvert à cet utilisateur. */}
+          {jeuOuvertPour(u) ? (
+            <Link href="/jeu" aria-label="Taupe Fighter, le jeu de la classe" title="Taupe Fighter"
+                  className="grid h-[26px] w-[30px] place-items-center rounded-full border bg-[var(--card)]
+                             text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]">
+              <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true" fill="none" stroke="currentColor"
+                   strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M7 6h10a4 4 0 0 1 4 4v4.5a2.5 2.5 0 0 1-4.6 1.4L15 14H9l-1.4 1.9A2.5 2.5 0 0 1 3 14.5V10a4 4 0 0 1 4-4zM7.5 9v3M6 10.5h3M15.5 10h.01M17.5 12h.01" />
+              </svg>
+            </Link>
+          ) : null}
+          <Link href="/colles"
+                className="rounded-full border bg-[var(--card)] px-2.5 py-1 text-[12px] font-medium
+                           hover:bg-[var(--muted)]">
+            {u.groupe_colle ? `Groupe ${u.groupe_colle}` : "Groupe ?"}
+          </Link>
+        </div>
       </header>
 
       <div className="dashboard-grid">

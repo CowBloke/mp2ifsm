@@ -12,7 +12,10 @@
     "db:seed": "node --experimental-strip-types scripts/seed.ts",
     "deposits:sync": "node --experimental-strip-types scripts/sync-deposits.ts",
     "test": "node --conditions=react-server --import tsx --test tests/*.test.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "jeu:dev": "tsx watch jeu/serveur/main.ts",
+    "jeu:test": "node --import tsx --test jeu/tests/*.test.ts",
+    "jeu:equilibrage": "tsx jeu/outils/equilibrage.ts"
   },
   "dependencies": {
     "adm-zip": "^0.6.1",
@@ -20,10 +23,12 @@
     "katex": "^0.18.7",
     "next": "15.5.4",
     "pg": "8.16.3",
+    "pixi.js": "^8.21.0",
     "react": "19.1.1",
     "react-dom": "19.1.1",
     "server-only": "^0.0.1",
     "ts-fsrs": "^5.4.2",
+    "ws": "^8.21.3",
     "zod": "3.25.76"
   },
   "devDependencies": {
@@ -35,6 +40,7 @@
     "@types/pg": "8.15.5",
     "@types/react": "19.1.9",
     "@types/react-dom": "19.1.7",
+    "@types/ws": "^8.18.1",
     "tailwindcss": "4.1.13",
     "tsx": "^4.23.13",
     "typescript": "5.9.2"
