@@ -65,7 +65,6 @@ export function urlParDefaut(): string {
 
 export function connecterJeu(options: OptionsConnexion): ConnexionJeu {
   const WS = options.WebSocket ?? WebSocket;
-  const url = options.url ?? urlParDefaut();
   let etat: EtatConnexion = {
     statut: "connexion", uid: null, nom: "", salon: null, partie: null, erreur: null, refus: null, rtt: null,
   };
@@ -121,7 +120,8 @@ export function connecterJeu(options: OptionsConnexion): ConnexionJeu {
   }
 
   function ouvrir() {
-    const s = new WS(url);
+    // Calculée à l'ouverture seulement : le rendu serveur crée la connexion sans `location`.
+    const s = new WS(options.url ?? urlParDefaut());
     ws = s;
     s.binaryType = "arraybuffer";
     s.onopen = () => {

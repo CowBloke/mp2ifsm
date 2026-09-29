@@ -1,7 +1,7 @@
 # Jeu de combat de la classe
 
 Jeu de plateforme-combat 2D, de 2 à 4 joueurs, en manches, intégré au
-site sous `/jeu` (masqué tant que `JEU_ACTIF` ne l'ouvre pas).
+site sous `/jeu`, ouvert en permanence à tous les membres connectés.
 
 ## Organisation
 
@@ -116,7 +116,7 @@ dans `noyau/contenu/cartes/`, son décor (facultatif) dans
 ```bash
 npm run jeu:test     # tests du jeu
 npm run jeu:dev      # serveur de jeu sur 127.0.0.1:4270 (JEU_PORT)
-npm run dev          # site ; /jeu exige JEU_ACTIF=tous (ou admins) dans .env
+npm run dev          # site ; /jeu est ouvert à tout membre connecté
 ```
 
 En développement, le site et le serveur de jeu tournent côte à côte : le

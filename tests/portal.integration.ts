@@ -76,11 +76,12 @@ try {
     assert.ok(result, `${name}: ${res.status} ${body.slice(0, 500)}`);
     return JSON.parse(result.slice(result.indexOf(":") + 1));
   }
-  for (const path of ["/", "/fiches", "/fiches/integration", "/fiches/integration/reviser", "/documents", "/profil", "/marche", "/marche/classement", "/colles", "/colles?groupe=4&semaine=2026-09-21"]) {
+  for (const path of ["/", "/fiches", "/fiches/integration", "/fiches/integration/reviser", "/documents", "/profil", "/marche", "/marche/classement", "/colles", "/colles?groupe=4&semaine=2026-09-21", "/jeu"]) {
     const r = await fetch(base + path, { headers: auth });
     const html = await r.text();
     ok(r.ok && !html.includes('"digest":'), `authenticated page ${path}`);
   }
+  ok((await (await fetch(base + "/", { headers: auth })).text()).includes('href="/jeu"'), "game is open to every member");
   const { submitProposal } = await import("../src/lib/proposals");
   const suggestion = { question: 'Un pari amusant pour vendredi ?', description: 'Résultat annoncé en classe.', closesAt: new Date(Date.now()+86400000).toISOString(), issues: ['Oui','Non'] };
   ok((await action("proposerPari", [suggestion])).ok, "member submits a proposal");
@@ -181,6 +182,17 @@ try {
   const exp = await fetch(base + `/api/fiches/export/${imported.slug}`, { headers: auth });
   const exported = await lireApkg(Buffer.from(await exp.arrayBuffer()));
   ok(exported.medias.size === 1 && exported.notes[0].recto.includes("anki-media:"), "Anki export includes referenced image bytes");
+  const [importe] = await query<{ id: number }>("select id from deck where slug=$1", [imported.slug]);
+  await query("insert into deck_subscription(user_id,deck_id) values ($1,$2)", [bob, importe.id]);
+  ok(!(await action("supprimerPaquet", [importe.id], `mp2_session=${tokenBob}`)).ok, "member cannot delete someone else's deck");
+  ok((await action("supprimerPaquet", [importe.id])).ok, "creator deletes their deck");
+  ok((await listerPaquets(alice)).every(p => p.id !== importe.id), "deleted deck leaves the list");
+  ok((await listerPaquets(alice)).some(p => p.id === deck.id), "other decks are kept");
+  ok((await query("select 1 from deck_subscription where deck_id=$1", [importe.id])).length === 0,
+    "deleted deck leaves everyone's revisions");
+  ok((await fetch(base + `/api/fiches/export/${imported.slug}`, { headers: auth })).status === 404, "deleted deck cannot be exported");
+  ok(!(await action("ajouterCarte", [importe.id, "Recto", "Verso"])).ok, "no card can be added to a deleted deck");
+  ok(!(await action("supprimerPaquet", [importe.id])).ok, "a deck is deleted only once");
   if (process.env.TEST_BROWSER === "1") {
     await query("insert into card(deck_id,recto,verso,author_id) values ($1,'Calculer $2+2$','$4$',$2)", [deck.id, alice]);
     const { browserCheck } = await import("./browser-check");

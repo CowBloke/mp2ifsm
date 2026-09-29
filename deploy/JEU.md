@@ -12,10 +12,10 @@
 - Le jeu vit sous `/jeu` (pages Next.js du site) et s'appuie sur un
   **serveur de jeu séparé** : Node, WebSocket, `127.0.0.1:4270`, exposé par
   nginx sous `/ws/jeu` (même origine que le site).
-- Il est **caché par défaut** : tant que `JEU_ACTIF` est vide, `/jeu`
-  répond 404, l'icône d'accueil n'apparaît pas et le site ne délivre aucun
-  ticket de jeu. Le code peut donc être fusionné et déployé sans que rien
-  ne change pour les élèves.
+- Il est **ouvert en permanence à tous les membres connectés** : `/jeu`,
+  l'icône d'accueil et les tickets de jeu ne dépendent d'aucune variable.
+  Sans serveur de jeu installé, la page s'affiche mais « Créer un salon »
+  reste indisponible (l'entraînement local fonctionne).
 - Identité : le site signe un ticket de deux minutes (HMAC-SHA256 avec
   `SESSION_SECRET`, préfixe propre au jeu) ; le serveur de jeu le vérifie.
   **Aucun nouveau secret**, aucune table, aucune migration.
@@ -60,7 +60,7 @@ Si `www.mp2ifsm.com` n'est pas redirigé vers `mp2ifsm.com`, prévoir
 ## Ordre d'installation
 
 **0. Fusion** — par MBNY, via une PR vers `main`, puis approbation de
-`production` comme d'habitude. Le jeu arrive caché.
+`production` comme d'habitude. Le jeu est visible dès ce déploiement.
 
 **1. 🔒 Scripts de déploiement**, **après** le premier déploiement qui
 contient le jeu (le nouveau `build-release.sh` appelle `npm run jeu:test`,
@@ -77,7 +77,6 @@ Dès lors, `npm run jeu:test` fait partie de la validation.
 **2. 🔒 Variables** dans `/home/cowbloke/projects/mp2ifsm/.env` :
 
 ```
-JEU_ACTIF=                    # vide pour l'instant : jeu caché
 JEU_PORT=4270
 JEU_HOTE=                     # vide : loopback uniquement
 JEU_ORIGINES=                 # https://www.mp2ifsm.com si www n'est pas redirigé
@@ -118,9 +117,7 @@ curl -s -o /dev/null -w '%{http_code}\n' -H 'Host: mp2ifsm.com' \
   http://127.0.0.1/ws/jeu                         # 101
 ```
 
-**5. 🔒 Ouverture aux admins** : `JEU_ACTIF=admins`, puis
-`systemctl restart mp2ifsm` (Next lit l'environnement au démarrage).
-Depuis un navigateur connecté en admin : icône manette à côté de
+**5. Vérification** depuis un navigateur connecté : icône manette à côté de
 « Groupe » sur l'accueil → `/jeu` → « Créer un salon » devient cliquable
 (connecté au serveur de jeu) ; aucune erreur CSP dans la console. De
 l'extérieur, `https://mp2ifsm.com/ws/jeu/sante` doit répondre 403.
@@ -132,13 +129,10 @@ l'extérieur, `https://mp2ifsm.com/ws/jeu/sante` doit répondre 403.
 > pour cela un refus des requêtes portant `CF-Connecting-IP` ; le même
 > ajout conviendrait à `/api/cron/`, à décider par CowBloke.
 
-**6. 🔒 Ouverture à tous** : `JEU_ACTIF=tous`, `systemctl restart mp2ifsm`.
-
 ## Retour arrière
 
-- **Cacher le jeu** : `JEU_ACTIF=` puis `systemctl restart mp2ifsm`. `/jeu`
-  redevient 404, l'icône disparaît, plus aucun ticket n'est délivré ; le
-  serveur de jeu peut rester en place, inerte.
+- **Cacher le jeu** : il n'y a plus d'interrupteur ; revenir sur le
+  commit qui l'a ouvert à tous (`src/app/jeu/acces.ts`).
 - **Retirer le serveur de jeu** : `systemctl disable --now mp2ifsm-jeu`,
   supprimer l'unité, `systemctl daemon-reload`. Le script de déploiement
   l'ignore dès qu'elle n'est plus installée.

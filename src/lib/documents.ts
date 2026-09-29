@@ -177,7 +177,7 @@ export async function corbeille(userId: string, estAdmin: boolean): Promise<Docu
 export const CHAPITRES_CONNUS = async (): Promise<string[]> => {
   const r = await query<{ chapitre: string }>(
     `select distinct chapitre from document where chapitre is not null
-     union select distinct chapitre from deck
+     union select distinct chapitre from deck where archived_at is null
      order by 1`,
   );
   return r.map((x) => x.chapitre);

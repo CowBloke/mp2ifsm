@@ -228,6 +228,38 @@ export async function changerMatierePaquet(
   }
 }
 
+/**
+ * Supprime un paquet : son créateur ou un administrateur.
+ *
+ * Suppression douce : l'historique des cartes et le journal de révision
+ * sont immuables, le paquet est donc archivé plutôt qu'effacé. Il
+ * disparaît de la liste, de sa page, de l'export et, abonnements retirés,
+ * des révisions, statistiques et rappels de chacun. Les autres paquets
+ * ne sont pas touchés.
+ */
+export async function supprimerPaquet(deckId: number): Promise<Reponse<undefined>> {
+  try {
+    const u = await exigerUtilisateur();
+    if (!Number.isSafeInteger(deckId) || deckId <= 0) throw new ErreurMetier("PAQUET_INTROUVABLE");
+    await tx(async (c) => {
+      const r = await c.query(
+        `update deck set archived_at = now()
+          where id = $1 and archived_at is null
+            and ($3::boolean or created_by = $2::uuid)
+          returning id`,
+        [deckId, u.id, u.role === "admin"],
+      );
+      if (r.rowCount === 0) throw new ErreurMetier("NON_AUTORISE");
+      await c.query(`delete from deck_subscription where deck_id = $1`, [deckId]);
+    });
+    revalidatePath("/fiches");
+    revalidatePath("/");
+    return { ok: true };
+  } catch (err) {
+    return echec(err);
+  }
+}
+
 function slugifier(s: string): string {
   return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "paquet";
@@ -253,13 +285,15 @@ export async function ajouterCarte(
     if (!p.success) throw new ErreurMetier("CARTE_VIDE");
 
     const r = await queryOne<{ id: number }>(
-      `insert into card (deck_id, recto, verso, author_id) values ($1,$2,$3,$4::uuid)
+      `insert into card (deck_id, recto, verso, author_id)
+       select id, $2, $3, $4::uuid from deck where id = $1 and archived_at is null
        returning id`,
       [deckId, p.data.recto, p.data.verso, u.id],
     );
+    if (!r) throw new ErreurMetier("PAQUET_INTROUVABLE");
 
     revalidatePath("/fiches");
-    return { ok: true, data: { cardId: r!.id } };
+    return { ok: true, data: { cardId: r.id } };
   } catch (err) {
     return echec(err);
   }

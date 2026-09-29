@@ -6,6 +6,7 @@ import { PanneauAjoutCarte } from "@/components/PanneauAjoutCarte";
 import { SqueletteListe } from "@/components/Squelettes";
 import { BoutonSuivre } from "@/components/BoutonSuivre";
 import { MatierePaquet } from "@/components/MatierePaquet";
+import { SupprimerPaquet } from "@/components/SupprimerPaquet";
 import { PastilleMatiere } from "@/components/Matiere";
 import { listerMatieres } from "@/lib/matieres";
 import { heatmapClasse, lirePaquet, listerCartes, statsPaquet } from "@/lib/fiches";
@@ -53,8 +54,9 @@ export default async function PagePaquet({
             <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">{paquet.description}</p>
           )}
           {peutReclasser && (
-            <div className="mt-1.5">
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
               <MatierePaquet deckId={paquet.id} actuelle={paquet.subject_id} matieres={matieres} />
+              <SupprimerPaquet deckId={paquet.id} titre={paquet.titre} />
             </div>
           )}
         </div>

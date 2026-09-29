@@ -113,7 +113,7 @@ export async function prochaineCarte(
             s.elapsed_days, s.scheduled_days, s.learning_steps,
             s.reps, s.lapses, s.last_review
        from card k
-       join deck d     on d.id = k.deck_id
+       join deck d     on d.id = k.deck_id and d.archived_at is null
        join app_user u on u.id = k.author_id
        left join card_state s on s.card_id = k.id and s.user_id = $1::uuid
       where k.deck_id = $2 and k.deleted_at is null
