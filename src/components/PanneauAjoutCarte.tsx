@@ -12,9 +12,7 @@ export function PanneauAjoutCarte({ deckId }: { deckId: number }) {
       <button
         type="button"
         onClick={() => setOuvert(true)}
-        className="w-full rounded-[var(--radius-md)] border border-dashed py-2.5 text-[13px]
-                   font-medium text-[var(--muted-foreground)] transition-colors
-                   hover:bg-[var(--muted)]"
+        className="lien-discret"
       >
         + Ajouter une carte
       </button>
@@ -22,7 +20,7 @@ export function PanneauAjoutCarte({ deckId }: { deckId: number }) {
   }
 
   return (
-    <div className="app-surface rounded-[var(--radius-md)] border p-4">
+    <div className="py-2">
       <EditeurCarte deckId={deckId} onFini={() => setOuvert(false)} />
     </div>
   );

@@ -40,8 +40,7 @@ export function FormulaireMarche({ proposition = false }: { proposition?: boolea
       <div><button
         type="button"
         onClick={() => setOuvert(true)}
-        className="w-full rounded-[var(--radius-md)] bg-[var(--primary)] px-4 py-3
-                   text-[14px] font-semibold text-[var(--primary-foreground)]"
+        className="lien-discret"
       >
         {proposition ? "+ Proposer un pari" : "+ Nouveau marché"}
       </button>{message && <p role="status" className="mt-2 text-sm">{message.texte}</p>}</div>
@@ -49,7 +48,7 @@ export function FormulaireMarche({ proposition = false }: { proposition?: boolea
   }
 
   return (
-    <form action={envoyer} className="app-surface rounded-[var(--radius-lg)] border p-4 lg:p-5">
+    <form action={envoyer} className="w-full">
       <h2 className="text-[15px] font-semibold">{proposition ? "Proposer un pari" : "Nouveau marché"}</h2>
       {proposition && <p className="mt-1 text-sm text-[var(--muted-foreground)]">Une idée amusante pour la classe ? Un administrateur la validera avant son ouverture.</p>}
 

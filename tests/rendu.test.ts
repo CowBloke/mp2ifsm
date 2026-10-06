@@ -28,9 +28,24 @@ verifier("verso de remplissage omis", importee.versoHtml === "", importee.versoH
 verifier("question sans réponse", !importee.rectoHtml.includes("Typage fort"), importee.rectoHtml);
 verifier("recto révélé avec réponses", importee.rectoReveleHtml.includes("Typage fort"), importee.rectoReveleHtml);
 
+// --- plusieurs trous : révélés un par un pendant la session ----------
+const multi = composerCarte("{{c1::Rolle}} : f({{c2::a}}) = f({{c3::b}})", "(vide)");
+verifier("chaque trou masqué est numéroté",
+  ["0", "1", "2"].every((i) => multi.rectoHtml.includes(`data-trou="${i}"`)), multi.rectoHtml);
+verifier("la question ne contient aucune réponse",
+  !multi.rectoHtml.includes("Rolle") && !/>a</.test(multi.rectoHtml), multi.rectoHtml);
+verifier("une réponse par trou, dans l'ordre",
+  multi.trousHtml.length === 3 && multi.trousHtml[0].includes("Rolle")
+    && multi.trousHtml[2].includes(">b<"), JSON.stringify(multi.trousHtml));
+const formule = composerCarte("{{c1::$x^2$}} et {{c1::$y$}}", "(vide)");
+verifier("réponse d'un trou composée par KaTeX", formule.trousHtml[0].includes("katex"), formule.trousHtml[0]);
+const echappeTrou = composerCarte("{{c1::<b>}} {{c2::x}}", "(vide)");
+verifier("réponse d'un trou échappée", echappeTrou.trousHtml[0].includes("&lt;b&gt;"), echappeTrou.trousHtml[0]);
+
 const basique = composerCarte("Question ?", "Réponse");
 verifier("carte basique inchangée",
-  basique.rectoHtml === basique.rectoReveleHtml && basique.versoHtml.includes("Réponse"));
+  basique.rectoHtml === basique.rectoReveleHtml && basique.versoHtml.includes("Réponse")
+    && basique.trousHtml.length === 0);
 
 console.log(`\n${echecs === 0 ? "TOUS LES TESTS PASSENT" : echecs + " ÉCHEC(S)"}`);
 process.exit(echecs === 0 ? 0 : 1);

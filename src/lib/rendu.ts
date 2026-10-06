@@ -13,7 +13,9 @@ import katex from "katex";
  * sorties de KaTeX et nos propres balises <img> sont du HTML.
  *
  * Les textes à trous d'Anki ({{c1::réponse::indice}}) sont masqués sur
- * la face « question » et surlignés sur la face « reponse ».
+ * la face « question » et surlignés sur la face « reponse ». Chaque trou
+ * masqué porte son numéro (data-trou) : une carte à plusieurs trous se
+ * révèle mot par mot pendant la session.
  */
 
 export type Face = "question" | "reponse";
@@ -67,10 +69,11 @@ function urlImageSure(url: string): string | null {
 }
 
 export function rendreContenu(source: string, face: Face = "reponse"): string {
+  let numero = 0;
   return decouper(source).map((m) => {
     if (m.type === "trou") {
       if (face === "question") {
-        return `<span class="trou">[${m.indice ? echapper(m.indice) : "…"}]</span>`;
+        return `<span class="trou" data-trou="${numero++}">[${m.indice ? echapper(m.indice) : "…"}]</span>`;
       }
       return `<span class="trou trou-revele">${rendreContenu(m.reponse, face)}</span>`;
     }
@@ -103,7 +106,13 @@ export function rendreContenu(source: string, face: Face = "reponse"): string {
 /** Texte de remplissage posé par l'import Anki quand un champ est vide. */
 const VERSO_VIDE = "(vide)";
 
-export type CarteComposee = { rectoHtml: string; rectoReveleHtml: string; versoHtml: string };
+export type CarteComposee = {
+  rectoHtml: string;
+  rectoReveleHtml: string;
+  versoHtml: string;
+  /** Réponse de chaque trou du recto, dans l'ordre de leurs data-trou. */
+  trousHtml: string[];
+};
 
 /**
  * Les trois vues d'une carte en session : le recto posé en question,
@@ -115,5 +124,7 @@ export function composerCarte(recto: string, verso: string): CarteComposee {
     rectoHtml: rendreContenu(recto, "question"),
     rectoReveleHtml: rendreContenu(recto, "reponse"),
     versoHtml: verso.trim() === VERSO_VIDE ? "" : rendreContenu(verso, "reponse"),
+    trousHtml: decouper(recto).flatMap((m) =>
+      m.type === "trou" ? [rendreContenu(m.reponse, "reponse")] : []),
   };
 }

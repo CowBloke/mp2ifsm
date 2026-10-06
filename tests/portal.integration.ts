@@ -183,6 +183,11 @@ try {
   ok(exported.medias.size === 1 && exported.notes[0].recto.includes("anki-media:"), "Anki export includes referenced image bytes");
   if (process.env.TEST_BROWSER === "1") {
     await query("insert into card(deck_id,recto,verso,author_id) values ($1,'Calculer $2+2$','$4$',$2)", [deck.id, alice]);
+    const [trous] = await query<{ id: number }>(`insert into deck(slug,titre,matiere,chapitre,created_by)
+      values ('trous','Trous','Maths','Analyse',$1) returning id`, [alice]);
+    await query(`insert into card(deck_id,recto,verso,author_id) values
+      ($1,'Théorème de {{c1::Rolle}} : f({{c2::a}}) = f({{c3::b}})','(vide)',$2)`, [trous.id, alice]);
+    await query("insert into deck_subscription(user_id,deck_id) values ($1,$2)", [alice, trous.id]);
     const { browserCheck } = await import("./browser-check");
     await browserCheck(base, token);
   }

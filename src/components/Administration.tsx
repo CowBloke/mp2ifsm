@@ -33,8 +33,7 @@ async function Controle() {
 
   return (
     <section className="mt-6">
-      <h2 className="mb-2 text-[12px] font-semibold uppercase tracking-wide
-                     text-[var(--muted-foreground)]">
+      <h2 className="mb-2 etiquette">
         Rapprochement du grand livre
       </h2>
       <div
@@ -94,8 +93,7 @@ async function Marches({ userId }: { userId: string }) {
 function Groupe({ titre, children }: { titre: string; children: React.ReactNode }) {
   return (
     <section className="mt-6">
-      <h2 className="mb-2 text-[12px] font-semibold uppercase tracking-wide
-                     text-[var(--muted-foreground)]">
+      <h2 className="mb-2 etiquette">
         {titre}
       </h2>
       <div className="space-y-3">{children}</div>

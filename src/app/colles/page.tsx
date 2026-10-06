@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { PastilleMatiere, styleMatiere } from "@/components/Matiere";
+import { PastilleMatiere } from "@/components/Matiere";
 import { ReglageGroupe } from "@/components/Groupe";
 import {
   GROUPE_MAX, ajouterJours, groupeValide, jourParis, lundiDe,
@@ -29,13 +29,10 @@ export default async function PageColles({
 
   if (groupe === null) {
     return (
-      <main className="reading-column py-4 lg:py-7">
-        <header className="page-heading mb-5">
-        <h1 className="text-[22px] font-bold leading-tight lg:text-[32px]">Colles</h1>
-        <p className="mt-1 text-[13px] text-[var(--muted-foreground)] lg:text-[15px]">
-          Indiquez votre groupe de colles pour voir votre semaine et recevoir les
-          rappels dans le portail.
-        </p>
+      <main>
+        <header className="page-heading">
+          <h1>Colles</h1>
+          <p>Indiquez votre groupe pour voir votre semaine.</p>
         </header>
         <ReglageGroupe groupe={null} max={GROUPE_MAX} />
       </main>
@@ -57,145 +54,136 @@ export default async function PageColles({
   const prochaineSemaine = aVenir.find((c) => lundiDe(jourParis(new Date(c.debut))) > lundi);
 
   return (
-    <main className="py-4 lg:py-7">
-      <header className="page-heading flex flex-wrap items-start justify-between gap-3">
+    <main>
+      <header className="page-heading">
         <div>
-          <h1 className="text-[22px] font-bold leading-tight lg:text-[32px]">Colles</h1>
-          <p className="mt-1 text-[13px] text-[var(--muted-foreground)] lg:text-[15px]">
-            Groupe {groupe}
-            {autreGroupe && " (consultation)"}
-            {semaine.periode && ` · ${semaine.periode.libelle} ${semaine.periode.anneeScolaire}`}
+          <h1>Colles</h1>
+          <p>
+            Groupe {groupe}{autreGroupe && " (consultation)"}
+            {semaine.periode && ` · ${semaine.periode.libelle}`}
           </p>
         </div>
-        <form action="/colles" className="page-toolbar flex items-center gap-1.5">
+        <form action="/colles" className="flex items-center gap-2">
           <input type="hidden" name="semaine" value={lundi} />
           <label className="sr-only" htmlFor="groupe-vue">Voir le groupe</label>
-          <select id="groupe-vue" name="groupe" defaultValue={groupe}
-                  className="rounded-[var(--radius-md)] border px-2 py-1.5 text-[13px]">
+          <select id="groupe-vue" name="groupe" defaultValue={groupe} className="h-11 px-3 text-[14px]">
             {Array.from({ length: GROUPE_MAX }, (_, i) => i + 1).map((g) => (
               <option key={g} value={g}>Groupe {g}{g === u.groupe_colle ? " (moi)" : ""}</option>
             ))}
           </select>
-          <button type="submit" className="rounded-[var(--radius-md)] border px-2.5 py-1.5 text-[13px]
-                                           font-medium hover:bg-[var(--muted)]">
-            Voir
-          </button>
+          <button type="submit" className="puce h-11">Voir</button>
         </form>
       </header>
 
-      <div className="mt-5 grid gap-6 lg:grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)] lg:items-start">
-      <div className="min-w-0">
-      {/* Navigation de semaine */}
-      <nav aria-label="Semaine" className="app-surface flex items-center justify-between gap-2
-                                           rounded-[var(--radius-lg)] border p-1.5">
-        <Link href={lien(ajouterJours(lundi, -7))} aria-label="Semaine précédente"
-              className="rounded-[var(--radius-md)] px-3 py-1.5 text-[16px] hover:bg-[var(--muted)]">‹</Link>
-        <div className="text-center">
-          <p className="text-[14px] font-semibold">{titreSemaine}</p>
-          <p className="text-[11px] text-[var(--muted-foreground)]">
-            {semaine.numero ? `Colle n°\u00a0${semaine.numero} · rotation ${semaine.rotation}` : "Aucune colle prévue"}
-            {lundi !== lundiCourant && (
-              <> · <Link href={lien(lundiCourant)} className="font-medium text-[var(--primary)]">cette semaine</Link></>
-            )}
-          </p>
-        </div>
-        <Link href={lien(ajouterJours(lundi, 7))} aria-label="Semaine suivante"
-              className="rounded-[var(--radius-md)] px-3 py-1.5 text-[16px] hover:bg-[var(--muted)]">›</Link>
-      </nav>
-
-      {semaine.notes.length > 0 && (
-        <ul className="mt-3 space-y-1">
-          {semaine.notes.map((n) => (
-            <li key={n} className="rounded-[var(--radius-md)] bg-[var(--muted)] px-3 py-2 text-[12px]">{n}</li>
-          ))}
-        </ul>
-      )}
-
-      {/* Calendrier de la semaine : une ligne par jour ouvré. */}
-      <ol className="app-surface mt-3 divide-y rounded-[var(--radius-lg)] border">
-        {JOURS.map((nom, i) => {
-          const jour = ajouterJours(lundi, i);
-          const colles = semaine.colles.filter((c) => jourParis(new Date(c.debut)) === jour);
-          const replis = semaine.colles.filter(
-            (c) => c.alternative && jourParis(new Date(c.alternative.debut)) === jour,
-          );
-          const estAujourdhui = jour === aujourdhui;
-          if (i === 5 && colles.length === 0 && replis.length === 0) return null; // samedi vide
-          return (
-            <li key={jour} className="flex gap-3 px-3 py-3 lg:gap-5 lg:px-5 lg:py-4">
-              <div className={`w-11 shrink-0 text-center ${estAujourdhui ? "text-[var(--primary)]" : ""}`}>
-                <p className="text-[10px] font-semibold uppercase tracking-wide">{nom.slice(0, 3)}</p>
-                <p className={`tabular text-[18px] font-bold leading-tight ${estAujourdhui ? "" : "text-[var(--foreground)]"}`}>
-                  {Number(jour.slice(8))}
-                </p>
-              </div>
-              <div className="min-w-0 flex-1 space-y-1.5">
-                {colles.length === 0 && replis.length === 0 && (
-                  <p className="pt-2 text-[12px] text-[var(--muted-foreground)]">—</p>
+      <div className="page-stack">
+        <section aria-label="Semaine">
+          <nav aria-label="Changer de semaine" className="-mx-3 flex items-center justify-between gap-2">
+            <Link href={lien(ajouterJours(lundi, -7))} aria-label="Semaine précédente"
+                  className="grid h-11 w-11 place-items-center rounded-full hover:bg-[var(--muted)]">
+              <Fleche d="m15 6-6 6 6 6" />
+            </Link>
+            <div className="text-center">
+              <p className="text-[16px] font-medium">{titreSemaine}</p>
+              <p className="text-[13px] text-[var(--muted-foreground)]">
+                {semaine.numero ? `Colle n°\u00a0${semaine.numero} · rotation ${semaine.rotation}` : "Aucune colle prévue"}
+                {lundi !== lundiCourant && (
+                  <> · <Link href={lien(lundiCourant)} className="font-medium text-[var(--primary)]">cette semaine</Link></>
                 )}
-                {colles.map((c) => <CarteColle key={c.id} c={c} />)}
-                {replis.map((c) => <CarteRepli key={`${c.id}-repli`} c={c} />)}
-              </div>
-            </li>
-          );
-        })}
-      </ol>
+              </p>
+            </div>
+            <Link href={lien(ajouterJours(lundi, 7))} aria-label="Semaine suivante"
+                  className="grid h-11 w-11 place-items-center rounded-full hover:bg-[var(--muted)]">
+              <Fleche d="m9 6 6 6-6 6" />
+            </Link>
+          </nav>
 
-      {semaine.colles.length === 0 && prochaineSemaine && (
-        <Link href={lien(lundiDe(jourParis(new Date(prochaineSemaine.debut))))}
-              className="mt-3 block text-center text-[13px] font-medium text-[var(--primary)]">
-          Prochaine colle{"\u00a0"}: {jourCourt(prochaineSemaine.debut)} →
-        </Link>
-      )}
-      </div>
+          {semaine.notes.length > 0 && (
+            <ul className="mt-3 space-y-1 text-[14px] text-[var(--muted-foreground)]">
+              {semaine.notes.map((n) => <li key={n}>{n}</li>)}
+            </ul>
+          )}
 
-      <aside className="min-w-0 space-y-6">
-      <section>
-        <h2 className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
-          À venir
-        </h2>
-        {aVenir.length === 0 ? (
-          <p className="rounded-[var(--radius-md)] border border-dashed p-4 text-center text-[13px]
-                        text-[var(--muted-foreground)]">
-            Aucune colle prévue dans le colloscope actuel.
-          </p>
-        ) : (
-          <ul className="app-surface divide-y rounded-[var(--radius-lg)] border">
-            {aVenir.map((c) => (
-              <li key={c.id} style={styleMatiere(c.couleur)} className="m-liseret flex items-center gap-3 py-2 pl-3.5 pr-3">
-                <span className="tabular w-16 shrink-0 text-[12px] font-medium">{jourCourt(c.debut)}</span>
-                <span className="m-texte min-w-0 flex-1 truncate text-[13px] font-semibold">{c.matiere}</span>
-                <span className="tabular shrink-0 text-[12px] text-[var(--muted-foreground)]">
-                  {heure(c.debut)} · {salle(c.salle)}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <ol className="mt-4">
+            {JOURS.map((nom, i) => {
+              const jour = ajouterJours(lundi, i);
+              const colles = semaine.colles.filter((c) => jourParis(new Date(c.debut)) === jour);
+              const replis = semaine.colles.filter(
+                (c) => c.alternative && jourParis(new Date(c.alternative.debut)) === jour,
+              );
+              const estAujourdhui = jour === aujourdhui;
+              if (i === 5 && colles.length === 0 && replis.length === 0) return null; // samedi vide
+              return (
+                <li key={jour} className="flex gap-4 border-b py-4 last:border-b-0">
+                  <p className={`w-14 shrink-0 text-[14px] ${estAujourdhui
+                    ? "font-semibold text-[var(--primary)]" : "text-[var(--muted-foreground)]"}`}>
+                    {nom.slice(0, 3).toLowerCase()}. {Number(jour.slice(8))}
+                  </p>
+                  <div className="flex min-w-0 flex-1 flex-col gap-3">
+                    {colles.length === 0 && replis.length === 0 && (
+                      <p className="text-[14px] text-[var(--muted-foreground)]">—</p>
+                    )}
+                    {colles.map((c) => <CarteColle key={c.id} c={c} />)}
+                    {replis.map((c) => <CarteRepli key={`${c.id}-repli`} c={c} />)}
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+
+          {semaine.colles.length === 0 && prochaineSemaine && (
+            <Link href={lien(lundiDe(jourParis(new Date(prochaineSemaine.debut))))} className="lien-discret">
+              Prochaine colle{"\u00a0"}: {jourCourt(prochaineSemaine.debut)} →
+            </Link>
+          )}
+        </section>
+
+        <section aria-labelledby="a-venir">
+          <h2 id="a-venir" className="etiquette">À venir</h2>
+          {aVenir.length === 0 ? (
+            <p className="py-3 text-[15px] text-[var(--muted-foreground)]">
+              Aucune colle prévue dans le colloscope actuel.
+            </p>
+          ) : (
+            <ul>
+              {aVenir.map((c) => (
+                <li key={c.id} className="flex items-baseline gap-3 border-b py-3 last:border-b-0">
+                  <span className="w-20 shrink-0 text-[14px] text-[var(--muted-foreground)]">{jourCourt(c.debut)}</span>
+                  <span className="min-w-0 flex-1 truncate text-[16px]">{c.matiere}</span>
+                  <span className="shrink-0 text-[14px] text-[var(--muted-foreground)]">
+                    {heure(c.debut)} · {salle(c.salle)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        {semaine.periode && semaine.periode.notes.length > 0 && (
+          <details className="text-[14px] text-[var(--muted-foreground)]">
+            <summary className="min-h-11 cursor-pointer py-3 font-medium text-[var(--foreground)]">
+              Consignes du colloscope
+            </summary>
+            <ul className="space-y-2 leading-snug">
+              {semaine.periode.notes.map((n) => <li key={n}>{n}</li>)}
+            </ul>
+          </details>
         )}
-      </section>
 
-      {semaine.periode && semaine.periode.notes.length > 0 && (
-        <section>
-          <h2 className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
-            Consignes du colloscope
-          </h2>
-          <ul className="space-y-2 text-[12px] leading-snug text-[var(--muted-foreground)]">
-            {semaine.periode.notes.map((n) => <li key={n}>{n}</li>)}
-          </ul>
-        </section>
-      )}
-
-      {!autreGroupe && (
-        <section>
-          <h2 className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
-            Mon groupe
-          </h2>
-          <ReglageGroupe groupe={u.groupe_colle} max={GROUPE_MAX} />
-        </section>
-      )}
-      </aside>
+        {!autreGroupe && (
+          <section aria-labelledby="mon-groupe">
+            <h2 id="mon-groupe" className="etiquette mb-2">Mon groupe</h2>
+            <ReglageGroupe groupe={u.groupe_colle} max={GROUPE_MAX} />
+          </section>
+        )}
       </div>
     </main>
+  );
+}
+
+function Fleche({ d }: { d: string }) {
+  return (
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8"
+         strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>
   );
 }
 
@@ -205,41 +193,38 @@ function fmtJour(jour: string, options: Intl.DateTimeFormatOptions) {
 
 function CarteColle({ c }: { c: ColleVue }) {
   return (
-    <article style={styleMatiere(c.couleur)}
-             className="m-teinte m-liseret rounded-[var(--radius-md)] py-2 pl-3.5 pr-3">
-      <div className="flex items-center justify-between gap-2">
-        <PastilleMatiere nom={c.matiere} couleur={c.couleur} petite />
-        <span className="tabular text-[13px] font-bold">{plage(c.debut, c.fin)}</span>
+    <article className="flex flex-col gap-0.5">
+      <div className="flex items-baseline justify-between gap-3">
+        <PastilleMatiere nom={c.matiere} couleur={c.couleur} className="!text-[16px] !text-[var(--foreground)]" />
+        <span className="shrink-0 text-[14px] font-medium">{plage(c.debut, c.fin)}</span>
       </div>
-      <p className="mt-1 text-[13px] font-medium">{c.colleur}</p>
-      <p className="tabular text-[11px] text-[var(--muted-foreground)]">
-        Salle {salle(c.salle)} · groupe{"\u00a0"}{c.groupe} · {c.creneau}
+      <p className="text-[13px] text-[var(--muted-foreground)]">
+        {c.colleur} · salle {salle(c.salle)} · {c.creneau}
       </p>
       {c.alternative && (
-        <p className="mt-1 text-[11px]">
+        <p className="text-[13px] text-[var(--muted-foreground)]">
           Ou {jourCourt(c.alternative.debut)}, {plage(c.alternative.debut, c.alternative.fin)},
           salle {salle(c.alternative.salle)}, {c.alternative.condition}.
         </p>
       )}
       {c.notes.map((n) => (
-        <p key={n} className="mt-1 text-[11px] italic text-[var(--muted-foreground)]">{n}</p>
+        <p key={n} className="text-[13px] italic text-[var(--muted-foreground)]">{n}</p>
       ))}
     </article>
   );
 }
 
-/** Créneau de repli (P2 le vendredi) : affiché en pointillés, pour mémoire. */
+/** Créneau de repli (P2 le vendredi) : affiché en retrait, pour mémoire. */
 function CarteRepli({ c }: { c: ColleVue }) {
   const a = c.alternative!;
   return (
-    <article style={styleMatiere(c.couleur)}
-             className="m-bord rounded-[var(--radius-md)] border border-dashed px-3 py-1.5">
-      <div className="flex items-center justify-between gap-2">
-        <PastilleMatiere nom={c.matiere} couleur={c.couleur} petite />
-        <span className="tabular text-[12px] font-semibold">{plage(a.debut, a.fin)}</span>
+    <article className="flex flex-col gap-0.5 opacity-75">
+      <div className="flex items-baseline justify-between gap-3">
+        <PastilleMatiere nom={`${c.matiere} (repli)`} couleur={c.couleur} />
+        <span className="shrink-0 text-[13px]">{plage(a.debut, a.fin)}</span>
       </div>
-      <p className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">
-        Créneau de repli · {c.colleur} · salle {salle(a.salle)}, {a.condition}
+      <p className="text-[13px] text-[var(--muted-foreground)]">
+        {c.colleur} · salle {salle(a.salle)}, {a.condition}
       </p>
     </article>
   );

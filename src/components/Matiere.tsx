@@ -22,11 +22,10 @@ export function PastilleMatiere({
   return (
     <span
       style={styleMatiere(couleur)}
-      className={`m-teinte m-texte inline-flex max-w-full items-center gap-1 rounded-full
-                  font-semibold ${petite ? "px-1.5 py-px text-[10px]" : "px-2 py-0.5 text-[11px]"}
-                  ${className}`}
+      className={`inline-flex max-w-full items-center gap-1.5 font-medium text-[var(--muted-foreground)]
+                  ${petite ? "text-[11px]" : "text-[13px]"} ${className}`}
     >
-      <span className="m-plein h-1.5 w-1.5 shrink-0 rounded-full" aria-hidden />
+      <span className="m-plein h-2 w-2 shrink-0 rounded-full" aria-hidden />
       <span className="truncate">{nom ?? "Sans matière"}</span>
     </span>
   );
@@ -43,8 +42,7 @@ export function ChoixMatiere({
   return (
     <select
       name="matiere" defaultValue={defaut} aria-label="Matière"
-      className={`rounded-[var(--radius-md)] border-2 px-2 py-2 text-[14px] outline-none
-                  focus:border-[var(--ring)] ${className}`}
+      className={`min-h-12 px-3 ${className}`}
     >
       <option value="">Sans matière</option>
       {matieres.map((m) => <option key={m.id} value={m.id}>{m.nom}</option>)}

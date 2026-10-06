@@ -13,6 +13,11 @@ Paquets partagés par matière et chapitre, corrections attribuées et historiqu
 des deux faces, signalements, images collées/téléversées et LaTeX rendu par
 KaTeX sur le serveur. Chaque membre possède son état FSRS personnel.
 Espace révèle la réponse ; 1–4 donnent Encore, Difficile, Correct ou Facile.
+Une carte peut être un **texte à trous** : dans l’éditeur, choisir « Texte à
+trous », sélectionner un mot puis « Masquer la sélection » (syntaxe
+`{{c1::mot}}`, comme Anki). En révision, s’il y a plusieurs trous, chaque appui
+(ou Espace) dévoile un seul trou tiré au hasard ; les notes apparaissent une
+fois tous les trous ouverts, ou après « Tout afficher ».
 Les aperçus sont signés, liés au membre et à la version de l’état ; une
 révision concurrente ou rejouée ne peut pas écraser la planification.
 Les statistiques comprennent la rétention, les sept prochains jours et les

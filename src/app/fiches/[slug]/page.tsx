@@ -6,7 +6,7 @@ import { PanneauAjoutCarte } from "@/components/PanneauAjoutCarte";
 import { SqueletteListe } from "@/components/Squelettes";
 import { BoutonSuivre } from "@/components/BoutonSuivre";
 import { MatierePaquet } from "@/components/MatierePaquet";
-import { PastilleMatiere } from "@/components/Matiere";
+import { LienRetour } from "@/components/LienRetour";
 import { listerMatieres } from "@/lib/matieres";
 import { heatmapClasse, lirePaquet, listerCartes, statsPaquet } from "@/lib/fiches";
 import { rendreContenu } from "@/lib/rendu";
@@ -31,29 +31,20 @@ export default async function PagePaquet({
   const matieres = peutReclasser ? await listerMatieres(true) : [];
 
   return (
-    <main className="py-4 lg:py-7">
-      <Link href="/fiches"
-            className="inline-flex items-center gap-1 text-[13px] font-medium
-                       text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
-        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor"
-             strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-          <path d="m15 18-6-6 6-6" />
-        </svg>
-        Fiches
-      </Link>
+    <main>
+      <LienRetour href="/fiches" label="Retour aux fiches" />
 
-      <header className="page-heading mt-4 flex items-start justify-between gap-3">
+      <header className="mb-10 flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <PastilleMatiere nom={paquet.matiere} couleur={paquet.couleur} />
-            <span className="text-[12px] font-medium text-[var(--muted-foreground)]">{paquet.chapitre}</span>
-          </div>
-          <h1 className="mt-1 text-[22px] font-bold leading-snug lg:text-[32px]">{paquet.titre}</h1>
+          <p className="text-[14px] text-[var(--muted-foreground)]">
+            {paquet.matiere ?? "Sans matière"} · {paquet.chapitre}
+          </p>
+          <h1 className="titre-page mt-1.5 [overflow-wrap:anywhere]">{paquet.titre}</h1>
           {paquet.description && (
-            <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">{paquet.description}</p>
+            <p className="mt-3 text-[15px] leading-relaxed text-[var(--muted-foreground)]">{paquet.description}</p>
           )}
           {peutReclasser && (
-            <div className="mt-1.5">
+            <div className="mt-3">
               <MatierePaquet deckId={paquet.id} actuelle={paquet.subject_id} matieres={matieres} />
             </div>
           )}
@@ -61,53 +52,43 @@ export default async function PagePaquet({
         <BoutonSuivre deckId={paquet.id} abonne={paquet.abonne} />
       </header>
 
-      <div className="page-grid page-grid--two mt-5 items-start">
-      <div className="min-w-0">
-      {paquet.abonne ? (
-        <>
-          <Link
-            href={`/fiches/${paquet.slug}/reviser`}
-            className={`block rounded-[var(--radius-md)] px-4 py-3.5 text-center text-[15px]
-                        font-semibold ${
-                          du > 0
-                            ? "bg-[var(--primary)] text-[var(--primary-foreground)]"
-                            : "border text-[var(--muted-foreground)]"
-                        }`}
-          >
-            {du > 0 ? `Réviser ${du} carte${du > 1 ? "s" : ""}` : "Tout est à jour"}
-          </Link>
+      <div className="page-stack">
+        {paquet.abonne ? (
+          <section className="flex flex-col gap-8">
+            {du > 0 ? (
+              <Link href={`/fiches/${paquet.slug}/reviser`} className="bouton-principal">
+                Réviser {du} carte{du > 1 ? "s" : ""}
+              </Link>
+            ) : (
+              <p className="text-[15px] text-[var(--muted-foreground)]">Tout est à jour.</p>
+            )}
+            <Suspense fallback={<SqueletteListe n={2} />}>
+              <Statistiques deckId={paquet.id} userId={u.id} slug={paquet.slug} />
+            </Suspense>
+          </section>
+        ) : (
+          <p className="text-[15px] leading-relaxed text-[var(--muted-foreground)]">
+            Suivez ce paquet pour le réviser. Si vous l’aviez déjà travaillé, votre progression
+            reprend là où vous l’aviez laissée.
+          </p>
+        )}
 
-          <Suspense fallback={<div className="mt-5"><SqueletteListe n={2} /></div>}>
-            <Statistiques deckId={paquet.id} userId={u.id} slug={paquet.slug} />
-          </Suspense>
-        </>
-      ) : (
-        <p className="app-surface rounded-[var(--radius-md)] border border-dashed p-4 text-[13px]
-                      text-[var(--muted-foreground)]">
-          Vous ne suivez pas ce paquet : il n’entre ni dans vos révisions, ni dans vos
-          statistiques, ni dans vos rappels. Suivez-le pour le réviser — si vous
-          l’aviez déjà travaillé, votre progression reprend là où vous l’aviez laissée.
-        </p>
-      )}
+        <Suspense fallback={null}>
+          <Heatmap deckId={paquet.id} />
+        </Suspense>
+
+        <section aria-labelledby="cartes">
+          <div className="mb-2 flex items-baseline justify-between gap-3">
+            <h2 id="cartes" className="etiquette">{paquet.total} carte{paquet.total > 1 ? "s" : ""}</h2>
+          </div>
+          <PanneauAjoutCarte deckId={paquet.id} />
+          <div className="mt-3">
+            <Suspense fallback={<SqueletteListe n={4} />}>
+              <Cartes deckId={paquet.id} userId={u.id} estAdmin={u.role === "admin"} />
+            </Suspense>
+          </div>
+        </section>
       </div>
-
-      <Suspense fallback={<SqueletteListe n={2} />}>
-        <Heatmap deckId={paquet.id} />
-      </Suspense>
-      </div>
-
-      <section className="mt-6">
-        <h2 className="mb-2 text-[12px] font-semibold uppercase tracking-wide
-                       text-[var(--muted-foreground)]">
-          Cartes ({paquet.total})
-        </h2>
-        <div className="max-w-[720px]"><PanneauAjoutCarte deckId={paquet.id} /></div>
-        <div className="mt-3">
-          <Suspense fallback={<SqueletteListe n={4} />}>
-            <Cartes deckId={paquet.id} userId={u.id} estAdmin={u.role === "admin"} />
-          </Suspense>
-        </div>
-      </section>
     </main>
   );
 }
@@ -124,7 +105,7 @@ async function Cartes({
       cartes={cartes.map((c) => ({
         ...c,
         rectoHtml: rendreContenu(c.recto),
-        versoHtml: rendreContenu(c.verso),
+        versoHtml: c.verso.trim() === "(vide)" ? "" : rendreContenu(c.verso),
       }))}
     />
   );
@@ -137,38 +118,25 @@ async function Statistiques({
   const maxJour = Math.max(1, ...s.a_venir.map((j) => j.n));
 
   return (
-    <section className="app-surface mt-5 min-w-0 rounded-[var(--radius-lg)] border p-4 lg:p-5">
-      <div className="mb-3 flex items-baseline justify-between">
-        <h2 className="text-[12px] font-semibold uppercase tracking-wide
-                       text-[var(--muted-foreground)]">
-          Vos statistiques
-        </h2>
-        <a href={`/api/fiches/export/${slug}`}
-           className="text-[12px] font-medium text-[var(--primary)]">
-          Exporter .apkg
-        </a>
-      </div>
-
-      <dl className="tabular grid grid-cols-3 gap-2 text-center">
-        <div>
-          <dt className="text-[11px] text-[var(--muted-foreground)]">Rétention</dt>
-          <dd className="text-[17px] font-bold">
+    <section aria-label="Vos statistiques" className="min-w-0">
+      <dl className="grid grid-cols-3 gap-4">
+        <div className="flex flex-col-reverse gap-1">
+          <dt className="text-[13px] text-[var(--muted-foreground)]">Rétention</dt>
+          <dd className="text-[24px] font-semibold">
             {s.retention === null ? "—" : `${Math.round(s.retention * 100)} %`}
           </dd>
         </div>
-        <div className="border-x">
-          <dt className="text-[11px] text-[var(--muted-foreground)]">Vues</dt>
-          <dd className="text-[17px] font-bold">{s.cartes_vues}/{s.total}</dd>
+        <div className="flex flex-col-reverse gap-1">
+          <dt className="text-[13px] text-[var(--muted-foreground)]">Cartes vues</dt>
+          <dd className="text-[24px] font-semibold">{s.cartes_vues}/{s.total}</dd>
         </div>
-        <div>
-          <dt className="text-[11px] text-[var(--muted-foreground)]">30 jours</dt>
-          <dd className="text-[17px] font-bold">{s.revisions_30j}</dd>
+        <div className="flex flex-col-reverse gap-1">
+          <dt className="text-[13px] text-[var(--muted-foreground)]">Sur 30 jours</dt>
+          <dd className="text-[24px] font-semibold">{s.revisions_30j}</dd>
         </div>
       </dl>
 
-      <p className="mb-1.5 mt-4 text-[11px] font-medium text-[var(--muted-foreground)]">
-        À réviser cette semaine
-      </p>
+      <p className="etiquette mb-2 mt-8">À réviser cette semaine</p>
       <div className="flex items-end gap-1" role="img"
            aria-label={s.a_venir.map((j) => `${j.jour} : ${j.n}`).join(", ")}>
         {s.a_venir.map((j) => (
@@ -176,15 +144,16 @@ async function Statistiques({
             <span className="tabular text-[10px] text-[var(--muted-foreground)]">
               {j.n > 0 ? j.n : ""}
             </span>
-            <div className="w-full rounded-t-sm bg-[var(--primary)]"
+            <div className="w-full rounded-t-[3px] bg-[var(--foreground)]"
                  style={{ height: `${Math.max(2, (j.n / maxJour) * 44)}px`,
                           opacity: j.n > 0 ? 1 : 0.25 }} />
-            <span className="text-[9px] uppercase text-[var(--muted-foreground)]">
+            <span className="text-[11px] uppercase text-[var(--muted-foreground)]">
               {new Date(`${j.jour}T12:00:00`).toLocaleDateString("fr-FR", { weekday: "narrow" })}
             </span>
           </div>
         ))}
       </div>
+      <a href={`/api/fiches/export/${slug}`} className="lien-discret mt-4">Exporter en .apkg</a>
     </section>
   );
 }
@@ -205,21 +174,15 @@ async function Heatmap({ deckId }: { deckId: number }) {
   const max = Math.max(1, ...lignes.flatMap((l) => l.jours.map((j) => j.n)));
 
   return (
-    <section className="app-surface min-w-0 rounded-[var(--radius-lg)] border p-4 lg:p-5">
-      <h2 className="text-[12px] font-semibold uppercase tracking-wide
-                     text-[var(--muted-foreground)]">
-        Révisions de la classe
-      </h2>
-      <p className="mb-3 mt-0.5 text-[11px] text-[var(--muted-foreground)]">
-        21 derniers jours · membres qui suivent ce paquet et ont activé le partage.
-      </p>
+    <section aria-labelledby="classe" className="min-w-0">
+      <h2 id="classe" className="etiquette mb-3">La classe, 21 derniers jours</h2>
 
       <div className="space-y-1 overflow-x-auto">
         {lignes.map((l) => {
           const parJour = new Map(l.jours.map((j) => [j.jour, j.n]));
           return (
             <div key={l.user_id} className="flex items-center gap-2">
-              <span className="w-20 shrink-0 truncate text-[11px]">{l.display_name}</span>
+              <span className="w-24 shrink-0 truncate text-[13px]">{l.display_name}</span>
               <div className="flex gap-[2px]">
                 {jours.map((j) => {
                   const n = parJour.get(j) ?? 0;
@@ -231,7 +194,7 @@ async function Heatmap({ deckId }: { deckId: number }) {
                       style={{
                         background: n === 0
                           ? "var(--muted)"
-                          : `color-mix(in oklab, var(--outcome-1) ${20 + (n / max) * 80}%, transparent)`,
+                          : `color-mix(in oklab, var(--primary) ${20 + (n / max) * 80}%, transparent)`,
                       }}
                     />
                   );

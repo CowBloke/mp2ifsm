@@ -12,7 +12,7 @@ export default async function PageClassement() {
   if (!u) redirect("/connexion");
 
   return (
-    <main className="reading-column py-4 lg:py-7">
+    <main className="reading-column">
       <header className="page-heading mb-5">
       <h1 className="text-[22px] font-bold leading-tight lg:text-[32px]">Classement</h1>
       <p className="mt-1 text-[13px] text-[var(--muted-foreground)] lg:text-[15px]">
@@ -32,7 +32,7 @@ async function Tableau({ moi }: { moi: string }) {
 
   if (lignes.length === 0) {
     return (
-      <p className="rounded-[var(--radius-md)] border border-dashed p-6 text-center text-[13px]
+      <p className="py-3 text-[15px]
                     text-[var(--muted-foreground)]">
         Personne n’a encore parié.
       </p>

@@ -57,12 +57,12 @@ export function Portefeuille({ solde }: { solde: number }) {
   }
 
   return (
-    <div className="app-surface rounded-[var(--radius-lg)] border p-5">
-      <p className="text-[11px] font-medium uppercase tracking-wide text-[var(--muted-foreground)]">
+    <div>
+      <p className="text-[13px] text-[var(--muted-foreground)]">
         Solde disponible
       </p>
       {/* Valeur calculee par PostgreSQL (somme du grand livre). */}
-      <p className="tabular mt-1 text-[32px] font-bold leading-none">{formatCentimes(solde)}</p>
+      <p className="mt-1 text-[44px] font-semibold leading-none tracking-[-0.03em]">{formatCentimes(solde)}</p>
 
       {mode === null ? (
         <div className="mt-4 flex gap-2">

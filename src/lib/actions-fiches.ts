@@ -386,6 +386,7 @@ export type CarteRendue = {
   rectoHtml: string;
   rectoReveleHtml: string;
   versoHtml: string;
+  trousHtml: string[];
   auteur: string;
   signalee: boolean;
   apercu: Array<{ cle: string; label: string; touche: string; intervalle: string }>;

@@ -49,7 +49,7 @@ export function ListeCartes({
 
   if (cartes.length === 0) {
     return (
-      <p className="rounded-[var(--radius-md)] border border-dashed p-6 text-center text-[13px]
+      <p className="py-4 text-[15px]
                     text-[var(--muted-foreground)]">
         Ce paquet est vide. Ajoutez une première carte.
       </p>
@@ -63,22 +63,22 @@ export function ListeCartes({
   }
 
   return (
-    <ul className="page-grid page-grid--two items-start">
+    <ul>
       {cartes.map((c) => {
         const peutModifier = estAdmin || c.author_id === moi;
         const estOuverte = ouverte === c.id;
 
         return (
-          <li key={c.id} className="app-surface min-w-0 rounded-[var(--radius-md)] border">
+          <li key={c.id} className="min-w-0 border-b last:border-b-0">
             <button
               type="button"
               onClick={() => setOuverte(estOuverte ? null : c.id)}
               aria-expanded={estOuverte}
-              className="w-full p-4 text-left"
+              className="w-full py-4 text-left"
             >
-              <div className="contenu-carte text-[14px] font-medium"
+              <div className="contenu-carte text-[16px] font-medium"
                    dangerouslySetInnerHTML={{ __html: c.rectoHtml }} />
-              <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px]
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[13px]
                               text-[var(--muted-foreground)]">
                 <span>par {c.auteur}</span>
                 {c.etat && <span>· {LIBELLE_ETAT[c.etat] ?? c.etat}</span>}
@@ -92,7 +92,7 @@ export function ListeCartes({
             </button>
 
             {estOuverte && (
-              <div className="border-t px-3 pb-3 pt-2">
+              <div className="pb-4">
                 {edition === c.id ? (
                   <EditeurCarte
                     deckId={deckId}
@@ -101,10 +101,10 @@ export function ListeCartes({
                   />
                 ) : (
                   <>
-                    <div className="contenu-carte text-[14px]"
+                    <div className="contenu-carte text-[15px] text-[var(--muted-foreground)]"
                          dangerouslySetInnerHTML={{ __html: c.versoHtml }} />
 
-                    <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[12px]">
+                    <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[14px]">
                       <button type="button" onClick={() => setEdition(c.id)}
                               className="font-medium text-[var(--primary)]">
                         Corriger

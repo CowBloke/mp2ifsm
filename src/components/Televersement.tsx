@@ -13,10 +13,13 @@ import { ChoixMatiere } from "@/components/Matiere";
  * déposant — c'est ce qui rend la règle applicable.
  */
 export function Televersement({
-  restant, matieres,
-}: { restant: number; matieres: Array<{ id: number; nom: string }> }) {
+  restant, matieres, onFermer,
+}: { restant: number; matieres: Array<{ id: number; nom: string }>; onFermer?: () => void }) {
   const router = useRouter();
-  const [ouvert, setOuvert] = useState(false);
+  const [ouvertLocal, setOuvertLocal] = useState(false);
+  // Piloté par l'en-tête quand onFermer est fourni : toujours ouvert.
+  const ouvert = onFermer ? true : ouvertLocal;
+  const setOuvert = (v: boolean) => { if (!v && onFermer) onFermer(); else setOuvertLocal(v); };
   const [erreur, setErreur] = useState<string | null>(null);
   const [enCours, setEnCours] = useState(false);
 
@@ -51,13 +54,11 @@ export function Televersement({
   }
 
   return (
-    <form action={envoyer} className="app-surface rounded-[var(--radius-lg)] border p-4">
+    <form action={envoyer}>
       <h2 className="text-[15px] font-semibold">Déposer un document</h2>
 
       {/* Bannière de droits : visible avant le choix du fichier. */}
-      <p className="mt-2 rounded-[var(--radius-md)] border-l-4 bg-[var(--muted)]/60 px-3 py-2
-                    text-[12px] leading-snug"
-         style={{ borderColor: "var(--outcome-4)" }}>
+      <p className="mt-2 text-[13px] leading-snug text-[var(--muted-foreground)]">
         <strong>Pas de contenu sous droits.</strong> Polycopiés, scans de manuels
         et annales sous licence ne doivent pas être déposés. Vos cours et vos
         corrigés personnels, oui. Chaque dépôt est enregistré avec votre nom.

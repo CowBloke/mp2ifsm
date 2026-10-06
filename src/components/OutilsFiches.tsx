@@ -7,33 +7,42 @@ import { ChoixMatiere } from "@/components/Matiere";
 
 type Matieres = Array<{ id: number; nom: string }>;
 
-/** Créer un paquet, ou en importer un depuis Anki. */
+/**
+ * En-tête de la page Fiches : le titre et un seul bouton « + », qui
+ * propose de créer un paquet ou d'en importer un depuis Anki.
+ */
 export function OutilsPaquets({ matieres }: { matieres: Matieres }) {
-  const [vue, setVue] = useState<null | "creer" | "importer">(null);
-
-  if (!vue) {
-    return (
-      <div className="page-toolbar flex gap-2">
-        <button type="button" onClick={() => setVue("creer")}
-                className="flex-1 rounded-[var(--radius-md)] bg-[var(--primary)] px-4 py-2.5
-                           text-[14px] font-semibold text-[var(--primary-foreground)]">
-          + Nouveau paquet
-        </button>
-        <button type="button" onClick={() => setVue("importer")}
-                className="flex-1 rounded-[var(--radius-md)] border px-4 py-2.5 text-[14px]
-                           font-medium transition-colors hover:bg-[var(--muted)]">
-          Importer un .apkg
-        </button>
-      </div>
-    );
-  }
+  const [vue, setVue] = useState<null | "choix" | "creer" | "importer">(null);
 
   return (
-    <div className="app-surface rounded-[var(--radius-lg)] border p-4 lg:p-5">
-      {vue === "creer"
-        ? <FormulairePaquet matieres={matieres} onFini={() => setVue(null)} />
-        : <FormulaireImport matieres={matieres} onFini={() => setVue(null)} />}
-    </div>
+    <>
+      <header className="page-heading">
+        <h1>Fiches</h1>
+        <button type="button" className="bouton-rond"
+                aria-label={vue ? "Fermer" : "Nouveau paquet ou import Anki"}
+                aria-expanded={vue !== null}
+                onClick={() => setVue(vue ? null : "choix")}>
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
+               strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+            <path d={vue ? "M6 6l12 12M18 6 6 18" : "M12 5v14M5 12h14"} />
+          </svg>
+        </button>
+      </header>
+
+      {vue === "choix" && (
+        <div className="-mt-4 mb-10 flex flex-wrap gap-2">
+          <button type="button" className="puce" onClick={() => setVue("creer")}>Nouveau paquet</button>
+          <button type="button" className="puce" onClick={() => setVue("importer")}>Importer un .apkg</button>
+        </div>
+      )}
+      {(vue === "creer" || vue === "importer") && (
+        <div className="-mt-4 mb-10">
+          {vue === "creer"
+            ? <FormulairePaquet matieres={matieres} onFini={() => setVue(null)} />
+            : <FormulaireImport matieres={matieres} onFini={() => setVue(null)} />}
+        </div>
+      )}
+    </>
   );
 }
 

@@ -33,8 +33,7 @@ export function BoutonRetour() {
       <button
         type="button"
         onClick={() => { setOuvert(true); setEtat(null); }}
-        className="flex h-10 items-center gap-1.5 rounded-full border bg-[var(--card)] px-3 text-[13px]
-                   font-medium hover:bg-[var(--muted)]"
+        className="puce h-11 gap-1.5"
         aria-haspopup="dialog"
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"

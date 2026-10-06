@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { SqueletteListe } from "@/components/Squelettes";
 import { OutilsPaquets } from "@/components/OutilsFiches";
 import { BoutonSuivre } from "@/components/BoutonSuivre";
-import { PastilleMatiere, styleMatiere } from "@/components/Matiere";
+import { styleMatiere } from "@/components/Matiere";
 import { listerPaquets, type PaquetVue } from "@/lib/fiches";
 import { listerMatieres } from "@/lib/matieres";
 import { utilisateurCourant } from "@/lib/session";
@@ -17,20 +17,9 @@ export default async function PageFiches() {
   const matieres = await listerMatieres();
 
   return (
-    <main className="py-4 lg:py-7">
-      <header className="page-heading mb-5">
-      <h1 className="text-[22px] font-bold leading-tight lg:text-[32px]">Fiches</h1>
-      <p className="mt-1 text-[13px] text-[var(--muted-foreground)] lg:text-[15px]">
-        Tous les paquets de la classe sont visibles ; seuls ceux que vous suivez
-        entrent dans vos révisions et vos statistiques.
-      </p>
-      </header>
-
-      <div className="max-w-[640px]">
-        <OutilsPaquets matieres={matieres.map(({ id, nom }) => ({ id, nom }))} />
-      </div>
-
-      <Suspense fallback={<div className="mt-4"><SqueletteListe n={5} /></div>}>
+    <main>
+      <OutilsPaquets matieres={matieres.map(({ id, nom }) => ({ id, nom }))} />
+      <Suspense fallback={<SqueletteListe n={5} />}>
         <Liste userId={u.id} />
       </Suspense>
     </main>
@@ -54,76 +43,49 @@ async function Liste({ userId }: { userId: string }) {
 
   if (paquets.length === 0) {
     return (
-      <div className="app-surface mt-4 rounded-[var(--radius-lg)] border border-dashed p-8 text-center">
-        <p className="text-[15px] font-medium">Aucun paquet</p>
-        <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">
-          Créez-en un, ou importez un paquet Anki existant.
-        </p>
-      </div>
+      <p className="text-[15px] text-[var(--muted-foreground)]">
+        Aucun paquet. Créez-en un avec « + », ou importez un paquet Anki.
+      </p>
     );
   }
 
   const suivis = paquets.filter((p) => p.abonne);
   const autres = paquets.filter((p) => !p.abonne);
-  const dus = suivis.reduce((n, p) => n + p.apprentissage + p.a_revoir + p.nouvelles, 0);
-  const deuxSections = suivis.length > 0 && autres.length > 0;
-  const grilleMatieres = deuxSections ? "space-y-4" : "page-grid items-start";
 
   return (
-    <div className={deuxSections ? "page-grid page-grid--two mt-6 items-start" : "mt-6 space-y-6"}>
-      <section className="min-w-0">
-        <div className="mb-2 flex items-baseline justify-between">
-          <h2 className="text-[12px] font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
-            Mes paquets ({suivis.length})
-          </h2>
-          {dus > 0 && (
-            <span className="tabular text-[12px] font-medium">{dus} carte{dus > 1 ? "s" : ""} à voir</span>
-          )}
-        </div>
-        {suivis.length === 0 ? (
-          <p className="rounded-[var(--radius-md)] border border-dashed p-4 text-center text-[13px]
-                        text-[var(--muted-foreground)]">
-            Vous ne suivez aucun paquet. Choisissez-en ci-dessous avec « + Suivre ».
-          </p>
-        ) : (
-          <div className={grilleMatieres}>
-            {parMatiere(suivis).map(([cle, g]) => (
-              <div key={cle} className="min-w-0">
-                <PastilleMatiere nom={g.nom} couleur={g.couleur} className="mb-1.5" />
-                <ul className="space-y-1.5">
-                  {g.paquets.map((p) => <LignePaquetSuivi key={p.id} p={p} />)}
-                </ul>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+    <div className="page-stack">
+      {suivis.length === 0 ? (
+        <p className="text-[15px] text-[var(--muted-foreground)]">
+          Suivez un paquet pour l’ajouter à vos révisions.
+        </p>
+      ) : (
+        parMatiere(suivis).map(([cle, g]) => (
+          <section key={cle} aria-label={g.nom ?? "Sans matière"}>
+            <h2 className="etiquette flex items-center gap-2" style={styleMatiere(g.couleur)}>
+              <span className="m-plein h-2 w-2 rounded-full" aria-hidden />
+              {g.nom ?? "Sans matière"}
+            </h2>
+            <ul>{g.paquets.map((p) => <LignePaquetSuivi key={p.id} p={p} />)}</ul>
+          </section>
+        ))
+      )}
 
       {autres.length > 0 && (
-        <section className="min-w-0">
-          <h2 className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
-            Autres paquets de la classe ({autres.length})
-          </h2>
-          <div className={grilleMatieres}>
-            {parMatiere(autres).map(([cle, g]) => (
-              <div key={cle} className="min-w-0">
-                <PastilleMatiere nom={g.nom} couleur={g.couleur} className="mb-1.5" />
-                <ul className="app-surface divide-y rounded-[var(--radius-md)] border">
-                  {g.paquets.map((p) => (
-                    <li key={p.id} className="flex items-center gap-2 px-3 py-2">
-                      <Link href={`/fiches/${p.slug}`} className="min-w-0 flex-1">
-                        <p className="truncate text-[13px] font-medium">{p.titre}</p>
-                        <p className="truncate text-[11px] text-[var(--muted-foreground)]">
-                          {p.chapitre} · {p.total} carte{p.total > 1 ? "s" : ""}
-                        </p>
-                      </Link>
-                      <BoutonSuivre deckId={p.id} abonne={false} compact />
-                    </li>
-                  ))}
-                </ul>
-              </div>
+        <section aria-labelledby="autres">
+          <h2 id="autres" className="etiquette">Autres paquets de la classe</h2>
+          <ul>
+            {autres.map((p) => (
+              <li key={p.id} className="ligne">
+                <Link href={`/fiches/${p.slug}`} className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <span className="ligne__titre">{p.titre}</span>
+                  <span className="ligne__meta">
+                    {p.matiere ?? "Sans matière"} · {p.total} carte{p.total > 1 ? "s" : ""}
+                  </span>
+                </Link>
+                <BoutonSuivre deckId={p.id} abonne={false} compact />
+              </li>
             ))}
-          </div>
+          </ul>
         </section>
       )}
     </div>
@@ -134,35 +96,24 @@ function LignePaquetSuivi({ p }: { p: PaquetVue }) {
   const du = p.apprentissage + p.a_revoir + p.nouvelles;
   return (
     <li>
-      <Link
-        href={`/fiches/${p.slug}`}
-        style={styleMatiere(p.couleur)}
-        className="app-surface m-liseret block rounded-[var(--radius-md)] border py-3 pl-4 pr-3
-                   transition-colors hover:bg-[var(--muted)]"
-      >
-        <div className="flex items-center justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-[14px] font-medium">{p.titre}</p>
-            <p className="tabular truncate text-[11px] text-[var(--muted-foreground)]">
-              {p.chapitre} · {p.total} carte{p.total > 1 ? "s" : ""}
-              {p.nouvelles > 0 && <span style={{ color: "var(--outcome-3)" }}> · {p.nouvelles} nouv.</span>}
-              {p.apprentissage > 0 && <span style={{ color: "var(--outcome-2)" }}> · {p.apprentissage} en cours</span>}
-              {p.a_revoir > 0 && <span style={{ color: "var(--outcome-1)" }}> · {p.a_revoir} à revoir</span>}
-            </p>
-          </div>
-          {du > 0 ? (
-            <span className="m-plein tabular shrink-0 rounded-full px-2.5 py-0.5 text-[12px] font-bold
-                             text-[var(--card)]">
-              {du}
-            </span>
-          ) : (
-            <span className="shrink-0 text-[11px] text-[var(--muted-foreground)]">à jour</span>
-          )}
-        </div>
-        {p.signalements > 0 && (
-          <p className="mt-1 text-[11px] font-medium text-[var(--destructive)]">
-            {p.signalements} carte{p.signalements > 1 ? "s" : ""} signalée{p.signalements > 1 ? "s" : ""}
-          </p>
+      <Link href={`/fiches/${p.slug}`} className="ligne">
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="ligne__titre">{p.titre}</span>
+          <span className="ligne__meta">
+            {p.total} carte{p.total > 1 ? "s" : ""}
+            {p.signalements > 0 && (
+              <span className="text-[var(--destructive)]"> · {p.signalements} signalée{p.signalements > 1 ? "s" : ""}</span>
+            )}
+          </span>
+        </span>
+        {du > 0 ? (
+          <span className="pastille-compte">{du}</span>
+        ) : (
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2"
+               strokeLinecap="round" strokeLinejoin="round" role="img" aria-label="À jour"
+               className="shrink-0 text-[var(--muted-foreground)]">
+            <path d="M20 6 9 17l-5-5" />
+          </svg>
         )}
       </Link>
     </li>

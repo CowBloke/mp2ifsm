@@ -59,7 +59,7 @@ export function AdminMatieres({ matieres }: { matieres: MatiereVue[] }) {
 
       {archivees.length > 0 && (
         <section>
-          <h3 className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
+          <h3 className="mb-2 etiquette">
             Archivées
           </h3>
           <ul className="space-y-1.5">

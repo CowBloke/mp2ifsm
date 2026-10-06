@@ -125,3 +125,17 @@ export function jourCourt(iso: string): string {
     timeZone: TZ, weekday: "short", day: "numeric", month: "short",
   });
 }
+
+/** « aujourd’hui », « demain », « jeudi », puis « lun. 13 » au-delà d'une semaine. */
+export function jourRelatif(iso: string, maintenant = new Date()): string {
+  const jour = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: TZ });
+  const ecart = Math.round(
+    (Date.parse(jour(new Date(iso))) - Date.parse(jour(maintenant))) / 86_400_000,
+  );
+  if (ecart === 0) return "aujourd’hui";
+  if (ecart === 1) return "demain";
+  if (ecart > 1 && ecart < 7) {
+    return new Date(iso).toLocaleDateString("fr-FR", { timeZone: TZ, weekday: "long" });
+  }
+  return new Date(iso).toLocaleDateString("fr-FR", { timeZone: TZ, weekday: "short", day: "numeric" });
+}

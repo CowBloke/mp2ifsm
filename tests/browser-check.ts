@@ -4,6 +4,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import assert from "node:assert/strict";
 
 export async function browserCheck(base: string, token: string) {
+  const captures = process.env.CAPTURES ?? "/tmp";
   const profile = await mkdtemp("/tmp/mp2-browser-");
   const browser = spawn("/usr/bin/chromium", ["--headless", "--no-sandbox", "--disable-gpu", "--no-first-run",
     "--no-default-browser-check", "--remote-debugging-port=4262", "--remote-debugging-address=127.0.0.1",
@@ -47,11 +48,38 @@ export async function browserCheck(base: string, token: string) {
     await send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
     await send("Page.navigate", { url: base + "/" });
     await until('document.body.innerText.includes("Bonjour") || document.body.innerText.includes("Bonsoir") || document.body.innerText.includes("Bonne nuit")');
-    await until('document.body.innerText.includes("Prochaines colles") && document.body.innerText.includes("Fiches suivies") && !document.querySelector(".skeleton")');
+    await until('document.body.innerText.includes("À réviser aujourd’hui") && document.body.innerText.includes("Cette semaine") && !document.querySelector(".skeleton")');
     assert.ok(await evaluate('document.documentElement.scrollWidth <= 390'), "dashboard fits mobile viewport");
-    const screenshot = await send("Page.captureScreenshot", { format: "png", captureBeyondViewport: true });
-    await writeFile("/tmp/mp2i-portal-dashboard.png", Buffer.from(screenshot.data, "base64"));
-    await until(`!!document.querySelector('button[aria-label^="Activer le mode "]')`);
+    assert.ok(await evaluate('getComputedStyle(document.documentElement).getPropertyValue("--primary").trim() !== ""'),
+      "shared tweakcn tokens are loaded");
+    assert.ok(await evaluate('/Geist/.test(getComputedStyle(document.body).fontFamily)'), "Geist is the body font");
+    async function capture(nom: string) {
+      const image = await send("Page.captureScreenshot", { format: "png", captureBeyondViewport: true });
+      await writeFile(`${captures}/mp2i-portal-${nom}.png`, Buffer.from(image.data, "base64"));
+    }
+    await capture("dashboard");
+    for (const [chemin, nom, texte] of [
+      ["/fiches", "fiches", "Fiches"], ["/documents", "documents", "Documents"],
+      ["/marche", "marche", "Marché"], ["/colles", "colles", "Colles"],
+    ]) {
+      await send("Page.navigate", { url: base + chemin });
+      await until(`document.querySelector("h1")?.innerText === "${texte}" && !document.querySelector(".skeleton")`);
+      assert.ok(await evaluate('document.documentElement.scrollWidth <= 390'), `${nom} fits mobile viewport`);
+      await capture(nom);
+    }
+    await send("Page.navigate", { url: base + "/marche" });
+    await until('!!document.querySelector(\'a[href^="/marche/"]:not([href="/marche/classement"])\')');
+    const premier = await evaluate('document.querySelector(\'a[href^="/marche/"]:not([href="/marche/classement"])\').href');
+    await send("Page.navigate", { url: premier });
+    await until('document.body.innerText.includes("Montant") || document.body.innerText.includes("gagnante")');
+    assert.ok(await evaluate('document.documentElement.scrollWidth <= 390'), "market page fits mobile viewport");
+    await capture("pari");
+    console.log("PASS mobile pages fit the viewport");
+    // Le thème se règle depuis le profil (avatar de l'accueil).
+    await send("Page.navigate", { url: base + "/profil" });
+    await until(`!!document.querySelector('button[aria-label^="Activer le mode "]') && !document.querySelector(".skeleton")`);
+    // Laisser React hydrater le bouton avant de cliquer.
+    await evaluate('new Promise(r => setTimeout(r, 500))');
     const initialDark = await evaluate('document.documentElement.classList.contains("dark")');
     const expectedDark = !initialDark;
     await evaluate(`document.querySelector('button[aria-label^="Activer le mode "]').click()`);
@@ -79,6 +107,25 @@ export async function browserCheck(base: string, token: string) {
     await send("Input.dispatchKeyEvent", { type: "keyUp", key: "3", code: "Digit3", windowsVirtualKeyCode: 51 });
     await until('document.body.innerText.includes("Session terminée")');
     console.log("PASS Chromium mobile dashboard, space to reveal, 3 to review, session completion");
+
+    // Texte à trous : chaque appui dévoile un seul trou, tiré au hasard.
+    await send("Page.navigate", { url: base + "/fiches/trous/reviser" });
+    await until('document.body.innerText.includes("Révéler un mot · 3 restants")');
+    await evaluate('new Promise(r => setTimeout(r, 500))');
+    assert.ok(await evaluate('!document.body.innerText.includes("Rolle")'), "gaps start hidden");
+    const appuyer = async () => {
+      await send("Input.dispatchKeyEvent", { type: "keyDown", key: " ", code: "Space", windowsVirtualKeyCode: 32 });
+      await send("Input.dispatchKeyEvent", { type: "keyUp", key: " ", code: "Space", windowsVirtualKeyCode: 32 });
+    };
+    await appuyer();
+    await until('document.querySelectorAll(".trou-revele").length === 1 && document.body.innerText.includes("2 restants")');
+    await evaluate(`document.querySelector('.contenu-carte').click()`);
+    await until('document.querySelectorAll(".trou-revele").length === 2 && document.body.innerText.includes("1 restant")');
+    await evaluate('new Promise(r => setTimeout(r, 400))');  // fin du fondu d'apparition
+    await capture("trous");
+    await appuyer();
+    await until('document.body.innerText.includes("Rolle") && document.body.innerText.includes("Difficile")');
+    console.log("PASS cloze card reveals one random gap per press, then the grades");
   } finally {
     ws?.close();
     if (browser.exitCode === null) { process.kill(-browser.pid!, "SIGTERM"); await once(browser, "exit"); }

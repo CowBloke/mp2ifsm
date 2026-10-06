@@ -4,6 +4,9 @@ import { proposals } from "@/lib/proposals";
 import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { LienRetour } from "@/components/LienRetour";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { BoutonRetour } from "@/components/BoutonRetour";
 import { Portefeuille } from "@/components/Portefeuille";
 import { ReglagePartageStats } from "@/components/ReglagesProfil";
 import { SquelettePortefeuille, SqueletteListe } from "@/components/Squelettes";
@@ -28,33 +31,27 @@ export default async function PageMoi({ searchParams }: { searchParams: Promise<
   const adminTab = u.role === "admin" && (await searchParams).onglet === "admin";
 
   return (
-    <main className="py-4 lg:py-7">
-      <header className="page-heading mb-5 flex flex-wrap items-center justify-between gap-3">
+    <main className="">
+      <LienRetour href="/" label="Retour à l’accueil" />
+      <header className="page-heading">
         <div className="min-w-0">
-          <h1 className="break-words text-[22px] font-bold leading-tight lg:text-[32px]">{u.display_name}</h1>
-          <p className="mt-1 break-all text-[13px] text-[var(--muted-foreground)] lg:text-[15px]">{u.email}</p>
+          <h1 className="[overflow-wrap:anywhere]">{u.display_name}</h1>
+          <p className="break-all">{u.email}</p>
         </div>
         <form action={deconnexion}>
-          <button
-            type="submit"
-            className="rounded-[var(--radius-md)] border px-3 py-2 text-[13px] font-medium
-                       transition-colors hover:bg-[var(--muted)]"
-          >
-            Déconnexion
-          </button>
+          <button type="submit" className="puce h-11">Déconnexion</button>
         </form>
       </header>
 
-      {u.role === "admin" && <nav aria-label="Rubriques du profil" className="page-toolbar mb-5 flex flex-wrap gap-2">
-        <Link href="/profil" aria-current={!adminTab ? "page" : undefined} className={`rounded-lg border px-4 py-2 text-sm ${!adminTab ? 'bg-[var(--secondary)]' : ''}`}>Mon profil</Link>
-        <Link href="/profil?onglet=admin" aria-current={adminTab ? "page" : undefined} className={`rounded-lg border px-4 py-2 text-sm ${adminTab ? 'bg-[var(--secondary)]' : ''}`}>Administration</Link>
+      {u.role === "admin" && <nav aria-label="Rubriques du profil" className="-mt-4 mb-10 flex flex-wrap gap-2">
+        <Link href="/profil" aria-current={!adminTab ? "page" : undefined} className="puce">Mon profil</Link>
+        <Link href="/profil?onglet=admin" aria-current={adminTab ? "page" : undefined} className="puce">Administration</Link>
       </nav>}
       {adminTab ? <Administration userId={u.id} /> : <>
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)] lg:items-start">
+      <div className="page-stack">
       <div className="min-w-0">
-      <h2 className="mb-2 text-[12px] font-semibold uppercase tracking-wide
-                     text-[var(--muted-foreground)]">
-        Marché — portefeuille
+      <h2 className="etiquette mb-2">
+        Portefeuille
       </h2>
       <Suspense fallback={<SquelettePortefeuille />}>
         <Solde userId={u.id} />
@@ -65,17 +62,17 @@ export default async function PageMoi({ searchParams }: { searchParams: Promise<
       </Suspense>
       </div>
 
-      <div className="min-w-0 space-y-6">
+      <div className="min-w-0 page-stack">
       <Suspense fallback={<SqueletteListe n={2} />}>
         <MesRetours userId={u.id} />
       </Suspense>
-      <section><h2 className="mb-2 font-semibold">Mes propositions de paris</h2><ProposalList items={JSON.parse(JSON.stringify(await proposals(u.id)))} /></section>
-      </div>
+      <section><h2 className="etiquette mb-2">Mes propositions de paris</h2><ProposalList items={JSON.parse(JSON.stringify(await proposals(u.id)))} /></section>
       </div>
 
-      <Suspense fallback={<div className="mt-6"><SqueletteListe n={3} /></div>}>
+      <Suspense fallback={<SqueletteListe n={3} />}>
         <Positions userId={u.id} />
       </Suspense>
+      </div>
       </>}
     </main>
   );
@@ -88,22 +85,19 @@ async function Reglages({
     `select partage_stats from app_user where id = $1::uuid`, [userId]);
 
   return (
-    <section className="mt-6">
-      <h2 className="mb-2 text-[12px] font-semibold uppercase tracking-wide
-                     text-[var(--muted-foreground)]">
+    <section className="mt-10">
+      <h2 className="mb-2 etiquette">
         Réglages
       </h2>
       <div className="space-y-2">
         <ReglageGroupe groupe={groupe} max={GROUPE_MAX} />
         <ReglagePartageStats initial={r?.partage_stats ?? false} />
       </div>
-      {estAdmin && (
-        <Link href="/profil?onglet=admin"
-              className="app-surface mt-2 block rounded-[var(--radius-md)] border p-3
-                         text-[14px] font-medium transition-colors hover:bg-[var(--muted)]">
-          Ouvrir l’administration →
-        </Link>
-      )}
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <ThemeToggle />
+        <BoutonRetour />
+        {estAdmin && <Link href="/profil?onglet=admin" className="lien-discret ml-1">Administration</Link>}
+      </div>
     </section>
   );
 }
@@ -112,18 +106,18 @@ async function MesRetours({ userId }: { userId: string }) {
   const retours = await mesRetours(userId);
   return (
     <section id="mes-retours" className="scroll-mt-24">
-      <h2 className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
+      <h2 className="mb-2 etiquette">
         Mes retours
       </h2>
       {retours.length === 0 ? (
-        <p className="rounded-[var(--radius-md)] border border-dashed p-4 text-center text-[13px]
+        <p className="py-3 text-[15px]
                       text-[var(--muted-foreground)]">
           Une idée, un bug ? Le bouton « Retour » en haut de chaque page est fait pour ça.
         </p>
       ) : (
         <ul className="space-y-2">
           {retours.map((r) => (
-            <li key={r.id} className="app-surface rounded-[var(--radius-md)] border p-4">
+            <li key={r.id} className="border-b py-4 last:border-b-0">
               <div className="flex flex-wrap items-center gap-2 text-[11px] text-[var(--muted-foreground)]">
                 <BadgeStatut statut={r.statut} />
                 <span className="font-semibold">{NOM_CATEGORIE[r.categorie]}</span>
@@ -156,13 +150,13 @@ async function Positions({ userId }: { userId: string }) {
   ]);
 
   return (
-    <div className="page-grid mt-6 items-start">
+    <div className="page-stack">
       <Section titre="Positions en cours" vide="Aucune mise en cours.">
         {ouvertes.map((p) => (
           <Link
             key={p.bet_id}
             href={`/marche/${p.slug}`}
-            className="app-surface block rounded-[var(--radius-md)] border p-3
+            className="block border-b py-3 last:border-b-0
                        transition-colors hover:bg-[var(--muted)]"
           >
             <p className="truncate text-[13px] font-medium">{p.question}</p>
@@ -188,7 +182,7 @@ async function Positions({ userId }: { userId: string }) {
             <Link
               key={p.bet_id}
               href={`/marche/${p.slug}`}
-              className="app-surface block rounded-[var(--radius-md)] border p-3
+              className="block border-b py-3 last:border-b-0
                          transition-colors hover:bg-[var(--muted)]"
             >
               <p className="truncate text-[13px] font-medium">{p.question}</p>
@@ -209,9 +203,9 @@ async function Positions({ userId }: { userId: string }) {
       </Section>
 
       <Section titre="Relevé du compte" vide="Aucun mouvement.">
-        <ul className="app-surface divide-y rounded-[var(--radius-md)] border">
+        <ul className="divide-y">
           {relevé.map((m) => (
-            <li key={`${m.id}-${m.kind}`} className="flex items-center justify-between gap-3 p-3">
+            <li key={`${m.id}-${m.kind}`} className="flex items-center justify-between gap-3 py-3">
               <div className="min-w-0">
                 <p className="truncate text-[13px] font-medium">{LIBELLES[m.kind] ?? m.kind}</p>
                 <p className="truncate text-[11px] text-[var(--muted-foreground)]">
@@ -254,11 +248,11 @@ function Section({
 
   return (
     <section className="min-w-0">
-      <h2 className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
+      <h2 className="mb-2 etiquette">
         {titre}
       </h2>
       {estVide ? (
-        <p className="rounded-[var(--radius-md)] border border-dashed p-4 text-center text-[13px]
+        <p className="py-3 text-[15px]
                       text-[var(--muted-foreground)]">
           {vide}
         </p>

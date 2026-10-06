@@ -14,9 +14,9 @@ export function FormulaireAuth({ mode }: { mode: "connexion" | "inscription" }) 
   const [etat, envoyer] = useActionState(action, null);
 
   return (
-    <main className="mx-auto flex min-h-[100dvh] max-w-[400px] flex-col justify-center py-10">
-      <div className="mb-7 text-center">
-        <h1 className="text-[26px] font-bold leading-tight">MP2I/FSM</h1>
+    <main className="mx-auto flex min-h-[80dvh] max-w-[400px] flex-col justify-center">
+      <div className="mb-10">
+        <h1 className="titre-page">MP2I/FSM</h1>
       </div>
 
       <form action={envoyer} className="space-y-3">
@@ -47,7 +47,7 @@ export function FormulaireAuth({ mode }: { mode: "connexion" | "inscription" }) 
         <BoutonEnvoyer label={mode === "connexion" ? "Se connecter" : "Créer mon compte"} />
       </form>
 
-      <p className="mt-5 text-center text-[13px] text-[var(--muted-foreground)]">
+      <p className="mt-6 text-center text-[14px] text-[var(--muted-foreground)]">
         {mode === "connexion" ? (
           <>
             Pas encore de compte ?{" "}
@@ -96,7 +96,7 @@ function BoutonEnvoyer({ label }: { label: string }) {
     <button
       type="submit"
       disabled={pending}
-      className="w-full rounded-[var(--radius-md)] bg-[var(--primary)] px-4 py-3.5 text-[15px]
+      className="bouton-principal w-full rounded-[var(--radius-md)] bg-[var(--primary)] px-4 py-3.5 text-[15px]
                  font-semibold text-[var(--primary-foreground)] disabled:opacity-50"
     >
       {pending ? "…" : label}

@@ -21,9 +21,7 @@ export function FormulaireEcheance({
       <button
         type="button"
         onClick={() => setOuvert(true)}
-        className="mt-3 w-full rounded-[var(--radius-md)] border border-dashed py-2
-                   text-[13px] font-medium text-[var(--muted-foreground)]
-                   transition-colors hover:bg-[var(--muted)]"
+        className="lien-discret mt-1 self-start"
       >
         + Ajouter une échéance
       </button>
@@ -42,7 +40,7 @@ export function FormulaireEcheance({
           else setErreur(r.erreur);
         });
       }}
-      className="mt-3 space-y-2 border-t pt-3"
+      className="mt-3 space-y-2"
     >
       <input
         name="titre" required minLength={3} maxLength={120}
