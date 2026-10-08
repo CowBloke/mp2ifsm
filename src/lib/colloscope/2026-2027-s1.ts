@@ -37,7 +37,7 @@ export const S1_2026_2027: Periode = {
 
   creneaux: [
     // Anglais et physique (deuxième colonne A / P).
-    { code: "A1", matiere: "A", colleur: "Mme Talent", horaire: { jour: 3, debut: "15:00", fin: "16:00", salle: "N 16" } },
+    { code: "A1", matiere: "A", colleur: "Mme Talent", horaire: { jour: 3, debut: "15:00", fin: "16:00", salle: "N 11" } },
     { code: "P1", matiere: "P", colleur: "M. Lao", horaire: { jour: 3, debut: "16:00", fin: "17:00", salle: "N 24" } },
     { code: "A2", matiere: "A", colleur: "Mme Monnier", horaire: { jour: 3, debut: "15:00", fin: "16:00", salle: "N 25" } },
     {
@@ -49,15 +49,15 @@ export const S1_2026_2027: Periode = {
       },
       note: "Les colles P2 de M. Pricoupenko ont lieu le lundi lorsqu’il n’y a pas informatique. Sinon, la colle se passe le vendredi.",
     },
-    { code: "A3", matiere: "A", colleur: "Mme Talent", horaire: { jour: 4, debut: "17:30", fin: "18:30", salle: "N 16" } },
+    { code: "A3", matiere: "A", colleur: "Mme Talent", horaire: { jour: 4, debut: "17:45", fin: "18:45", salle: "N 16" } },
     { code: "P3", matiere: "P", colleur: "Mme Passicos", horaire: { jour: 4, debut: "17:00", fin: "18:00", salle: "N 22" } },
     { code: "A4", matiere: "A", colleur: "Mme Monnier", horaire: { jour: 4, debut: "17:30", fin: "18:30", salle: "N 21" } },
-    { code: "P4", matiere: "P", colleur: "M. Ferrer", horaire: { jour: 4, debut: "18:00", fin: "19:00", salle: "N 15" } },
+    { code: "P4", matiere: "P", colleur: "M. Ferrer", horaire: { jour: 4, debut: "18:00", fin: "19:00", salle: "F 21" } },
     { code: "A5", matiere: "A", colleur: "Mme Talent", horaire: { jour: 3, debut: "16:00", fin: "17:00", salle: "N 16" } },
     { code: "P5", matiere: "P", colleur: "M. Toulemonde", horaire: { jour: 5, debut: "18:00", fin: "19:00", salle: "N 17" } },
     { code: "A6", matiere: "A", colleur: "Mme Monnier", horaire: { jour: 3, debut: "18:00", fin: "19:00", salle: "N 25" } },
     { code: "P6", matiere: "P", colleur: "M. Pricoupenko", horaire: { jour: 4, debut: "17:00", fin: "18:00", salle: "N 23" } },
-    { code: "A7", matiere: "A", colleur: "Mme Talent", horaire: { jour: 4, debut: "18:30", fin: "19:30", salle: "N 16" } },
+    { code: "A7", matiere: "A", colleur: "Mme Talent", horaire: { jour: 4, debut: "18:45", fin: "19:45", salle: "N 16" } },
     { code: "P7", matiere: "P", colleur: "Mme Passicos", horaire: { jour: 4, debut: "18:00", fin: "19:00", salle: "N 22" } },
     { code: "A8", matiere: "A", colleur: "Mme Monnier", horaire: { jour: 4, debut: "18:30", fin: "19:30", salle: "N 21" } },
     { code: "P8", matiere: "P", colleur: "M. Ferrer", horaire: { jour: 5, debut: "18:00", fin: "19:00", salle: "N 11" } },
@@ -67,18 +67,18 @@ export const S1_2026_2027: Periode = {
     { code: "M2", matiere: "M", colleur: "Mme Révol", horaire: { jour: 4, debut: "16:00", fin: "17:00", salle: "F 01" } },
     { code: "M3", matiere: "M", colleur: "M. Prat", horaire: { jour: 4, debut: "17:00", fin: "18:00", salle: "N 26" } },
     { code: "M5", matiere: "M", colleur: "M. Zaroil", horaire: { jour: 3, debut: "15:00", fin: "16:00", salle: "N 23" } },
-    { code: "M6", matiere: "M", colleur: "M. Labit", horaire: { jour: 3, debut: "15:00", fin: "16:00", salle: "N 14" } },
+    { code: "M6", matiere: "M", colleur: "M. Labit", horaire: { jour: 3, debut: "15:00", fin: "16:00", salle: "N 26" } },
     { code: "M7", matiere: "M", colleur: "M. Corbineau", horaire: { jour: 2, debut: "17:00", fin: "18:00", salle: "N 13" } },
     { code: "M9", matiere: "M", colleur: "M. Raulet", horaire: { jour: 4, debut: "18:00", fin: "19:00", salle: "F 04" } },
     { code: "M10", matiere: "M", colleur: "Mme Révol", horaire: { jour: 4, debut: "17:00", fin: "18:00", salle: "F 01" } },
     { code: "M11", matiere: "M", colleur: "M. Prat", horaire: { jour: 4, debut: "18:00", fin: "19:00", salle: "N 26" } },
     { code: "M13", matiere: "M", colleur: "M. Zaroil", horaire: { jour: 3, debut: "16:00", fin: "17:00", salle: "N 23" } },
-    { code: "M14", matiere: "M", colleur: "M. Labit", horaire: { jour: 3, debut: "16:00", fin: "17:00", salle: "N 14" } },
+    { code: "M14", matiere: "M", colleur: "M. Labit", horaire: { jour: 3, debut: "16:00", fin: "17:00", salle: "N 26" } },
     { code: "M15", matiere: "M", colleur: "M. Corbineau", horaire: { jour: 2, debut: "18:00", fin: "19:00", salle: "N 13" } },
 
     // Français, les semaines de repos en maths.
-    { code: "F4", matiere: "F", colleur: "M. Raquin", horaire: { jour: 3, debut: "13:00", fin: "14:30", salle: "N 01" } },
-    { code: "F12", matiere: "F", colleur: "M. Raquin", horaire: { jour: 3, debut: "14:30", fin: "16:00", salle: "N 01" } },
+    { code: "F4", matiere: "F", colleur: "M. Raquin", horaire: { jour: 3, debut: "13:00", fin: "14:30", salle: "N 15" } },
+    { code: "F12", matiere: "F", colleur: "M. Raquin", horaire: { jour: 3, debut: "14:30", fin: "16:00", salle: "N 15" } },
   ],
 
   rotations: {
