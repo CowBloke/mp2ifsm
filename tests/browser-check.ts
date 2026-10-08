@@ -126,6 +126,23 @@ export async function browserCheck(base: string, token: string) {
     await appuyer();
     await until('document.body.innerText.includes("Rolle") && document.body.innerText.includes("Difficile")');
     console.log("PASS cloze card reveals one random gap per press, then the grades");
+    await send("Page.navigate", { url: base + "/fiches/formules/reviser" });
+    await until('document.querySelectorAll(".trou-formule[data-trou]").length === 2');
+    await evaluate('new Promise(r => setTimeout(r, 500))');
+    assert.equal(await evaluate('document.querySelectorAll(".katex-error").length'), 0, "formula clozes compose without TeX errors");
+    for (const width of [320, 390, 768]) {
+      await send("Emulation.setDeviceMetricsOverride", { width, height: 844, deviceScaleFactor: 1, mobile: true });
+      assert.ok(await evaluate(`document.documentElement.scrollWidth <= ${width}`), `math cards fit ${width}px`);
+    }
+    await appuyer();
+    await until('document.querySelectorAll(".trou-formule.trou-revele").length === 1');
+    assert.equal(await evaluate('document.querySelectorAll(".trou-formule.trou-revele .katex").length'), 1, "partial reveal keeps complete KaTeX layout");
+    await appuyer();
+    await until('document.body.innerText.includes("Difficile")');
+    assert.equal(await evaluate('document.querySelectorAll(".katex-error").length'), 0, "revealed fractions and products stay valid");
+    await capture("formules");
+    console.log("PASS TeX clozes, progressive reveal, fractions, matrices and mobile overflow");
+
   } finally {
     ws?.close();
     if (browser.exitCode === null) { process.kill(-browser.pid!, "SIGTERM"); await once(browser, "exit"); }

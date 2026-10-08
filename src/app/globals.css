@@ -327,3 +327,10 @@ textarea:not(.champ-nu):focus, select:not(.champ-nu):focus {
   outline: none;
   border-color: var(--ring);
 }
+
+/* Imported formulas and images must fit a mobile review card. */
+.contenu-carte { min-width: 0; overflow-wrap: anywhere; line-height: 1.65; }
+.contenu-carte .katex-display { text-align: left; }
+.contenu-carte > .katex, .contenu-carte > .trou-formule { display: inline-block; max-width: 100%; overflow-x: auto; overflow-y: hidden; vertical-align: middle; padding-block: 0.15em; }
+.contenu-carte .bloc-maths { max-width: 100%; overflow-x: auto; }
+.contenu-carte img { max-width: 100%; height: auto; }

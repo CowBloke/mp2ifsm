@@ -1,4 +1,5 @@
 import "server-only";
+import { restaurerClozeImporte } from "./cloze";
 import { jetonRevision } from "./revision-token";
 import { query, queryOne } from "./db";
 import { apercuIntervalles, type Apercu, type EtatDb } from "./fsrs";
@@ -102,10 +103,10 @@ export async function prochaineCarte(
   deckId: number,
 ): Promise<CarteARevisier | null> {
   const ligne = await queryOne<{
-    card_id: number; recto: string; verso: string; auteur: string; author_id: string;
+    card_id: number; recto: string; verso: string; anki_guid: string | null; auteur: string; author_id: string;
     deck_titre: string; deck_slug: string; signalee: boolean;
   } & Partial<EtatDb>>(
-    `select k.id as card_id, k.recto, k.verso, k.author_id,
+    `select k.id as card_id, k.recto, k.verso, k.anki_guid, k.author_id,
             u.display_name as auteur, d.titre as deck_titre, d.slug as deck_slug,
             exists (select 1 from card_report rp
                      where rp.card_id = k.id and rp.resolved_at is null) as signalee,
@@ -146,7 +147,7 @@ export async function prochaineCarte(
   const maintenant = new Date();
   return {
     jeton: jetonRevision(userId, ligne.card_id, etat?.reps ?? 0, maintenant),
-    card_id: ligne.card_id, recto: ligne.recto, verso: ligne.verso,
+    card_id: ligne.card_id, ...restaurerClozeImporte(ligne.recto, ligne.verso, ligne.anki_guid),
     auteur: ligne.auteur, author_id: ligne.author_id,
     deck_titre: ligne.deck_titre, deck_slug: ligne.deck_slug,
     signalee: ligne.signalee,
@@ -178,8 +179,8 @@ export type CarteListe = {
 };
 
 export async function listerCartes(deckId: number, userId: string): Promise<CarteListe[]> {
-  return query<CarteListe>(
-    `select k.id, k.recto, k.verso, u.display_name as auteur, k.author_id,
+  const cartes = await query<CarteListe & { anki_guid: string | null }>(
+    `select k.id, k.recto, k.verso, k.anki_guid, u.display_name as auteur, k.author_id,
             k.created_at, k.updated_at,
             (select count(*) from card_revision cr where cr.card_id = k.id)::int as revisions,
             (select count(*) from card_report rp
@@ -193,6 +194,7 @@ export async function listerCartes(deckId: number, userId: string): Promise<Cart
       limit 500`,
     [deckId, userId],
   );
+  return cartes.map(c => ({ ...c, ...restaurerClozeImporte(c.recto, c.verso, c.anki_guid) }));
 }
 
 export type Revision = {

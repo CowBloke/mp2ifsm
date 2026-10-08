@@ -1,4 +1,5 @@
 import "server-only";
+import { trouverTrous } from "./syntaxe-carte";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -40,7 +41,8 @@ export function htmlVersTexte(html: string): string {
   // Preserve images in place using an encoded filename placeholder.
   t = t.replace(/<img[^>]+src\s*=\s*["']([^"']+)["'][^>]*>/gi,
     (_, nom: string) => `![](anki-media:${encodeURIComponent(nom)})`);
-  t = t.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
+  t = t.replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, "");
+  t = t.replace(/\[sound:[^\]]*\]/gi, "");
   // Sauts de ligne avant de retirer le reste des balises.
   t = t.replace(/<br\s*\/?>/gi, "\n");
   t = t.replace(/<\/(div|p|li|tr)>/gi, "\n");
@@ -53,6 +55,7 @@ export function htmlVersTexte(html: string): string {
     "&quot;": '"', "&#39;": "'", "&apos;": "'",
   };
   t = t.replace(/&nbsp;|&amp;|&lt;|&gt;|&quot;|&#39;|&apos;/g, (m) => entites[m] ?? m);
+  t = t.replace(/&#x([0-9a-f]+);/gi, (_, n) => parseInt(n, 16) <= 0x10ffff ? String.fromCodePoint(parseInt(n, 16)) : "�");
   t = t.replace(/&#(\d+);/g, (_, n) => Number(n) <= 0x10ffff ? String.fromCodePoint(Number(n)) : "�");
 
   return t.replace(/\n{3,}/g, "\n\n").trim();
@@ -93,31 +96,18 @@ export type CarteCloze = {
 
 // decoupe et formate les cartes cloze
 export function formaterCloze(texte: string, extra = ""): CarteCloze[] {
-  const motif = /\{\{\s*c(\d+)\s*::([\s\S]*?)\}\}/gi;
-  const indices = new Set<number>();
-  for (const m of texte.matchAll(motif)) {
-    indices.add(Number(m[1]));
-  }
-  if (indices.size === 0) return [];
+  const trous = trouverTrous(texte);
+  const indices = [...new Set(trous.map(t => t.numero))].sort((a, b) => a - b);
+  return indices.map((n) => {
+    let recto = "", position = 0;
+    for (const trou of trous) {
+      recto += texte.slice(position, trou.debut);
+      recto += trou.numero === n ? texte.slice(trou.debut, trou.fin) : trou.reponse;
+      position = trou.fin;
+    }
+    recto += texte.slice(position);
 
-  const tries = Array.from(indices).sort((a, b) => a - b);
-  return tries.map((n) => {
-    const reponses: string[] = [];
-    const recto = texte.replace(motif, (_, numStr: string, corps: string) => {
-      const num = Number(numStr);
-      const sep = corps.indexOf("::");
-      const reponse = (sep !== -1 ? corps.slice(0, sep) : corps).trim();
-      const indice = (sep !== -1 ? corps.slice(sep + 2) : "").trim();
-
-      if (num === n) {
-        if (reponse) reponses.push(reponse);
-        return indice ? `[${indice}]` : "[...]";
-      }
-      return reponse;
-    });
-
-    const repTexte = reponses.join(", ");
-    const verso = [repTexte, extra.trim()].filter(Boolean).join("\n\n");
+    const verso = extra.trim();
     return {
       index: n,
       recto: recto || "(vide)",

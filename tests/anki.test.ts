@@ -22,29 +22,29 @@ verifier("les balises sont retirées",
 
 // --- formatage cloze ------------------------------------------------
 const c1 = formaterCloze("Capitale : {{c1::Paris}}");
-verifier("cloze simple recto", c1[0]?.recto === "Capitale : [...]");
-verifier("cloze simple verso", c1[0]?.verso === "Paris");
+verifier("cloze simple recto", c1[0]?.recto === "Capitale : {{c1::Paris}}");
+verifier("cloze simple verso", c1[0]?.verso === "(vide)");
 
 const c2 = formaterCloze("Capitale : {{c1::Paris::ville lumière}}");
-verifier("cloze avec indice recto", c2[0]?.recto === "Capitale : [ville lumière]");
-verifier("cloze avec indice verso", c2[0]?.verso === "Paris");
+verifier("cloze avec indice recto", c2[0]?.recto === "Capitale : {{c1::Paris::ville lumière}}");
+verifier("cloze avec indice verso", c2[0]?.verso === "(vide)");
 
 const c3 = formaterCloze("{{c1::Rome}} est en {{c2::Italie}}");
 verifier("cloze multiple engendre deux fiches", c3.length === 2);
-verifier("cloze multiple c1 recto", c3[0]?.recto === "[...] est en Italie");
-verifier("cloze multiple c1 verso", c3[0]?.verso === "Rome");
-verifier("cloze multiple c2 recto", c3[1]?.recto === "Rome est en [...]");
-verifier("cloze multiple c2 verso", c3[1]?.verso === "Italie");
+verifier("cloze multiple c1 recto", c3[0]?.recto === "{{c1::Rome}} est en Italie");
+verifier("cloze multiple c1 verso", c3[0]?.verso === "(vide)");
+verifier("cloze multiple c2 recto", c3[1]?.recto === "Rome est en {{c2::Italie}}");
+verifier("cloze multiple c2 verso", c3[1]?.verso === "(vide)");
 
 const c4 = formaterCloze("Solutions : {{c1::1}} et {{c1::-1}}");
-verifier("cloze doublon recto", c4[0]?.recto === "Solutions : [...] et [...]");
-verifier("cloze doublon verso", c4[0]?.verso === "1, -1");
+verifier("cloze doublon recto", c4[0]?.recto === "Solutions : {{c1::1}} et {{c1::-1}}");
+verifier("cloze doublon verso", c4[0]?.verso === "(vide)");
 
 const c5 = formaterCloze("{{c1::H2O}}", "Formule de l'eau");
-verifier("cloze avec champ extra", c5[0]?.verso === "H2O\n\nFormule de l'eau");
+verifier("cloze avec champ extra", c5[0]?.verso === "Formule de l'eau");
 
 const c6 = formaterCloze("Dérivée : {{c1::$\\cos(x)$::fonction}}", "Trigonométrie");
-verifier("cloze avec formule mathématique", c6[0]?.recto === "Dérivée : [fonction]" && c6[0]?.verso === "$\\cos(x)$\n\nTrigonométrie");
+verifier("cloze avec formule mathématique", c6[0]?.recto === "Dérivée : {{c1::$\\cos(x)$::fonction}}" && c6[0]?.verso === "Trigonométrie");
 
 // --- aller-retour ----------------------------------------------------
 const notes = [
@@ -79,8 +79,8 @@ const archiveCloze = await ecrireApkg("Paquet Cloze", [
   { recto: "La capitale de l'Australie est {{c1::Canberra}}.", verso: "Océanie" },
 ]);
 const reluCloze = await lireApkg(archiveCloze);
-verifier("archive cloze recto", reluCloze.notes[0]?.recto === "La capitale de l'Australie est [...].");
-verifier("archive cloze verso", reluCloze.notes[0]?.verso === "Canberra\n\nOcéanie");
+verifier("archive cloze recto", reluCloze.notes[0]?.recto === "La capitale de l'Australie est {{c1::Canberra}}.");
+verifier("archive cloze verso", reluCloze.notes[0]?.verso === "Océanie");
 verifier("archive cloze guid suffixe", reluCloze.notes[0]?.guid.endsWith("-c1") === true);
 
 console.log(`\n${echecs === 0 ? "TOUS LES TESTS PASSENT" : echecs + " ÉCHEC(S)"}`);

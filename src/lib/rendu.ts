@@ -1,5 +1,6 @@
 import "server-only";
 import katex from "katex";
+import { lireTrou, lireFormule, trouverTrous } from "./syntaxe-carte";
 
 /*
  * Rendu du contenu d'une carte en HTML, côté serveur.
@@ -13,9 +14,7 @@ import katex from "katex";
  * sorties de KaTeX et nos propres balises <img> sont du HTML.
  *
  * Les textes à trous d'Anki ({{c1::réponse::indice}}) sont masqués sur
- * la face « question » et surlignés sur la face « reponse ». Chaque trou
- * masqué porte son numéro (data-trou) : une carte à plusieurs trous se
- * révèle mot par mot pendant la session.
+ * la face « question » et surlignés sur la face « reponse ».
  */
 
 export type Face = "question" | "reponse";
@@ -28,29 +27,19 @@ type Morceau =
 
 export function decouper(source: string): Morceau[] {
   const morceaux: Morceau[] = [];
-  // Les trous d'abord : leur réponse peut contenir des formules.
-  // $$…$$ testé avant $…$, sinon le second avalerait le premier.
-  const motif = /\{\{c\d+::([\s\S]+?)\}\}|\$\$([\s\S]+?)\$\$|\$([^$\n]+?)\$|!\[([^\]]*)\]\(([^)\s]+)\)/g;
-
   let position = 0;
-  for (const m of source.matchAll(motif)) {
-    if (m.index > position) {
-      morceaux.push({ type: "texte", valeur: source.slice(position, m.index) });
-    }
-    if (m[1] !== undefined) {
-      const sep = m[1].indexOf("::");
-      morceaux.push(sep === -1
-        ? { type: "trou", reponse: m[1], indice: "" }
-        : { type: "trou", reponse: m[1].slice(0, sep), indice: m[1].slice(sep + 2).trim() });
-    }
-    else if (m[2] !== undefined) morceaux.push({ type: "maths", valeur: m[2], bloc: true });
-    else if (m[3] !== undefined) morceaux.push({ type: "maths", valeur: m[3], bloc: false });
-    else                         morceaux.push({ type: "image", alt: m[4] ?? "", url: m[5] });
-    position = m.index + m[0].length;
+  for (let i = 0; i < source.length; i++) {
+    const trou = lireTrou(source, i);
+    const maths = trou ? null : lireFormule(source, i);
+    const image = !trou && !maths ? /^!\[([^\]]*)\]\(([^)\s]+)\)/.exec(source.slice(i)) : null;
+    if (!trou && !maths && !image) continue;
+    if (i > position) morceaux.push({ type: "texte", valeur: source.slice(position, i) });
+    if (trou) { morceaux.push({ type: "trou", reponse: trou.reponse, indice: trou.indice }); position = trou.fin; }
+    else if (maths) { morceaux.push({ type: "maths", valeur: maths.valeur, bloc: maths.bloc }); position = maths.fin; }
+    else { morceaux.push({ type: "image", alt: image![1], url: image![2] }); position = i + image![0].length; }
+    i = position - 1;
   }
-  if (position < source.length) {
-    morceaux.push({ type: "texte", valeur: source.slice(position) });
-  }
+  if (position < source.length) morceaux.push({ type: "texte", valeur: source.slice(position) });
   return morceaux;
 }
 
@@ -69,25 +58,44 @@ function urlImageSure(url: string): string | null {
 }
 
 export function rendreContenu(source: string, face: Face = "reponse"): string {
-  let numero = 0;
+  let numeroTrou = 0;
   return decouper(source).map((m) => {
     if (m.type === "trou") {
       if (face === "question") {
-        return `<span class="trou" data-trou="${numero++}">[${m.indice ? echapper(m.indice) : "…"}]</span>`;
+        return `<span class="trou" data-trou="${numeroTrou++}">[${m.indice ? echapper(m.indice) : "…"}]</span>`;
       }
       return `<span class="trou trou-revele">${rendreContenu(m.reponse, face)}</span>`;
     }
 
     if (m.type === "maths") {
       try {
-        const html = katex.renderToString(m.valeur, {
+        // Clozes inside a formula stay inside TeX, including subscripts and matrices.
+        let formule = "", position = 0;
+        for (const trou of trouverTrous(m.valeur)) {
+
+          formule += m.valeur.slice(position, trou.debut);
+          const reponse = trou.reponse.replace(/^\$\$?([\s\S]*?)\$\$?$/, "$1");
+          const indice = trou.indice.replace(/\\text\{([^{}]*)\}/g, "$1")
+            .replace(/[\\{}$%&#_^~]/g, " ");
+          formule += face === "question" ? `\\text{[${indice || "…"}]}`
+            : `\\boxed{${reponse}}`;
+          position = trou.fin;
+        }
+        formule += m.valeur.slice(position);
+        const html = katex.renderToString(formule, {
           displayMode: m.bloc,
+          macros: { "\\micro": "\\mu" },
           throwOnError: false,   // une formule fautive s'affiche en rouge
           strict: false,
           output: "html",
           trust: false,          // \href et \includegraphics restent interdits
         });
-        return m.bloc ? `<div class="bloc-maths">${html}</div>` : html;
+        const rendu = m.bloc ? `<div class="bloc-maths">${html}</div>` : html;
+        // A formula is revealed as a unit: replacing only a TeX fragment would
+        // break fractions, delimiters and matrix layout already composed by KaTeX.
+        return face === "question" && trouverTrous(m.valeur).length
+          ? `<${m.bloc ? "div" : "span"} class="trou-formule" data-trou="${numeroTrou++}">${rendu}</${m.bloc ? "div" : "span"}>`
+          : rendu;
       } catch {
         return `<code class="maths-erreur">${echapper(m.valeur)}</code>`;
       }
@@ -107,24 +115,18 @@ export function rendreContenu(source: string, face: Face = "reponse"): string {
 const VERSO_VIDE = "(vide)";
 
 export type CarteComposee = {
-  rectoHtml: string;
-  rectoReveleHtml: string;
-  versoHtml: string;
-  /** Réponse de chaque trou du recto, dans l'ordre de leurs data-trou. */
-  trousHtml: string[];
+  rectoHtml: string; rectoReveleHtml: string; versoHtml: string; trousHtml: string[];
 };
 
-/**
- * Les trois vues d'une carte en session : le recto posé en question,
- * le recto une fois révélé (trous remplis), et le verso — omis quand il
- * n'est qu'un remplissage, cas des textes à trous importés.
- */
 export function composerCarte(recto: string, verso: string): CarteComposee {
   return {
     rectoHtml: rendreContenu(recto, "question"),
     rectoReveleHtml: rendreContenu(recto, "reponse"),
     versoHtml: verso.trim() === VERSO_VIDE ? "" : rendreContenu(verso, "reponse"),
-    trousHtml: decouper(recto).flatMap((m) =>
-      m.type === "trou" ? [rendreContenu(m.reponse, "reponse")] : []),
+    trousHtml: decouper(recto).flatMap(m => m.type === "trou"
+      ? [rendreContenu(m.reponse, "reponse")]
+      : m.type === "maths" && trouverTrous(m.valeur).length
+        ? [rendreContenu(`${m.bloc ? "$$" : "$"}${m.valeur}${m.bloc ? "$$" : "$"}`, "reponse")]
+        : []),
   };
 }

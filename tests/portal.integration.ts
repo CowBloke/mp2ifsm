@@ -188,6 +188,12 @@ try {
     await query(`insert into card(deck_id,recto,verso,author_id) values
       ($1,'Théorème de {{c1::Rolle}} : f({{c2::a}}) = f({{c3::b}})','(vide)',$2)`, [trous.id, alice]);
     await query("insert into deck_subscription(user_id,deck_id) values ($1,$2)", [alice, trous.id]);
+    const [formules] = await query<{ id: number }>(`insert into deck(slug,titre,matiere,chapitre,created_by)
+      values ('formules','Formules','Maths','Analyse',$1) returning id`, [alice]);
+    await query("insert into card(deck_id,recto,verso,author_id) values ($1,$2,'(vide)',$3)",
+      [formules.id, String.raw`$S={{c1::\frac{n(n+1)}{2}}}$ et $P={{c1::\prod_{i=1}^{n}x_i}}$.
+$$\begin{pmatrix}a_{11}&a_{12}&a_{13}&a_{14}&a_{15}&a_{16}&a_{17}&a_{18}\\a_{21}&a_{22}&a_{23}&a_{24}&a_{25}&a_{26}&a_{27}&a_{28}\end{pmatrix}$$`, alice]);
+    await query("insert into deck_subscription(user_id,deck_id) values ($1,$2)", [alice, formules.id]);
     const { browserCheck } = await import("./browser-check");
     await browserCheck(base, token);
   }

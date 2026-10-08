@@ -370,3 +370,25 @@ session). Page `/colles` : semaine en calendrier, créneau de repli de P2,
 notes du colloscope. Les rappels (colles sous 36 h, cartes dues des paquets
 suivis, échéances sous 48 h) sont affichés uniquement dans le portail, sur
 l’accueil ; sans groupe, aucun rappel de colle.
+
+## Audit et réparation du formatage des fiches
+
+Le scanner partagé préserve les accolades LaTeX dans les textes à trous,
+les formules sur plusieurs lignes et les délimiteurs Anki. Une formule
+contenant des trous se révèle comme un tout pour conserver les fractions,
+indices et matrices composés par KaTeX. Les intervalles `[a,b]` restent
+inchangés lors de la restauration des anciens imports.
+
+```bash
+node --env-file=.env --conditions=react-server --import tsx scripts/audit-card-formatting.ts
+# Un manifeste privé contient id, before:{recto,verso}, after:{recto,verso}.
+node --env-file=.env --conditions=react-server --import tsx scripts/repair-card-formatting.ts /chemin/manifeste.json
+REPAIR_ADMIN_EMAIL=administrateur@exemple.fr node --env-file=.env --conditions=react-server --import tsx scripts/repair-card-formatting.ts /chemin/manifeste.json --apply
+```
+
+La réparation refuse toute carte modifiée depuis l'audit, garde les deux
+versions dans l'historique, sauvegarde le manifeste en fichier privé et
+vérifie que les états FSRS restent identiques. L'audit du 8 octobre 2026 a
+couvert 882 cartes dans 12 paquets ; 117 cartes nécessitaient une réparation
+stockée. Les tests incluent la révélation des formules et le débordement sur
+mobile. La vérification porte sur le formatage, pas sur la justesse des cours.
