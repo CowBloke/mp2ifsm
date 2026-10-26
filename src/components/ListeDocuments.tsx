@@ -3,10 +3,12 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { restaurerDocument, supprimerDocument } from "@/lib/actions-documents";
+import type { OptionDestination } from "@/lib/arbre-dossiers";
+import { ChoixDossier } from "./ChoixDossier";
 
 export type DocVue = {
   id: number; original_name: string; mime: string; taille: number;
-  matiere: string | null; couleur: string | null; chapitre: string | null; tags: string[];
+  folder_id: number | null; matiere: string | null; couleur: string | null; chapitre: string | null; tags: string[];
   uploader: string; uploaded_by: string; created_at: string;
   deleted_at: string | null; purge_after: string | null;
 };
@@ -25,18 +27,24 @@ function taille(o: number): string {
  * devinable : la route vérifie la session à chaque requête.
  */
 export function ListeDocuments({
-  documents, moi, estAdmin, corbeille = false,
+  documents, moi, estAdmin, corbeille = false, chemins, destinations, vide,
 }: {
   documents: DocVue[]; moi: string; estAdmin: boolean; corbeille?: boolean;
+  /** Chemin lisible de chaque dossier : affiché à la place de la matière. */
+  chemins?: Record<number, string>;
+  /** Dossiers où ranger un document (menu « Dossier » des actions). */
+  destinations?: OptionDestination[];
+  vide?: string;
 }) {
   const router = useRouter();
   const [apercu, setApercu] = useState<DocVue | null>(null);
   const [actions, setActions] = useState<number | null>(null);
 
   if (documents.length === 0) {
+    if (vide === "") return null;
     return (
       <p className="text-[15px] text-[var(--muted-foreground)]">
-        {corbeille ? "Corbeille vide." : "Aucun document ici."}
+        {corbeille ? "Corbeille vide." : vide ?? "Aucun document ici."}
       </p>
     );
   }
@@ -49,7 +57,7 @@ export function ListeDocuments({
           const peutSupprimer = estAdmin || d.uploaded_by === moi;
           const deplie = actions === d.id;
           const meta = [
-            d.matiere, taille(d.taille),
+            (d.folder_id !== null && chemins?.[d.folder_id]) || d.matiere, taille(d.taille),
             new Date(d.created_at).toLocaleDateString("fr-FR", { day: "numeric", month: "short" }),
           ].filter(Boolean).join(" · ");
 
@@ -101,6 +109,10 @@ export function ListeDocuments({
                     <p className="text-[var(--destructive)]">
                       Effacement définitif le {new Date(d.purge_after).toLocaleDateString("fr-FR")}
                     </p>
+                  )}
+                  {!corbeille && peutSupprimer && destinations && (
+                    <ChoixDossier cible="document" id={d.id} actuel={d.folder_id} options={destinations}
+                                  className="my-2 max-w-sm" />
                   )}
                   <div className="flex flex-wrap gap-x-5">
                     {corbeille ? (

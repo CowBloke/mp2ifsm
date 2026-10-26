@@ -17,6 +17,7 @@ export type PaquetVue = {
   slug: string;
   titre: string;
   subject_id: number | null;
+  folder_id: number | null;
   /** Nom de la matière, null = sans matière. */
   matiere: string | null;
   couleur: string | null;
@@ -35,7 +36,7 @@ export type PaquetVue = {
 
 /* Décompte par paquet. Les cartes neuves ne sont pas plafonnées par jour. */
 const SELECT_PAQUET = `
-  select d.id, d.slug, d.titre, d.subject_id, sj.nom as matiere, sj.couleur,
+  select d.id, d.slug, d.titre, d.subject_id, d.folder_id, sj.nom as matiere, sj.couleur,
          coalesce(sj.archived_at is not null, false) as matiere_archivee,
          exists (select 1 from deck_subscription ab
                   where ab.deck_id = d.id and ab.user_id = $1::uuid) as abonne,

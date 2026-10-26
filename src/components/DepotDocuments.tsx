@@ -8,10 +8,11 @@ import { Televersement } from "./Televersement";
  * Le formulaire et l'espace occupé n'apparaissent qu'à l'ouverture.
  */
 export function DepotDocuments({
-  restant, matieres, children,
+  restant, matieres, dossier, children,
 }: {
   restant: number;
   matieres: Array<{ id: number; nom: string }>;
+  dossier?: { id: number; chemin: string; matiere: number | null } | null;
   children: React.ReactNode;
 }) {
   const [ouvert, setOuvert] = useState(false);
@@ -32,7 +33,7 @@ export function DepotDocuments({
       {ouvert && (
         <div className="-mt-4 mb-10 flex flex-col gap-5">
           {restant > 0
-            ? <Televersement restant={restant} matieres={matieres} onFermer={() => setOuvert(false)} />
+            ? <Televersement restant={restant} matieres={matieres} dossier={dossier} onFermer={() => setOuvert(false)} />
             : <p className="text-[15px] text-[var(--destructive)]">Quota atteint : supprimez un document pour en déposer un autre.</p>}
           {children}
         </div>

@@ -13,8 +13,14 @@ import { ChoixMatiere } from "@/components/Matiere";
  * déposant — c'est ce qui rend la règle applicable.
  */
 export function Televersement({
-  restant, matieres, onFermer,
-}: { restant: number; matieres: Array<{ id: number; nom: string }>; onFermer?: () => void }) {
+  restant, matieres, dossier = null, onFermer,
+}: {
+  restant: number;
+  matieres: Array<{ id: number; nom: string }>;
+  /** Dossier courant : le document y est rangé. */
+  dossier?: { id: number; chemin: string; matiere: number | null } | null;
+  onFermer?: () => void;
+}) {
   const router = useRouter();
   const [ouvertLocal, setOuvertLocal] = useState(false);
   // Piloté par l'en-tête quand onFermer est fourni : toujours ouvert.
@@ -71,8 +77,18 @@ export function Televersement({
                    file:text-[13px] file:font-medium"
       />
 
+      {dossier && (
+        <>
+          <input type="hidden" name="dossier" value={dossier.id} />
+          <p className="mt-3 text-[13px] text-[var(--muted-foreground)]">
+            Sera rangé dans <strong className="text-[var(--foreground)]">{dossier.chemin}</strong>
+            {dossier.matiere !== null && " (matière du dossier)"}.
+          </p>
+        </>
+      )}
+
       <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-1">
-        <ChoixMatiere matieres={matieres} />
+        {!(dossier && dossier.matiere !== null) && <ChoixMatiere matieres={matieres} />}
         <input name="chapitre" maxLength={120} placeholder="Chapitre"
                className="min-w-0 rounded-[var(--radius-md)] border-2 px-3 py-2 text-[14px]
                           outline-none focus:border-[var(--ring)]" />

@@ -6,7 +6,10 @@ import { PanneauAjoutCarte } from "@/components/PanneauAjoutCarte";
 import { SqueletteListe } from "@/components/Squelettes";
 import { BoutonSuivre } from "@/components/BoutonSuivre";
 import { MatierePaquet } from "@/components/MatierePaquet";
+import { ChoixDossier } from "@/components/ChoixDossier";
 import { LienRetour } from "@/components/LienRetour";
+import { destinations, libelleChemin } from "@/lib/arbre-dossiers";
+import { listerDossiers } from "@/lib/dossiers";
 import { listerMatieres } from "@/lib/matieres";
 import { heatmapClasse, lirePaquet, listerCartes, statsPaquet } from "@/lib/fiches";
 import { rendreContenu } from "@/lib/rendu";
@@ -28,7 +31,11 @@ export default async function PagePaquet({
 
   const du = paquet.nouvelles + paquet.apprentissage + paquet.a_revoir;
   const peutReclasser = u.role === "admin" || paquet.created_by === u.id;
-  const matieres = peutReclasser ? await listerMatieres(true) : [];
+  const [matieres, dossiers] = await Promise.all([
+    peutReclasser ? listerMatieres(true) : [],
+    listerDossiers("deck"),
+  ]);
+  const emplacement = libelleChemin(dossiers, paquet.folder_id);
 
   return (
     <main>
@@ -37,15 +44,17 @@ export default async function PagePaquet({
       <header className="mb-10 flex items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="text-[14px] text-[var(--muted-foreground)]">
-            {paquet.matiere ?? "Sans matière"} · {paquet.chapitre}
+            {emplacement || (paquet.matiere ?? "Sans matière")} · {paquet.chapitre}
           </p>
           <h1 className="titre-page mt-1.5 [overflow-wrap:anywhere]">{paquet.titre}</h1>
           {paquet.description && (
             <p className="mt-3 text-[15px] leading-relaxed text-[var(--muted-foreground)]">{paquet.description}</p>
           )}
           {peutReclasser && (
-            <div className="mt-3">
-              <MatierePaquet deckId={paquet.id} actuelle={paquet.subject_id} matieres={matieres} />
+            <div className="mt-3 flex flex-col items-start gap-3">
+              <MatierePaquet key={`m${paquet.subject_id}`} deckId={paquet.id} actuelle={paquet.subject_id} matieres={matieres} />
+              <ChoixDossier key={`f${paquet.folder_id}-${paquet.subject_id}`} cible="deck" id={paquet.id} actuel={paquet.folder_id}
+                            options={destinations(dossiers, { avecMatiere: true })} />
             </div>
           )}
         </div>

@@ -69,3 +69,8 @@ export const NOM_STATUT: Record<string, string> =
 
 /** Jours de rétention d'un document supprimé avant effacement réel. */
 export const JOURS_AVANT_PURGE = 30;
+
+/** Dossiers de documents ou de paquets : niveaux maximum, racine comprise. */
+export const PROFONDEUR_MAX_DOSSIERS = 4;
+export const NOM_DOSSIER_MAX = 60;
+export type KindDossier = "document" | "deck";

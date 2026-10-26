@@ -8,6 +8,7 @@ import { ErreurMetier, messageFr } from "./errors";
 import { exigerAdmin, exigerUtilisateur } from "./session";
 import { noteDepuisCle, noterProjection, versDb, formatIntervalle, type EtatDb } from "./fsrs";
 import { matiereDuFormulaire } from "./matieres";
+import { dossierDuFormulaire } from "./dossiers-formulaire";
 import type { Reponse } from "./actions";
 
 function echec(err: unknown): { ok: false; erreur: string } {
@@ -137,7 +138,9 @@ export async function creerPaquet(formData: FormData): Promise<Reponse<{ slug: s
     if (!p.success) return { ok: false, erreur: "Formulaire invalide" };
 
     const slug = await tx(async (c) => {
-      const matiere = await matiereDuFormulaire(formData.get("matiere"), c);
+      // Un paquet créé dans un dossier prend la matière de ce dossier.
+      const dossier = await dossierDuFormulaire(formData.get("dossier"), "deck", c);
+      const matiere = dossier ? dossier.subject_id : await matiereDuFormulaire(formData.get("matiere"), c);
       const nom = matiere === null ? "" : (await c.query<{ nom: string }>(
         `select nom from subject where id = $1`, [matiere])).rows[0].nom;
       const base = slugifier(`${nom}-${p.data.chapitre}-${p.data.titre}`);
@@ -148,9 +151,9 @@ export async function creerPaquet(formData: FormData): Promise<Reponse<{ slug: s
         candidat = `${base.slice(0, 58)}-${n}`;
       }
       const d = await c.query<{ id: number }>(
-        `insert into deck (slug, titre, subject_id, chapitre, description, created_by)
-         values ($1,$2,$3,$4,$5,$6::uuid) returning id`,
-        [candidat, p.data.titre, matiere, p.data.chapitre,
+        `insert into deck (slug, titre, subject_id, folder_id, chapitre, description, created_by)
+         values ($1,$2,$3,$4,$5,$6,$7::uuid) returning id`,
+        [candidat, p.data.titre, matiere, dossier?.id ?? null, p.data.chapitre,
          p.data.description ?? null, u.id],
       );
       // Qui crée un paquet le suit : c'est lui qui va le remplir.
@@ -214,8 +217,13 @@ export async function changerMatierePaquet(
   try {
     const u = await exigerUtilisateur();
     const id = await matiereDuFormulaire(matiere);
+    // Le paquet quitte son dossier si celui-ci est dans une autre matière.
     const r = await query(
-      `update deck set subject_id = $2
+      `update deck set subject_id = $2,
+              folder_id = case when folder_id is not null and not exists (
+                  select 1 from dossier f where f.id = deck.folder_id
+                     and f.subject_id is not distinct from $2::smallint)
+                then null else folder_id end
         where id = $1 and ($4::boolean or created_by = $3::uuid) returning id`,
       [deckId, id, u.id, u.role === "admin"],
     );

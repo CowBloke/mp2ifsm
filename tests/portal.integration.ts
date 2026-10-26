@@ -28,7 +28,7 @@ let assertions = 0;
 function ok(condition: unknown, message: string) { assert.ok(condition, message); assertions++; console.log(`PASS ${message}`); }
 try {
   await admin.query(`create schema ${schema}`);
-  for (const fichier of ["db/schema.sql", "db/functions.sql", "db/schema-portal.sql", "db/schema-proposals.sql", "db/schema-etudes.sql"]) {
+  for (const fichier of ["db/schema.sql", "db/functions.sql", "db/schema-portal.sql", "db/schema-proposals.sql", "db/schema-etudes.sql", "db/schema-dossiers.sql"]) {
     await query(await readFile(fichier, "utf8"));
   }
   const membres = await query<{ id: string }>(`insert into app_user (email, display_name, password_hash, partage_stats)
@@ -170,6 +170,87 @@ try {
   ok((await purgerDocuments()).purges === 0, "purge preserves files before 30 days");
   await query("update document set purge_after = now()-interval '1 second' where id=$1", [doc.id]);
   ok((await purgerDocuments()).purges === 1, "expired trash is removed from disk and database");
+  // --- Dossiers ---------------------------------------------------------
+  const bobCookie = `mp2_session=${tokenBob}`;
+  const racine = await action("creerDossier", ["document", null, "  Cours  ", String(maths.id)]);
+  ok(racine.ok && typeof racine.data.id === "number", "member creates a document folder");
+  ok(!(await action("creerDossier", ["document", null, "cours", String(maths.id)], bobCookie)).ok, "sibling folder names are unique (case-insensitive)");
+  ok((await action("creerDossier", ["document", null, "Cours", ""], bobCookie)).ok, "same name allowed in another subject");
+  ok(!(await action("creerDossier", ["document", null, "   ", ""])).ok, "blank folder name refused");
+  ok(!(await action("creerDossier", ["document", racine.data.id, "x".repeat(61)])).ok, "overlong folder name refused");
+  let parent = racine.data.id;
+  const niveaux = [racine.data.id];
+  for (const nom of ["Analyse", "Séries"]) {
+    const r = await action("creerDossier", ["document", parent, nom]);
+    ok(r.ok, `nested folder ${nom}`);
+    parent = r.data.id; niveaux.push(parent);
+  }
+  const quatrieme = await action("creerDossier", ["document", parent, "Critères"]);
+  ok(quatrieme.ok, "fourth level is allowed");
+  ok(!(await action("creerDossier", ["document", quatrieme.data.id, "Trop profond"])).ok, "fifth level refused");
+  const [{ subject_id: heritee }] = await query<{ subject_id: number }>("select subject_id from dossier where id=$1", [quatrieme.data.id]);
+  ok(heritee === maths.id, "subfolders inherit the subject of their root");
+  ok(!(await action("creerDossier", ["deck", racine.data.id, "Mauvais type"])).ok, "a deck folder cannot sit under a document folder");
+
+  ok(!(await action("deplacerDossier", [racine.data.id, quatrieme.data.id])).ok, "a folder cannot move into its own subtree");
+  ok(!(await action("deplacerDossier", [niveaux[1], niveaux[1]])).ok, "a folder cannot move into itself");
+  ok(!(await action("modifierDossier", [racine.data.id, "Piraté"], bobCookie)).ok, "other member cannot rename someone's folder");
+  ok(!(await action("supprimerDossier", [racine.data.id], bobCookie)).ok, "other member cannot delete someone's folder");
+
+  await query(`insert into document (storage_name, original_name, mime, taille, uploaded_by)
+    values (repeat('a',32),'plan.pdf','application/pdf',10,$1) returning id`, [alice]);
+  const [{ id: planId }] = await query<{ id: number }>("select id from document where storage_name=repeat('a',32)");
+  ok((await action("classerDocument", [planId, niveaux[1]])).ok, "uploader files a document in a folder");
+  ok(!(await action("classerDocument", [planId, null], bobCookie)).ok, "other member cannot move someone's document");
+  ok(!(await action("classerDocument", [planId, 999999])).ok, "unknown folder refused");
+  ok((await query("select 1 from document where id=$1 and folder_id=$2 and subject_id=$3", [planId, niveaux[1], maths.id])).length === 1,
+    "document takes the subject of its folder");
+
+  const envoi = new FormData();
+  envoi.set("fichier", new File([new Uint8Array(pdf)], "dans-dossier.pdf", { type: "application/pdf" }));
+  envoi.set("dossier", String(niveaux[2]));
+  const televerse = await fetch(base + "/api/documents/upload", { method: "POST", headers: { ...auth, origin: base }, body: envoi });
+  const televerseJson = await televerse.json();
+  ok(televerse.ok && (await query("select 1 from document where id=$1 and folder_id=$2", [televerseJson.id, niveaux[2]])).length === 1,
+    "upload lands in the chosen folder");
+  const mauvais = new FormData();
+  mauvais.set("fichier", new File([new Uint8Array(pdf)], "x.pdf", { type: "application/pdf" }));
+  mauvais.set("dossier", "999999");
+  ok(!(await fetch(base + "/api/documents/upload", { method: "POST", headers: { ...auth, origin: base }, body: mauvais })).ok,
+    "upload into an unknown folder is refused");
+
+  const pageDossier = await fetch(base + `/documents?dossier=${niveaux[1]}`, { headers: auth });
+  ok(pageDossier.ok && (await pageDossier.text()).includes("plan.pdf"), "folder page renders and lists its documents");
+
+  ok((await action("deplacerDossier", [niveaux[2], racine.data.id])).ok, "folder moves up a level");
+  ok((await action("supprimerDossier", [niveaux[1]])).ok, "owner deletes a folder");
+  ok((await query("select 1 from document where id=$1 and folder_id is not distinct from $2", [planId, racine.data.id])).length === 1,
+    "deleting a folder lifts its documents to the parent");
+  ok((await query("select 1 from dossier where id=$1 and parent_id=$2", [niveaux[2], racine.data.id])).length === 1,
+    "deleting a folder lifts its subfolders to the parent");
+  await query("update app_user set role='admin' where id=$1", [bob]);
+  ok((await action("modifierDossier", [racine.data.id, "Cours (maths)"], bobCookie)).ok, "admin can rename any folder");
+
+  // Paquets : un paquet rangé dans un dossier prend la matière du dossier.
+  const [physique] = await query<{ id: number }>("select id from subject where legacy='Physique'");
+  const dossierPaquets = await action("creerDossier", ["deck", null, "Optique", String(physique.id)]);
+  const sousPaquets = await action("creerDossier", ["deck", dossierPaquets.data.id, "Lentilles"]);
+  ok(dossierPaquets.ok && sousPaquets.ok, "deck folders are created");
+  ok((await action("classerPaquet", [deck.id, sousPaquets.data.id])).ok, "deck owner files a deck in a folder");
+  ok((await query("select 1 from deck where id=$1 and folder_id=$2 and subject_id=$3", [deck.id, sousPaquets.data.id, physique.id])).length === 1,
+    "deck follows the subject of its folder");
+  ok(!(await action("classerPaquet", [deck.id, racine.data.id])).ok, "a deck cannot go in a document folder");
+  ok((await action("changerMatierePaquet", [deck.id, String(maths.id)])).ok, "deck can change subject");
+  ok((await query("select 1 from deck where id=$1 and folder_id is null", [deck.id])).length === 1,
+    "changing subject takes the deck out of a folder of another subject");
+  await action("classerPaquet", [deck.id, sousPaquets.data.id]);
+  ok((await action("modifierDossier", [dossierPaquets.data.id, "Optique", String(maths.id)])).ok, "root deck folder changes subject");
+  ok((await query("select 1 from deck d join dossier f on f.id=d.folder_id where d.id=$1 and d.subject_id=$2 and f.subject_id=$2", [deck.id, maths.id])).length === 1,
+    "subject change cascades to subfolders and decks");
+  const page = await (await fetch(base + "/fiches?vue=tous", { headers: auth })).text();
+  ok(page.includes("Optique"), "deck catalogue renders folders");
+  await query("update app_user set role='member' where id=$1", [bob]);
+
   const image = Buffer.from([137,80,78,71,13,10,26,10]);
   const apkg = await ecrireApkg("Schémas", [{ recto: "![](figure.png)", verso: "$x$" }], new Map([["figure.png", image]]));
   const fd = new FormData(); fd.set("apkg", new File([new Uint8Array(apkg)], "test.apkg")); fd.set("matiere", ""); fd.set("chapitre", "Optique");

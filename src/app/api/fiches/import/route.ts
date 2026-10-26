@@ -5,6 +5,7 @@ import { ErreurMetier, messageFr } from "@/lib/errors";
 import { lireApkg } from "@/lib/anki";
 import { DOSSIER_IMAGES, TYPES_IMAGES, detecterType, ecrire, supprimerDuDisque, TAILLE_MAX_IMAGE } from "@/lib/stockage";
 import { matiereDuFormulaire } from "@/lib/matieres";
+import { dossierDuFormulaire } from "@/lib/dossiers-formulaire";
 
 import { lireFormulaire, verifierQuota } from "@/lib/uploads";
 
@@ -33,7 +34,6 @@ export async function POST(request: Request) {
     }
     if (fichier.size > TAILLE_MAX_APKG) throw new ErreurMetier("FICHIER_TROP_GROS");
 
-    const matiere = await matiereDuFormulaire(form.get("matiere"));
     const chapitre = String(form.get("chapitre") ?? "").trim();
     if (!chapitre || chapitre.length > 120) throw new ErreurMetier("CHAMPS_MANQUANTS");
 
@@ -68,6 +68,9 @@ export async function POST(request: Request) {
         ids.set(nom, r.rows[0].id);
       }
 
+      // Dans un dossier, le paquet prend la matière de ce dossier.
+      const dossier = await dossierDuFormulaire(form.get("dossier"), "deck", c);
+      const matiere = dossier ? dossier.subject_id : await matiereDuFormulaire(form.get("matiere"), c);
       const nomMatiere = matiere === null ? "" : (await c.query<{ nom: string }>(
         `select nom from subject where id = $1`, [matiere])).rows[0]?.nom ?? "";
       const base = `${nomMatiere}-${chapitre}-${titre}`.toLowerCase()
@@ -81,9 +84,9 @@ export async function POST(request: Request) {
       }
 
       const d = await c.query<{ id: number }>(
-        `insert into deck (slug, titre, subject_id, chapitre, description, created_by)
-         values ($1,$2,$3,$4,$5,$6::uuid) returning id`,
-        [slug, titre, matiere, chapitre,
+        `insert into deck (slug, titre, subject_id, folder_id, chapitre, description, created_by)
+         values ($1,$2,$3,$4,$5,$6,$7::uuid) returning id`,
+        [slug, titre, matiere, dossier?.id ?? null, chapitre,
          `Importé depuis Anki par ${u.display_name}`, u.id],
       );
       const deckId = d.rows[0].id;

@@ -4,20 +4,21 @@ import { redirect } from "next/navigation";
 import { ListeDocuments } from "@/components/ListeDocuments";
 import { DepotDocuments } from "@/components/DepotDocuments";
 import { SqueletteListe } from "@/components/Squelettes";
+import { BarreDossier } from "@/components/BarreDossier";
+import { LigneDossier } from "@/components/LigneDossier";
 import {
-  arborescence, corbeille, documentsParMatiere, documentsRecents,
-  rechercherDocuments, usage,
+  corbeille, documentsDuDossier, documentsRecents, rechercherDocuments, usage,
 } from "@/lib/documents";
+import { cheminsDe, gestionDe, listerDossiers, type DossierVue } from "@/lib/dossiers";
+import { chemin, comparerNoms, destinations, libelleChemin } from "@/lib/arbre-dossiers";
+import { PROFONDEUR_MAX_DOSSIERS } from "@/lib/constantes";
 import { formatTaille } from "@/lib/stockage";
 import { listerMatieres } from "@/lib/matieres";
-import { PastilleMatiere } from "@/components/Matiere";
 import { utilisateurCourant } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
-type Params = Promise<{
-  q?: string; matiere?: string; chapitre?: string; vue?: string;
-}>;
+type Params = Promise<{ q?: string; dossier?: string; vue?: string }>;
 
 export default async function PageDocuments({ searchParams }: { searchParams: Params }) {
   const u = await utilisateurCourant();
@@ -25,12 +26,19 @@ export default async function PageDocuments({ searchParams }: { searchParams: Pa
 
   const p = await searchParams;
   const recherche = (p.q ?? "").trim();
-  const vue = p.vue ?? (recherche ? "recherche" : p.matiere !== undefined ? "matiere" : "recents");
+  const vue = p.vue === "recents" || p.vue === "corbeille" ? p.vue : "dossiers";
+  const dossierId = /^\d+$/.test(p.dossier ?? "") ? Number(p.dossier) : null;
+
+  // Les dossiers servent à l'en-tête (dépôt), à l'explorateur et aux
+  // chemins affichés : une seule lecture pour toute la page.
+  const dossiers = await listerDossiers("document");
+  if (dossierId !== null && !dossiers.some((d) => d.id === dossierId)) redirect("/documents");
+  const moi = { id: u.id, role: u.role };
 
   return (
     <main>
       <Suspense fallback={<header className="page-heading"><h1>Documents</h1></header>}>
-        <EnTete userId={u.id} />
+        <EnTete userId={u.id} dossiers={dossiers} dossierId={vue === "dossiers" && !recherche ? dossierId : null} />
       </Suspense>
 
       {/* Recherche : nom de fichier, mots-clés, déposant. */}
@@ -47,25 +55,21 @@ export default async function PageDocuments({ searchParams }: { searchParams: Pa
       </form>
 
       <nav aria-label="Vues" className="mt-6 flex flex-wrap gap-2">
+        <Onglet href="/documents" actif={!recherche && vue === "dossiers"} label="Dossiers" />
         <Onglet href="/documents?vue=recents" actif={!recherche && vue === "recents"} label="Récents" />
-        <Onglet href="/documents?vue=classement" actif={!recherche && (vue === "classement" || vue === "matiere")}
-                label="Par matière" />
         <Onglet href="/documents?vue=corbeille" actif={!recherche && vue === "corbeille"} label="Corbeille" />
       </nav>
 
       <div className="mt-6">
         <Suspense fallback={<SqueletteListe n={5} />}>
           {recherche ? (
-            <Resultats terme={recherche} userId={u.id} estAdmin={u.role === "admin"} />
+            <Resultats terme={recherche} userId={u.id} estAdmin={u.role === "admin"} dossiers={dossiers} />
           ) : vue === "corbeille" ? (
             <Corbeille userId={u.id} estAdmin={u.role === "admin"} />
-          ) : p.matiere !== undefined ? (
-            <ParMatiere matiere={p.matiere} chapitre={p.chapitre ?? null}
-                        userId={u.id} estAdmin={u.role === "admin"} />
-          ) : vue === "classement" ? (
-            <Arborescence />
+          ) : vue === "recents" ? (
+            <Recents userId={u.id} estAdmin={u.role === "admin"} dossiers={dossiers} />
           ) : (
-            <Recents userId={u.id} estAdmin={u.role === "admin"} />
+            <Explorateur dossiers={dossiers} dossierId={dossierId} moi={moi} />
           )}
         </Suspense>
       </div>
@@ -83,14 +87,21 @@ function Onglet({ href, actif, label }: { href: string; actif: boolean; label: s
  * En-tête et dépôt. L'espace occupé (le vôtre et celui de la classe)
  * s'affiche avec le formulaire : le Pi ne doit pas se remplir en silence.
  */
-async function EnTete({ userId }: { userId: string }) {
+async function EnTete({
+  userId, dossiers, dossierId,
+}: { userId: string; dossiers: DossierVue[]; dossierId: number | null }) {
   const [us, matieres] = await Promise.all([usage(userId), listerMatieres()]);
   const partMembre = Math.min(1, us.utilise_membre / us.quota_membre);
   const partGlobale = Math.min(1, us.utilise_global / us.plafond_global);
   const restant = Math.max(0, us.quota_membre - us.utilise_membre);
+  const courant = dossiers.find((d) => d.id === dossierId);
 
   return (
-    <DepotDocuments restant={restant} matieres={matieres.map(({ id, nom }) => ({ id, nom }))}>
+    <DepotDocuments
+      restant={restant} matieres={matieres.map(({ id, nom }) => ({ id, nom }))}
+      dossier={courant
+        ? { id: courant.id, chemin: libelleChemin(dossiers, courant.id), matiere: courant.subject_id }
+        : null}>
       <div className="flex flex-col gap-3">
         <Jauge label="Votre espace" part={partMembre} alerte={partMembre > 0.9}
                detail={`${formatTaille(us.utilise_membre)} / ${formatTaille(us.quota_membre)}`} />
@@ -120,21 +131,27 @@ function Jauge({
   );
 }
 
-async function Recents({ userId, estAdmin }: { userId: string; estAdmin: boolean }) {
+async function Recents({
+  userId, estAdmin, dossiers,
+}: { userId: string; estAdmin: boolean; dossiers: DossierVue[] }) {
   const docs = await documentsRecents(50);
-  return <ListeDocuments documents={docs} moi={userId} estAdmin={estAdmin} />;
+  return (
+    <ListeDocuments documents={docs} moi={userId} estAdmin={estAdmin}
+                    chemins={cheminsDe(dossiers)} destinations={destinations(dossiers)} />
+  );
 }
 
 async function Resultats({
-  terme, userId, estAdmin,
-}: { terme: string; userId: string; estAdmin: boolean }) {
+  terme, userId, estAdmin, dossiers,
+}: { terme: string; userId: string; estAdmin: boolean; dossiers: DossierVue[] }) {
   const docs = await rechercherDocuments(terme);
   return (
     <>
       <p className="etiquette mb-2">
         {docs.length} résultat{docs.length > 1 ? "s" : ""} pour « {terme} »
       </p>
-      <ListeDocuments documents={docs} moi={userId} estAdmin={estAdmin} />
+      <ListeDocuments documents={docs} moi={userId} estAdmin={estAdmin}
+                      chemins={cheminsDe(dossiers)} destinations={destinations(dossiers)} />
     </>
   );
 }
@@ -151,70 +168,92 @@ async function Corbeille({ userId, estAdmin }: { userId: string; estAdmin: boole
   );
 }
 
-async function Arborescence() {
-  const noeuds = await arborescence();
-
-  if (noeuds.length === 0) {
-    return (
-      <p className="text-[15px] text-[var(--muted-foreground)]">
-        Aucun document classé pour l’instant.
-      </p>
-    );
-  }
+/*
+ * Vue « Dossiers » : on entre dans un dossier à la fois, avec son fil
+ * d'Ariane. À la racine : les dossiers, puis les documents non rangés.
+ */
+async function Explorateur({
+  dossiers, dossierId, moi,
+}: {
+  dossiers: DossierVue[];
+  dossierId: number | null;
+  moi: { id: string; role: "member" | "admin" };
+}) {
+  const [docs, matieres] = await Promise.all([documentsDuDossier(dossierId), listerMatieres()]);
+  const matieresForm = matieres.map(({ id, nom }) => ({ id, nom }));
+  const fil = chemin(dossiers, dossierId);
+  const courant = fil[fil.length - 1];
+  const enfants = dossiers
+    .filter((d) => d.parent_id === dossierId)
+    .sort((a, b) => a.rang - b.rang || comparerNoms(a.nom, b.nom));
+  const contenuDans = contenuRecursif(dossiers);
 
   return (
-    <div className="page-stack">
-      {noeuds.map((n) => (
-        <section key={n.subject_id ?? "sans"} className="min-w-0">
-          <h2 className="etiquette">
-            <PastilleMatiere nom={n.matiere} couleur={n.couleur} />
-          </h2>
-          <ul>
-            {n.chapitres.map((c) => (
-              <li key={c.chapitre ?? "sans"}>
-                <Link
-                  href={`/documents?matiere=${encodeURIComponent(n.subject_id ?? "")}` +
-                        `&chapitre=${encodeURIComponent(c.chapitre ?? "")}`}
-                  className="ligne"
-                >
-                  <span className="ligne__titre min-w-0 flex-1 truncate">
-                    {c.chapitre ?? "Sans chapitre"}
-                  </span>
-                  <span className="ligne__meta shrink-0">
-                    {c.n} · {formatTaille(c.taille)}
-                  </span>
+    <>
+      {courant && (
+        <nav aria-label="Fil d’Ariane" className="mb-4 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[14px]">
+          <Link href="/documents" className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+            Documents
+          </Link>
+          {fil.map((d, i) => (
+            <span key={d.id} className="flex items-center gap-1.5">
+              <span aria-hidden="true" className="text-[var(--muted-foreground)]">›</span>
+              {i === fil.length - 1 ? (
+                <span aria-current="page" className="font-semibold">{d.nom}</span>
+              ) : (
+                <Link href={`/documents?dossier=${d.id}`}
+                      className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+                  {d.nom}
                 </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
-    </div>
+              )}
+            </span>
+          ))}
+        </nav>
+      )}
+
+      <BarreDossier
+        kind="document" parentId={dossierId} matieres={matieresForm}
+        peutCreer={fil.length < PROFONDEUR_MAX_DOSSIERS}
+        gestion={courant ? gestionDe(courant, dossiers, moi, matieresForm) : undefined}
+      />
+
+      {enfants.length > 0 && (
+        <ul>
+          {enfants.map((d) => {
+            const sous = dossiers.filter((x) => x.parent_id === d.id).length;
+            const n = contenuDans.get(d.id) ?? 0;
+            const meta = [
+              d.parent_id === null && d.matiere !== d.nom ? d.matiere : null,
+              sous > 0 ? `${sous} dossier${sous > 1 ? "s" : ""}` : null,
+              `${n} document${n > 1 ? "s" : ""}`,
+            ].filter(Boolean).join(" · ");
+            return (
+              <LigneDossier key={d.id} nom={d.nom} meta={meta} couleur={d.couleur}
+                            href={`/documents?dossier=${d.id}`}
+                            gestion={gestionDe(d, dossiers, moi, matieresForm)} />
+            );
+          })}
+        </ul>
+      )}
+
+      {docs.length > 0 && enfants.length > 0 && (
+        <h2 className="etiquette mt-8">{courant ? "Documents" : "Hors dossier"}</h2>
+      )}
+      <ListeDocuments
+        documents={docs} moi={moi.id} estAdmin={moi.role === "admin"}
+        destinations={destinations(dossiers)}
+        vide={enfants.length > 0 ? "" : courant ? "Ce dossier est vide." : "Aucun document pour l’instant."}
+      />
+    </>
   );
 }
 
-async function ParMatiere({
-  matiere, chapitre, userId, estAdmin,
-}: {
-  matiere: string; chapitre: string | null; userId: string; estAdmin: boolean;
-}) {
-  const [docs, matieres] = await Promise.all([
-    documentsParMatiere(matiere, chapitre),
-    listerMatieres(true),
-  ]);
-  const m = matieres.find((x) => String(x.id) === matiere);
-  return (
-    <>
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <p className="flex min-w-0 items-center gap-2 text-[15px] font-medium">
-          <PastilleMatiere nom={m?.nom ?? null} couleur={m?.couleur ?? null} />
-          {chapitre && <span className="truncate">{chapitre}</span>}
-        </p>
-        <Link href="/documents?vue=classement" className="lien-discret">
-          Toutes les matières
-        </Link>
-      </div>
-      <ListeDocuments documents={docs} moi={userId} estAdmin={estAdmin} />
-    </>
-  );
+/** Nombre de documents dans chaque dossier, sous-dossiers compris. */
+function contenuRecursif(dossiers: DossierVue[]): Map<number, number> {
+  const total = new Map<number, number>();
+  for (const d of dossiers) {
+    // Remonte la chaîne des parents : un document compte pour tous ses ancêtres.
+    for (const a of chemin(dossiers, d.id)) total.set(a.id, (total.get(a.id) ?? 0) + d.nb_elements);
+  }
+  return total;
 }

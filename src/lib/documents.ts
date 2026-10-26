@@ -16,6 +16,7 @@ export type DocumentVue = {
   mime: string;
   taille: number;
   subject_id: number | null;
+  folder_id: number | null;
   matiere: string | null;
   couleur: string | null;
   chapitre: string | null;
@@ -28,7 +29,7 @@ export type DocumentVue = {
 };
 
 const CHAMPS = `
-  d.id, d.original_name, d.mime, d.taille, d.subject_id, sj.nom as matiere, sj.couleur,
+  d.id, d.original_name, d.mime, d.taille, d.subject_id, d.folder_id, sj.nom as matiere, sj.couleur,
   d.chapitre,
   d.tags, d.uploaded_by, u.display_name as uploader, d.created_at,
   d.deleted_at, d.purge_after`;
@@ -43,19 +44,14 @@ export async function documentsRecents(limite = 20): Promise<DocumentVue[]> {
   );
 }
 
-/** `matiere` : id de la matière, "" = sans matière, null = toutes. */
-export async function documentsParMatiere(
-  matiere: string | null,
-  chapitre: string | null,
-): Promise<DocumentVue[]> {
+/** Contenu direct d'un dossier ; null = documents rangés à la racine. */
+export async function documentsDuDossier(dossierId: number | null): Promise<DocumentVue[]> {
   return query<DocumentVue>(
     `select ${CHAMPS} from document d join app_user u on u.id = d.uploaded_by
       left join subject sj on sj.id = d.subject_id
-      where d.deleted_at is null
-        and ($1::text is null or coalesce(d.subject_id::text, '') = $1)
-        and ($2::text is null or coalesce(d.chapitre, '') = $2)
-      order by d.created_at desc limit 500`,
-    [matiere, chapitre],
+      where d.deleted_at is null and d.folder_id is not distinct from $1::bigint
+      order by lower(d.original_name), d.id limit 500`,
+    [dossierId],
   );
 }
 
@@ -89,42 +85,6 @@ export async function lireDocument(id: number): Promise<DocumentVue | null> {
       where d.id = $1`,
     [id],
   );
-}
-
-/** Arborescence matière → chapitres, avec les compteurs. */
-export type NoeudMatiere = {
-  subject_id: number | null;
-  matiere: string | null;
-  couleur: string | null;
-  total: number;
-  chapitres: Array<{ chapitre: string | null; n: number; taille: number }>;
-};
-
-export async function arborescence(): Promise<NoeudMatiere[]> {
-  const lignes = await query<{
-    subject_id: number | null; matiere: string | null; couleur: string | null;
-    chapitre: string | null; n: number; taille: number;
-  }>(
-    `select d.subject_id, sj.nom as matiere, sj.couleur, d.chapitre,
-            count(*)::int as n, coalesce(sum(d.taille), 0)::bigint as taille
-       from document d left join subject sj on sj.id = d.subject_id
-      where d.deleted_at is null
-      group by d.subject_id, sj.nom, sj.couleur, sj.position, d.chapitre
-      order by d.subject_id is null, sj.position, sj.nom, d.chapitre nulls last`,
-  );
-
-  const parMatiere = new Map<string, NoeudMatiere>();
-  for (const l of lignes) {
-    const cle = String(l.subject_id ?? "");
-    let n = parMatiere.get(cle);
-    if (!n) {
-      n = { subject_id: l.subject_id, matiere: l.matiere, couleur: l.couleur, total: 0, chapitres: [] };
-      parMatiere.set(cle, n);
-    }
-    n.chapitres.push({ chapitre: l.chapitre, n: l.n, taille: l.taille });
-    n.total += l.n;
-  }
-  return [...parMatiere.values()];
 }
 
 export type Usage = {

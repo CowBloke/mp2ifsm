@@ -4,22 +4,26 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { creerPaquet } from "@/lib/actions-fiches";
 import { ChoixMatiere } from "@/components/Matiere";
+import { NouveauDossier } from "@/components/NouveauDossier";
+import type { OptionDestination } from "@/lib/arbre-dossiers";
 
 type Matieres = Array<{ id: number; nom: string }>;
 
 /**
  * En-tête de la page Fiches : le titre et un seul bouton « + », qui
- * propose de créer un paquet ou d'en importer un depuis Anki.
+ * propose de créer un paquet, un dossier, ou d'importer un paquet Anki.
  */
-export function OutilsPaquets({ matieres }: { matieres: Matieres }) {
-  const [vue, setVue] = useState<null | "choix" | "creer" | "importer">(null);
+export function OutilsPaquets({
+  matieres, dossiers,
+}: { matieres: Matieres; dossiers: OptionDestination[] }) {
+  const [vue, setVue] = useState<null | "choix" | "creer" | "importer" | "dossier">(null);
 
   return (
     <>
       <header className="page-heading">
         <h1>Fiches</h1>
         <button type="button" className="bouton-rond"
-                aria-label={vue ? "Fermer" : "Nouveau paquet ou import Anki"}
+                aria-label={vue ? "Fermer" : "Nouveau paquet, dossier ou import Anki"}
                 aria-expanded={vue !== null}
                 onClick={() => setVue(vue ? null : "choix")}>
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
@@ -32,33 +36,56 @@ export function OutilsPaquets({ matieres }: { matieres: Matieres }) {
       {vue === "choix" && (
         <div className="-mt-4 mb-10 flex flex-wrap gap-2">
           <button type="button" className="puce" onClick={() => setVue("creer")}>Nouveau paquet</button>
+          <button type="button" className="puce" onClick={() => setVue("dossier")}>Nouveau dossier</button>
           <button type="button" className="puce" onClick={() => setVue("importer")}>Importer un .apkg</button>
         </div>
       )}
-      {(vue === "creer" || vue === "importer") && (
+      {(vue === "creer" || vue === "importer" || vue === "dossier") && (
         <div className="-mt-4 mb-10">
-          {vue === "creer"
-            ? <FormulairePaquet matieres={matieres} onFini={() => setVue(null)} />
-            : <FormulaireImport matieres={matieres} onFini={() => setVue(null)} />}
+          {vue === "creer" ? <FormulairePaquet matieres={matieres} dossiers={dossiers} onFini={() => setVue(null)} />
+            : vue === "importer" ? <FormulaireImport matieres={matieres} dossiers={dossiers} onFini={() => setVue(null)} />
+            : <NouveauDossier kind="deck" matieres={matieres} onFini={() => setVue(null)} />}
         </div>
       )}
     </>
   );
 }
 
-function ChampsClassement({ matieres }: { matieres: Matieres }) {
+/**
+ * Matière + chapitre, et le dossier où ranger le paquet. Dans un
+ * dossier, la matière est celle du dossier : le menu est donc masqué.
+ */
+function ChampsClassement({ matieres, dossiers }: { matieres: Matieres; dossiers: OptionDestination[] }) {
+  const [dossier, setDossier] = useState("");
   return (
-    <div className="grid grid-cols-2 gap-2">
-      <ChoixMatiere matieres={matieres} />
-      <input name="chapitre" required maxLength={120}
-             placeholder="Chapitre"
-             className="rounded-[var(--radius-md)] border-2 px-3 py-2 text-[14px]
-                        outline-none focus:border-[var(--ring)]" />
+    <div className="flex flex-col gap-2">
+      {dossiers.length > 1 && <label className="flex flex-col gap-1.5 text-[13px] text-[var(--muted-foreground)]">
+        Dossier
+        <select name="dossier" value={dossier} onChange={(e) => setDossier(e.target.value)}
+                className="min-h-12 px-3 text-[var(--foreground)]">
+          {dossiers.map((o) => (
+            <option key={o.id ?? "aucun"} value={o.id ?? ""}>
+              {"\u2003".repeat(Math.max(0, o.niveau - 1))}{o.libelle}
+            </option>
+          ))}
+        </select>
+      </label>}
+      <div className="grid grid-cols-2 gap-2">
+        {dossier === ""
+          ? <ChoixMatiere matieres={matieres} />
+          : <p className="self-center text-[13px] text-[var(--muted-foreground)]">Matière du dossier</p>}
+        <input name="chapitre" required maxLength={120}
+               placeholder="Chapitre"
+               className="rounded-[var(--radius-md)] border-2 px-3 py-2 text-[14px]
+                          outline-none focus:border-[var(--ring)]" />
+      </div>
     </div>
   );
 }
 
-function FormulairePaquet({ matieres, onFini }: { matieres: Matieres; onFini: () => void }) {
+function FormulairePaquet({
+  matieres, dossiers, onFini,
+}: { matieres: Matieres; dossiers: OptionDestination[]; onFini: () => void }) {
   const router = useRouter();
   const [erreur, setErreur] = useState<string | null>(null);
   const [enCours, demarrer] = useTransition();
@@ -80,7 +107,7 @@ function FormulairePaquet({ matieres, onFini }: { matieres: Matieres; onFini: ()
              placeholder="Titre (ex. Développements limités)"
              className="w-full rounded-[var(--radius-md)] border-2 px-3 py-2 text-[14px]
                         outline-none focus:border-[var(--ring)]" />
-      <ChampsClassement matieres={matieres} />
+      <ChampsClassement matieres={matieres} dossiers={dossiers} />
       <textarea name="description" rows={2} maxLength={1000} placeholder="Description (facultatif)"
                 className="w-full rounded-[var(--radius-md)] border-2 px-3 py-2 text-[14px]
                            outline-none focus:border-[var(--ring)]" />
@@ -90,7 +117,9 @@ function FormulairePaquet({ matieres, onFini }: { matieres: Matieres; onFini: ()
   );
 }
 
-function FormulaireImport({ matieres, onFini }: { matieres: Matieres; onFini: () => void }) {
+function FormulaireImport({
+  matieres, dossiers, onFini,
+}: { matieres: Matieres; dossiers: OptionDestination[]; onFini: () => void }) {
   const router = useRouter();
   const [erreur, setErreur] = useState<string | null>(null);
   const [enCours, setEnCours] = useState(false);
@@ -120,7 +149,7 @@ function FormulaireImport({ matieres, onFini }: { matieres: Matieres; onFini: ()
              className="w-full text-[13px] file:mr-3 file:rounded-[var(--radius-sm)]
                         file:border-0 file:bg-[var(--secondary)] file:px-3 file:py-1.5
                         file:text-[13px] file:font-medium" />
-      <ChampsClassement matieres={matieres} />
+      <ChampsClassement matieres={matieres} dossiers={dossiers} />
       <input name="titre" maxLength={120} placeholder="Titre (sinon celui du paquet Anki)"
              className="w-full rounded-[var(--radius-md)] border-2 px-3 py-2 text-[14px]
                         outline-none focus:border-[var(--ring)]" />

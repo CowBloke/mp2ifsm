@@ -3,6 +3,7 @@ import { utilisateurCourant } from "@/lib/session";
 import { tx } from "@/lib/db";
 import { ErreurMetier, messageFr } from "@/lib/errors";
 import { matiereDuFormulaire } from "@/lib/matieres";
+import { dossierDuFormulaire } from "@/lib/dossiers-formulaire";
 import { lireFormulaire, verifierQuota } from "@/lib/uploads";
 import {
   DOSSIER_DOCUMENTS, TAILLE_MAX_FICHIER, TYPES_DOCUMENTS,
@@ -21,7 +22,6 @@ export async function POST(request: Request) {
     const fichier = form.get("fichier");
     if (!(fichier instanceof File) || !fichier.size) throw new ErreurMetier("FICHIER_MANQUANT");
     if (fichier.size > TAILLE_MAX_FICHIER) throw new ErreurMetier("FICHIER_TROP_GROS");
-    const matiere = await matiereDuFormulaire(form.get("matiere"));
     const chapitre = String(form.get("chapitre") ?? "").trim();
     if (chapitre.length > 120) throw new ErreurMetier("CHAMPS_MANQUANTS");
     const tags = [...new Set(String(form.get("tags") ?? "").split(",")
@@ -33,12 +33,16 @@ export async function POST(request: Request) {
     if (!mime || !TYPES_DOCUMENTS[mime]) throw new ErreurMetier("TYPE_NON_AUTORISE");
     const id = await tx(async c => {
       await verifierQuota(c, u.id, buf.length);
+      // Dans un dossier qui a une matière, le document la prend.
+      const dossier = await dossierDuFormulaire(form.get("dossier"), "document", c);
+      const matiere = dossier?.subject_id ?? await matiereDuFormulaire(form.get("matiere"), c);
       stockage = await ecrire(DOSSIER_DOCUMENTS, buf);
       const r = await c.query<{ id: number }>(
         `insert into document (storage_name, original_name, mime, taille, sha256,
-                               subject_id, chapitre, tags, uploaded_by)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9::uuid) returning id`,
-        [stockage, nom, mime, buf.length, empreinte(buf), matiere, chapitre || null, tags, u.id]);
+                               subject_id, folder_id, chapitre, tags, uploaded_by)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::uuid) returning id`,
+        [stockage, nom, mime, buf.length, empreinte(buf), matiere, dossier?.id ?? null,
+         chapitre || null, tags, u.id]);
       return r.rows[0].id;
     });
     return NextResponse.json({ ok: true, id });
