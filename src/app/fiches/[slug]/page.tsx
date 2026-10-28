@@ -8,7 +8,7 @@ import { BoutonSuivre } from "@/components/BoutonSuivre";
 import { MatierePaquet } from "@/components/MatierePaquet";
 import { ChoixDossier } from "@/components/ChoixDossier";
 import { LienRetour } from "@/components/LienRetour";
-import { destinations, libelleChemin } from "@/lib/arbre-dossiers";
+import { destinations } from "@/lib/arbre-dossiers";
 import { listerDossiers } from "@/lib/dossiers";
 import { listerMatieres } from "@/lib/matieres";
 import { heatmapClasse, lirePaquet, listerCartes, statsPaquet } from "@/lib/fiches";
@@ -35,51 +35,31 @@ export default async function PagePaquet({
     peutReclasser ? listerMatieres(true) : [],
     listerDossiers("deck"),
   ]);
-  const emplacement = libelleChemin(dossiers, paquet.folder_id);
 
   return (
     <main>
       <LienRetour href="/fiches" label="Retour aux fiches" />
 
       <header className="mb-10 flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <p className="text-[14px] text-[var(--muted-foreground)]">
-            {emplacement || (paquet.matiere ?? "Sans matière")} · {paquet.chapitre}
-          </p>
-          <h1 className="titre-page mt-1.5 [overflow-wrap:anywhere]">{paquet.titre}</h1>
-          {paquet.description && (
-            <p className="mt-3 text-[15px] leading-relaxed text-[var(--muted-foreground)]">{paquet.description}</p>
-          )}
-          {peutReclasser && (
-            <div className="mt-3 flex flex-col items-start gap-3">
-              <MatierePaquet key={`m${paquet.subject_id}`} deckId={paquet.id} actuelle={paquet.subject_id} matieres={matieres} />
-              <ChoixDossier key={`f${paquet.folder_id}-${paquet.subject_id}`} cible="deck" id={paquet.id} actuel={paquet.folder_id}
-                            options={destinations(dossiers, { avecMatiere: true })} />
-            </div>
-          )}
-        </div>
+        <h1 className="titre-page min-w-0 [overflow-wrap:anywhere]">{paquet.titre}</h1>
         <BoutonSuivre deckId={paquet.id} abonne={paquet.abonne} />
       </header>
 
       <div className="page-stack">
-        {paquet.abonne ? (
+        {paquet.description && (
+          <p className="-mt-6 text-[15px] leading-relaxed text-[var(--muted-foreground)]">{paquet.description}</p>
+        )}
+        {paquet.abonne && (
           <section className="flex flex-col gap-8">
-            {du > 0 ? (
+            {du > 0 && (
               <Link href={`/fiches/${paquet.slug}/reviser`} className="bouton-principal">
                 Réviser {du} carte{du > 1 ? "s" : ""}
               </Link>
-            ) : (
-              <p className="text-[15px] text-[var(--muted-foreground)]">Tout est à jour.</p>
             )}
             <Suspense fallback={<SqueletteListe n={2} />}>
-              <Statistiques deckId={paquet.id} userId={u.id} slug={paquet.slug} />
+              <Statistiques deckId={paquet.id} userId={u.id} />
             </Suspense>
           </section>
-        ) : (
-          <p className="text-[15px] leading-relaxed text-[var(--muted-foreground)]">
-            Suivez ce paquet pour le réviser. Si vous l’aviez déjà travaillé, votre progression
-            reprend là où vous l’aviez laissée.
-          </p>
         )}
 
         <Suspense fallback={null}>
@@ -97,6 +77,20 @@ export default async function PagePaquet({
             </Suspense>
           </div>
         </section>
+
+        <details>
+          <summary className="etiquette min-h-11 cursor-pointer py-3">Plus</summary>
+          <div className="flex flex-col items-start gap-3">
+            {peutReclasser && (
+              <>
+                <MatierePaquet key={`m${paquet.subject_id}`} deckId={paquet.id} actuelle={paquet.subject_id} matieres={matieres} />
+                <ChoixDossier key={`f${paquet.folder_id}-${paquet.subject_id}`} cible="deck" id={paquet.id} actuel={paquet.folder_id}
+                              options={destinations(dossiers, { avecMatiere: true })} />
+              </>
+            )}
+            <a href={`/api/fiches/export/${paquet.slug}`} className="lien-discret">Exporter vers Anki</a>
+          </div>
+        </details>
       </div>
     </main>
   );
@@ -120,9 +114,7 @@ async function Cartes({
   );
 }
 
-async function Statistiques({
-  deckId, userId, slug,
-}: { deckId: number; userId: string; slug: string }) {
+async function Statistiques({ deckId, userId }: { deckId: number; userId: string }) {
   const s = await statsPaquet(deckId, userId);
   const maxJour = Math.max(1, ...s.a_venir.map((j) => j.n));
 
@@ -162,7 +154,6 @@ async function Statistiques({
           </div>
         ))}
       </div>
-      <a href={`/api/fiches/export/${slug}`} className="lien-discret mt-4">Exporter en .apkg</a>
     </section>
   );
 }

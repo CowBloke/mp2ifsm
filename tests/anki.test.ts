@@ -1,10 +1,19 @@
-import { ecrireApkg, lireApkg, htmlVersTexte, formaterCloze } from "../src/lib/anki";
+import { champsConstants, ecrireApkg, lireApkg, htmlVersTexte, formaterCloze } from "../src/lib/anki";
 
 let echecs = 0;
 const verifier = (nom: string, condition: boolean, detail = "") => {
   console.log(`${condition ? "PASS" : "FAIL"}  ${nom}${condition ? "" : "  <- " + detail}`);
   if (!condition) echecs++;
 };
+
+// --- champs constants (étiquette de chapitre) -------------------------
+{
+  const notes = Array.from({ length: 6 }, (_, i) => [`Q${i}`, `R${i}`, "Chapitre 3"]);
+  const c = champsConstants(notes);
+  verifier("un champ identique sur toutes les notes est ignoré", c.has(2) && !c.has(1), [...c].join());
+  verifier("le premier champ n'est jamais ignoré", !champsConstants(notes.map((n) => ["X", ...n.slice(1)])).has(0));
+  verifier("trop peu de notes : rien n'est ignoré", champsConstants(notes.slice(0, 3)).size === 0);
+}
 
 // --- conversion HTML -> texte ---------------------------------------
 verifier("les <br> deviennent des retours à la ligne",

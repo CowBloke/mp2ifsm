@@ -20,7 +20,7 @@ export function MatierePaquet({
   const options = matieres.filter((m) => !m.archivee || m.id === actuelle);
 
   return (
-    <label className="inline-flex items-center gap-1.5 text-[11px] text-[var(--muted-foreground)]">
+    <label className="flex flex-col gap-1.5 text-[13px] text-[var(--muted-foreground)]">
       Matière
       <select
         defaultValue={actuelle ?? ""}
@@ -33,7 +33,7 @@ export function MatierePaquet({
             if (r.ok) router.refresh(); else setErreur(r.erreur);
           });
         }}
-        className="rounded-[var(--radius-sm)] border px-1.5 py-0.5 text-[11px]"
+        className="min-h-11 px-3 text-[14px] text-[var(--foreground)]"
       >
         <option value="">Sans matière</option>
         {options.map((m) => (

@@ -28,7 +28,7 @@ let assertions = 0;
 function ok(condition: unknown, message: string) { assert.ok(condition, message); assertions++; console.log(`PASS ${message}`); }
 try {
   await admin.query(`create schema ${schema}`);
-  for (const fichier of ["db/schema.sql", "db/functions.sql", "db/schema-portal.sql", "db/schema-proposals.sql", "db/schema-etudes.sql", "db/schema-dossiers.sql"]) {
+  for (const fichier of ["db/schema.sql", "db/functions.sql", "db/schema-portal.sql", "db/schema-proposals.sql", "db/schema-etudes.sql", "db/schema-dossiers.sql", "db/schema-kcmaths.sql"]) {
     await query(await readFile(fichier, "utf8"));
   }
   const membres = await query<{ id: string }>(`insert into app_user (email, display_name, password_hash, partage_stats)
@@ -247,7 +247,7 @@ try {
   ok((await action("modifierDossier", [dossierPaquets.data.id, "Optique", String(maths.id)])).ok, "root deck folder changes subject");
   ok((await query("select 1 from deck d join dossier f on f.id=d.folder_id where d.id=$1 and d.subject_id=$2 and f.subject_id=$2", [deck.id, maths.id])).length === 1,
     "subject change cascades to subfolders and decks");
-  const page = await (await fetch(base + "/fiches?vue=tous", { headers: auth })).text();
+  const page = await (await fetch(base + "/fiches", { headers: auth })).text();
   ok(page.includes("Optique"), "deck catalogue renders folders");
   await query("update app_user set role='member' where id=$1", [bob]);
 

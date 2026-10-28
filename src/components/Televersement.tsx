@@ -8,24 +8,19 @@ import { ChoixMatiere } from "@/components/Matiere";
  * Dépôt d'un document.
  *
  * Passe par une route (et non une action serveur) parce qu'un fichier
- * peut peser plusieurs dizaines de Mo. La bannière de droits d'auteur
- * est affichée ici, et chaque fichier garde l'identité de son
- * déposant — c'est ce qui rend la règle applicable.
+ * peut peser plusieurs dizaines de Mo. La règle sur les droits d'auteur
+ * reste visible au-dessus du bouton, et chaque fichier garde l'identité
+ * de son déposant — c'est ce qui rend la règle applicable.
  */
 export function Televersement({
-  restant, matieres, dossier = null, onFermer,
+  matieres, dossier = null, onFermer,
 }: {
-  restant: number;
   matieres: Array<{ id: number; nom: string }>;
-  /** Dossier courant : le document y est rangé. */
-  dossier?: { id: number; chemin: string; matiere: number | null } | null;
-  onFermer?: () => void;
+  /** Dossier courant : le document y est rangé, avec sa matière. */
+  dossier?: { id: number; matiere: number | null } | null;
+  onFermer: () => void;
 }) {
   const router = useRouter();
-  const [ouvertLocal, setOuvertLocal] = useState(false);
-  // Piloté par l'en-tête quand onFermer est fourni : toujours ouvert.
-  const ouvert = onFermer ? true : ouvertLocal;
-  const setOuvert = (v: boolean) => { if (!v && onFermer) onFermer(); else setOuvertLocal(v); };
   const [erreur, setErreur] = useState<string | null>(null);
   const [enCours, setEnCours] = useState(false);
 
@@ -36,7 +31,7 @@ export function Televersement({
       const res = await fetch("/api/documents/upload", { method: "POST", body: fd });
       const data = await res.json();
       if (!res.ok) { setErreur(data.erreur ?? "Envoi impossible"); return; }
-      setOuvert(false);
+      onFermer();
       router.refresh();
     } catch {
       setErreur("Envoi impossible — réessayez");
@@ -45,74 +40,23 @@ export function Televersement({
     }
   }
 
-  if (!ouvert) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOuvert(true)}
-        disabled={restant <= 0}
-        className="w-full rounded-[var(--radius-md)] bg-[var(--primary)] px-4 py-2.5 text-[14px]
-                   font-semibold text-[var(--primary-foreground)] disabled:opacity-40"
-      >
-        {restant > 0 ? "+ Déposer un document" : "Quota atteint"}
-      </button>
-    );
-  }
-
   return (
-    <form action={envoyer}>
-      <h2 className="text-[15px] font-semibold">Déposer un document</h2>
-
-      {/* Bannière de droits : visible avant le choix du fichier. */}
-      <p className="mt-2 text-[13px] leading-snug text-[var(--muted-foreground)]">
-        <strong>Pas de contenu sous droits.</strong> Polycopiés, scans de manuels
-        et annales sous licence ne doivent pas être déposés. Vos cours et vos
-        corrigés personnels, oui. Chaque dépôt est enregistré avec votre nom.
-      </p>
-
+    <form action={envoyer} className="flex flex-col gap-2">
       <input
-        type="file" name="fichier" required
-        className="mt-3 w-full text-[13px] file:mr-3 file:rounded-[var(--radius-sm)]
-                   file:border-0 file:bg-[var(--secondary)] file:px-3 file:py-1.5
-                   file:text-[13px] file:font-medium"
+        type="file" name="fichier" required aria-label="Fichier"
+        className="w-full text-[14px] file:mr-3 file:rounded-[var(--radius-sm)]
+                   file:border-0 file:bg-[var(--secondary)] file:px-3 file:py-2
+                   file:text-[14px] file:font-medium"
       />
+      {dossier && <input type="hidden" name="dossier" value={dossier.id} />}
+      {!(dossier && dossier.matiere !== null) && <ChoixMatiere matieres={matieres} />}
 
-      {dossier && (
-        <>
-          <input type="hidden" name="dossier" value={dossier.id} />
-          <p className="mt-3 text-[13px] text-[var(--muted-foreground)]">
-            Sera rangé dans <strong className="text-[var(--foreground)]">{dossier.chemin}</strong>
-            {dossier.matiere !== null && " (matière du dossier)"}.
-          </p>
-        </>
-      )}
+      <p className="text-[13px] text-[var(--muted-foreground)]">Pas de contenu sous droits d’auteur.</p>
+      {erreur && <p role="alert" className="text-[13px] font-medium text-[var(--destructive)]">{erreur}</p>}
 
-      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-1">
-        {!(dossier && dossier.matiere !== null) && <ChoixMatiere matieres={matieres} />}
-        <input name="chapitre" maxLength={120} placeholder="Chapitre"
-               className="min-w-0 rounded-[var(--radius-md)] border-2 px-3 py-2 text-[14px]
-                          outline-none focus:border-[var(--ring)]" />
-      </div>
-
-      <input name="tags" maxLength={200} placeholder="Mots-clés séparés par des virgules"
-             className="mt-2 w-full rounded-[var(--radius-md)] border-2 px-3 py-2 text-[14px]
-                        outline-none focus:border-[var(--ring)]" />
-
-      {erreur && (
-        <p role="alert" className="mt-2 text-[13px] font-medium text-[var(--destructive)]">
-          {erreur}
-        </p>
-      )}
-
-      <div className="mt-3 flex gap-2">
-        <button type="button" onClick={() => setOuvert(false)}
-                className="rounded-[var(--radius-md)] border px-4 py-2.5 text-[14px] font-medium">
-          Annuler
-        </button>
-        <button type="submit" disabled={enCours}
-                className="flex-1 rounded-[var(--radius-md)] bg-[var(--primary)] px-4 py-2.5
-                           text-[14px] font-semibold text-[var(--primary-foreground)]
-                           disabled:opacity-50">
+      <div className="flex gap-2 pt-1">
+        <button type="button" onClick={onFermer} className="puce h-12">Annuler</button>
+        <button type="submit" disabled={enCours} className="bouton-principal h-12 flex-1">
           {enCours ? "Envoi…" : "Déposer"}
         </button>
       </div>

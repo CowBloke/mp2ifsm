@@ -4,8 +4,9 @@ Portail mobile en français pour la prépa MP2I/FSM : **Accueil, Fiches,
 Documents, Marché, Profil**. Les rubriques utilisent les mêmes comptes,
 sessions et tables PostgreSQL ; les fichiers restent privés sur le SSD.
 
-L’accueil regroupe les révisions dues, les documents récents, les échéances
-saisies par la classe et les marchés qui ferment bientôt.
+L’accueil montre d’abord la semaine (colles du groupe et échéances saisies
+par la classe), puis une ligne pour les révisions dues et une pour le marché
+qui ferme le plus tôt.
 
 ## Fiches
 
@@ -26,6 +27,7 @@ révisions par membre et jour dans le paquet, exclusivement sur consentement.
 Les imports `.apkg` lisent les collections SQLite héritées (`anki2` / `anki21`).
 Dans Anki, cocher la compatibilité avec les anciennes versions. Chaque import
 crée un nouveau paquet ; les premiers champs sont convertis en recto/verso.
+Un champ identique sur toutes les notes (étiquette de chapitre) est ignoré.
 Les modèles complexes et leur mise en page ne sont pas reproduits. Images,
 accents et formules sont conservés ; sons et vidéos sont ignorés. Les exports
 contiennent un modèle Basique, les images référencées et des GUID stables.

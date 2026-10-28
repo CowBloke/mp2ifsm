@@ -44,7 +44,7 @@ export function FormulaireEcheance({
     >
       <input
         name="titre" required minLength={3} maxLength={120}
-        placeholder="DS de maths — chapitres 1 à 4"
+        placeholder="Titre" aria-label="Titre"
         className="w-full rounded-[var(--radius-md)] border-2 px-3 py-2 text-[14px]
                    outline-none focus:border-[var(--ring)]"
       />

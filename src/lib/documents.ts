@@ -34,16 +34,6 @@ const CHAMPS = `
   d.tags, d.uploaded_by, u.display_name as uploader, d.created_at,
   d.deleted_at, d.purge_after`;
 
-export async function documentsRecents(limite = 20): Promise<DocumentVue[]> {
-  return query<DocumentVue>(
-    `select ${CHAMPS} from document d join app_user u on u.id = d.uploaded_by
-      left join subject sj on sj.id = d.subject_id
-      where d.deleted_at is null
-      order by d.created_at desc limit $1`,
-    [limite],
-  );
-}
-
 /** Contenu direct d'un dossier ; null = documents rangés à la racine. */
 export async function documentsDuDossier(dossierId: number | null): Promise<DocumentVue[]> {
   return query<DocumentVue>(

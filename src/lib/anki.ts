@@ -116,6 +116,22 @@ export function formaterCloze(texte: string, extra = ""): CarteCloze[] {
   });
 }
 
+/**
+ * Champs identiques sur toutes les notes (hors le premier) : une étiquette
+ * de chapitre ou de source, pas une réponse. Sans ce filtre, elle finit
+ * recopiée au dos de chaque carte.
+ */
+export function champsConstants(notes: string[][]): Set<number> {
+  const constants = new Set<number>();
+  if (notes.length < 5) return constants;
+  const largeur = Math.max(...notes.map((n) => n.length));
+  for (let i = 1; i < largeur; i++) {
+    const v = notes[0][i]?.trim();
+    if (v && notes.every((n) => n[i]?.trim() === v)) constants.add(i);
+  }
+  return constants;
+}
+
 export async function lireApkg(archive: Buffer): Promise<PaquetImporte> {
   let dossier: string | null = null;
   try {
@@ -164,8 +180,9 @@ export async function lireApkg(archive: Buffer): Promise<PaquetImporte> {
         Array<{ guid: string; flds: string }>;
 
       if (lignes.length > 10000) throw new ErreurMetier("FICHIER_TROP_GROS");
+      const constants = champsConstants(lignes.map((l) => l.flds.split(SEP)));
       notes = lignes.flatMap(({ guid, flds }) => {
-        const champs = flds.split(SEP);
+        const champs = flds.split(SEP).map((c, i) => (constants.has(i) ? "" : c));
         const indexCloze = champs.findIndex((c) => /\{\{\s*c\d+\s*::/i.test(c));
 
         if (indexCloze !== -1) {

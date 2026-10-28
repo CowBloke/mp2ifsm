@@ -1,15 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { envoyerRetour } from "@/lib/actions-retours";
 import { CATEGORIES_RETOUR, type CategorieRetour } from "@/lib/constantes";
 
 /*
- * Bouton « Retour » de la barre du haut, réservé aux membres connectés.
- * Le retour garde l'auteur, la catégorie et la page d'envoi ; son
- * statut se suit dans Profil → Mes retours.
+ * Envoi d'un retour depuis le profil. Le retour garde l'auteur, la
+ * catégorie et la page d'envoi ; son statut se suit dans Profil.
  */
 export function BoutonRetour() {
   const chemin = usePathname();
@@ -33,14 +31,10 @@ export function BoutonRetour() {
       <button
         type="button"
         onClick={() => { setOuvert(true); setEtat(null); }}
-        className="puce h-11 gap-1.5"
+        className="puce h-11"
         aria-haspopup="dialog"
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-          <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z" />
-        </svg>
-        Retour
+        Signaler un bug ou une idée
       </button>
 
       {ouvert && (
@@ -57,13 +51,7 @@ export function BoutonRetour() {
             </div>
 
             {etat?.ok ? (
-              <div className="mt-3">
-                <p role="status" className="text-[14px]">{etat.texte}</p>
-                <Link href="/profil#mes-retours" onClick={() => setOuvert(false)}
-                      className="mt-3 inline-block text-[13px] font-medium text-[var(--primary)]">
-                  Suivre mes retours →
-                </Link>
-              </div>
+              <p role="status" className="mt-3 text-[14px]">{etat.texte}</p>
             ) : (
               <form
                 className="mt-3 space-y-3"
@@ -74,7 +62,7 @@ export function BoutonRetour() {
                     const r = await envoyerRetour(categorie, message, chemin);
                     if (r.ok) {
                       setMessage("");
-                      setEtat({ ok: true, texte: "Merci ! Les administrateurs verront votre retour ; son statut apparaît dans votre profil." });
+                      setEtat({ ok: true, texte: "Merci !" });
                     } else {
                       setEtat({ ok: false, texte: r.erreur });
                     }
@@ -105,15 +93,10 @@ export function BoutonRetour() {
                   onChange={(e) => setMessage(e.target.value)}
                   required minLength={5} maxLength={2000} rows={5}
                   aria-label="Message"
-                  placeholder={categorie === "bug"
-                    ? "Ce qui s’est passé, ce que vous attendiez, et comment le reproduire…"
-                    : "Votre suggestion…"}
+                  placeholder={categorie === "bug" ? "Ce qui s’est passé…" : "Votre idée…"}
                   className="w-full rounded-[var(--radius-md)] border-2 px-3 py-2 text-[14px]
                              outline-none focus:border-[var(--ring)]"
                 />
-                <p className="text-[11px] text-[var(--muted-foreground)]">
-                  Envoyé avec votre nom et la page actuelle ({chemin}).
-                </p>
                 {etat && !etat.ok && (
                   <p role="alert" className="text-[13px] font-medium text-[var(--destructive)]">{etat.texte}</p>
                 )}

@@ -30,7 +30,7 @@ export function ListeDocuments({
   documents, moi, estAdmin, corbeille = false, chemins, destinations, vide,
 }: {
   documents: DocVue[]; moi: string; estAdmin: boolean; corbeille?: boolean;
-  /** Chemin lisible de chaque dossier : affiché à la place de la matière. */
+  /** Chemin lisible de chaque dossier, affiché dans les résultats de recherche. */
   chemins?: Record<number, string>;
   /** Dossiers où ranger un document (menu « Dossier » des actions). */
   destinations?: OptionDestination[];
@@ -44,7 +44,7 @@ export function ListeDocuments({
     if (vide === "") return null;
     return (
       <p className="text-[15px] text-[var(--muted-foreground)]">
-        {corbeille ? "Corbeille vide." : vide ?? "Aucun document ici."}
+        {corbeille ? "Corbeille vide." : vide ?? "Aucun document."}
       </p>
     );
   }
@@ -56,8 +56,10 @@ export function ListeDocuments({
           const previsualisable = d.mime === "application/pdf" || d.mime.startsWith("image/");
           const peutSupprimer = estAdmin || d.uploaded_by === moi;
           const deplie = actions === d.id;
+          // Le chemin seulement hors de l'explorateur (recherche) : dans un
+          // dossier, il est déjà dans l'en-tête.
           const meta = [
-            (d.folder_id !== null && chemins?.[d.folder_id]) || d.matiere, taille(d.taille),
+            d.folder_id !== null && chemins?.[d.folder_id],
             new Date(d.created_at).toLocaleDateString("fr-FR", { day: "numeric", month: "short" }),
           ].filter(Boolean).join(" · ");
 
@@ -101,10 +103,7 @@ export function ListeDocuments({
 
               {deplie && (
                 <div className="flex flex-col gap-1 pb-3 pl-[50px] text-[13px] text-[var(--muted-foreground)]">
-                  <p>
-                    Déposé par {d.uploader}{d.chapitre && ` · ${d.chapitre}`}
-                    {d.tags.length > 0 && ` · ${d.tags.join(", ")}`}
-                  </p>
+                  <p>{d.uploader} · {taille(d.taille)}</p>
                   {corbeille && d.purge_after && (
                     <p className="text-[var(--destructive)]">
                       Effacement définitif le {new Date(d.purge_after).toLocaleDateString("fr-FR")}

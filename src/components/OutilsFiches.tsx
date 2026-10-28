@@ -37,7 +37,7 @@ export function OutilsPaquets({
         <div className="-mt-4 mb-10 flex flex-wrap gap-2">
           <button type="button" className="puce" onClick={() => setVue("creer")}>Nouveau paquet</button>
           <button type="button" className="puce" onClick={() => setVue("dossier")}>Nouveau dossier</button>
-          <button type="button" className="puce" onClick={() => setVue("importer")}>Importer un .apkg</button>
+          <button type="button" className="puce" onClick={() => setVue("importer")}>Importer depuis Anki</button>
         </div>
       )}
       {(vue === "creer" || vue === "importer" || vue === "dossier") && (
@@ -70,10 +70,8 @@ function ChampsClassement({ matieres, dossiers }: { matieres: Matieres; dossiers
           ))}
         </select>
       </label>}
-      <div className="grid grid-cols-2 gap-2">
-        {dossier === ""
-          ? <ChoixMatiere matieres={matieres} />
-          : <p className="self-center text-[13px] text-[var(--muted-foreground)]">Matière du dossier</p>}
+      <div className={`grid gap-2 ${dossier === "" ? "grid-cols-2" : ""}`}>
+        {dossier === "" && <ChoixMatiere matieres={matieres} />}
         <input name="chapitre" required maxLength={120}
                placeholder="Chapitre"
                className="rounded-[var(--radius-md)] border-2 px-3 py-2 text-[14px]
@@ -104,13 +102,10 @@ function FormulairePaquet({
     >
       <h2 className="text-[15px] font-semibold">Nouveau paquet</h2>
       <input name="titre" required minLength={2} maxLength={120}
-             placeholder="Titre (ex. Développements limités)"
+             placeholder="Titre"
              className="w-full rounded-[var(--radius-md)] border-2 px-3 py-2 text-[14px]
                         outline-none focus:border-[var(--ring)]" />
       <ChampsClassement matieres={matieres} dossiers={dossiers} />
-      <textarea name="description" rows={2} maxLength={1000} placeholder="Description (facultatif)"
-                className="w-full rounded-[var(--radius-md)] border-2 px-3 py-2 text-[14px]
-                           outline-none focus:border-[var(--ring)]" />
       {erreur && <p role="alert" className="text-[13px] font-medium text-[var(--destructive)]">{erreur}</p>}
       <Boutons enCours={enCours} onAnnuler={onFini} label="Créer" />
     </form>
@@ -150,13 +145,9 @@ function FormulaireImport({
                         file:border-0 file:bg-[var(--secondary)] file:px-3 file:py-1.5
                         file:text-[13px] file:font-medium" />
       <ChampsClassement matieres={matieres} dossiers={dossiers} />
-      <input name="titre" maxLength={120} placeholder="Titre (sinon celui du paquet Anki)"
+      <input name="titre" maxLength={120} placeholder="Titre (facultatif)"
              className="w-full rounded-[var(--radius-md)] border-2 px-3 py-2 text-[14px]
                         outline-none focus:border-[var(--ring)]" />
-      <p className="text-[11px] leading-snug text-[var(--muted-foreground)]">
-        Dans Anki, exportez en cochant « Prise en charge des anciennes versions
-        d’Anki ». Les images sont importées ; les sons sont ignorés.
-      </p>
       {erreur && <p role="alert" className="text-[13px] font-medium text-[var(--destructive)]">{erreur}</p>}
       <Boutons enCours={enCours} onAnnuler={onFini} label="Importer" />
     </form>

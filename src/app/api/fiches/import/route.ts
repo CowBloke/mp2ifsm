@@ -41,7 +41,8 @@ export async function POST(request: Request) {
     if (paquet.notes.length === 0) throw new ErreurMetier("APKG_VIDE");
 
     const titre = (String(form.get("titre") ?? "").trim()
-      || paquet.nom
+      // « Parent::Enfant » dans Anki : seul le dernier niveau sert de titre.
+      || paquet.nom?.split("::").pop()?.trim()
       || fichier.name.replace(/\.apkg$/i, "")).slice(0, 120);
 
     // Les images du paquet sont d'abord écrites sur le SSD, puis les
@@ -86,8 +87,7 @@ export async function POST(request: Request) {
       const d = await c.query<{ id: number }>(
         `insert into deck (slug, titre, subject_id, folder_id, chapitre, description, created_by)
          values ($1,$2,$3,$4,$5,$6,$7::uuid) returning id`,
-        [slug, titre, matiere, dossier?.id ?? null, chapitre,
-         `Importé depuis Anki par ${u.display_name}`, u.id],
+        [slug, titre, matiere, dossier?.id ?? null, chapitre, null, u.id],
       );
       const deckId = d.rows[0].id;
       await c.query(`insert into deck_subscription (user_id, deck_id) values ($1::uuid, $2)`,

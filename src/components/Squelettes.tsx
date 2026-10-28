@@ -46,7 +46,7 @@ export function SqueletteListe({ n = 5 }: { n?: number }) {
 export function SquelettePortefeuille() {
   return (
     <div className="space-y-4" aria-busy="true">
-      <div className="rounded-[var(--radius-lg)] border bg-[var(--card)] p-5">
+      <div>
         <div className="skeleton h-3 w-20" />
         <div className="skeleton mt-3 h-9 w-40" />
         <div className="mt-4 flex gap-2">

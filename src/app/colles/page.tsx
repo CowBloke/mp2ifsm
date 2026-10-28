@@ -2,11 +2,12 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { PastilleMatiere } from "@/components/Matiere";
 import { ReglageGroupe } from "@/components/Groupe";
+import { ChoixGroupeVue } from "@/components/ChoixGroupeVue";
 import {
   GROUPE_MAX, ajouterJours, groupeValide, jourParis, lundiDe,
 } from "@/lib/colloscope";
 import {
-  heure, jourCourt, plage, prochainesColles, salle, semaineColles, type ColleVue,
+  jourCourt, plage, prochainesColles, salle, semaineColles, type ColleVue,
 } from "@/lib/colles";
 import { utilisateurCourant } from "@/lib/session";
 
@@ -32,7 +33,6 @@ export default async function PageColles({
       <main>
         <header className="page-heading">
           <h1>Colles</h1>
-          <p>Indiquez votre groupe pour voir votre semaine.</p>
         </header>
         <ReglageGroupe groupe={null} max={GROUPE_MAX} />
       </main>
@@ -56,23 +56,8 @@ export default async function PageColles({
   return (
     <main>
       <header className="page-heading">
-        <div>
-          <h1>Colles</h1>
-          <p>
-            Groupe {groupe}{autreGroupe && " (consultation)"}
-            {semaine.periode && ` · ${semaine.periode.libelle}`}
-          </p>
-        </div>
-        <form action="/colles" className="flex items-center gap-2">
-          <input type="hidden" name="semaine" value={lundi} />
-          <label className="sr-only" htmlFor="groupe-vue">Voir le groupe</label>
-          <select id="groupe-vue" name="groupe" defaultValue={groupe} className="h-11 px-3 text-[14px]">
-            {Array.from({ length: GROUPE_MAX }, (_, i) => i + 1).map((g) => (
-              <option key={g} value={g}>Groupe {g}{g === u.groupe_colle ? " (moi)" : ""}</option>
-            ))}
-          </select>
-          <button type="submit" className="puce h-11">Voir</button>
-        </form>
+        <h1>Colles</h1>
+        <ChoixGroupeVue groupe={groupe} moi={u.groupe_colle} max={GROUPE_MAX} semaine={lundi} />
       </header>
 
       <div className="page-stack">
@@ -82,15 +67,14 @@ export default async function PageColles({
                   className="grid h-11 w-11 place-items-center rounded-full hover:bg-[var(--muted)]">
               <Fleche d="m15 6-6 6 6 6" />
             </Link>
-            <div className="text-center">
+            {lundi === lundiCourant ? (
               <p className="text-[16px] font-medium">{titreSemaine}</p>
-              <p className="text-[13px] text-[var(--muted-foreground)]">
-                {semaine.numero ? `Colle n°\u00a0${semaine.numero} · rotation ${semaine.rotation}` : "Aucune colle prévue"}
-                {lundi !== lundiCourant && (
-                  <> · <Link href={lien(lundiCourant)} className="font-medium text-[var(--primary)]">cette semaine</Link></>
-                )}
-              </p>
-            </div>
+            ) : (
+              <Link href={lien(lundiCourant)} aria-label={`${titreSemaine}, revenir à cette semaine`}
+                    className="text-[16px] font-medium text-[var(--primary)]">
+                {titreSemaine}
+              </Link>
+            )}
             <Link href={lien(ajouterJours(lundi, 7))} aria-label="Semaine suivante"
                   className="grid h-11 w-11 place-items-center rounded-full hover:bg-[var(--muted)]">
               <Fleche d="m9 6 6 6-6 6" />
@@ -137,27 +121,6 @@ export default async function PageColles({
           )}
         </section>
 
-        <section aria-labelledby="a-venir">
-          <h2 id="a-venir" className="etiquette">À venir</h2>
-          {aVenir.length === 0 ? (
-            <p className="py-3 text-[15px] text-[var(--muted-foreground)]">
-              Aucune colle prévue dans le colloscope actuel.
-            </p>
-          ) : (
-            <ul>
-              {aVenir.map((c) => (
-                <li key={c.id} className="flex items-baseline gap-3 border-b py-3 last:border-b-0">
-                  <span className="w-20 shrink-0 text-[14px] text-[var(--muted-foreground)]">{jourCourt(c.debut)}</span>
-                  <span className="min-w-0 flex-1 truncate text-[16px]">{c.matiere}</span>
-                  <span className="shrink-0 text-[14px] text-[var(--muted-foreground)]">
-                    {heure(c.debut)} · {salle(c.salle)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-
         {semaine.periode && semaine.periode.notes.length > 0 && (
           <details className="text-[14px] text-[var(--muted-foreground)]">
             <summary className="min-h-11 cursor-pointer py-3 font-medium text-[var(--foreground)]">
@@ -169,12 +132,6 @@ export default async function PageColles({
           </details>
         )}
 
-        {!autreGroupe && (
-          <section aria-labelledby="mon-groupe">
-            <h2 id="mon-groupe" className="etiquette mb-2">Mon groupe</h2>
-            <ReglageGroupe groupe={u.groupe_colle} max={GROUPE_MAX} />
-          </section>
-        )}
       </div>
     </main>
   );
@@ -199,14 +156,8 @@ function CarteColle({ c }: { c: ColleVue }) {
         <span className="shrink-0 text-[14px] font-medium">{plage(c.debut, c.fin)}</span>
       </div>
       <p className="text-[13px] text-[var(--muted-foreground)]">
-        {c.colleur} · salle {salle(c.salle)} · {c.creneau}
+        {c.colleur} · {salle(c.salle)}
       </p>
-      {c.alternative && (
-        <p className="text-[13px] text-[var(--muted-foreground)]">
-          Ou {jourCourt(c.alternative.debut)}, {plage(c.alternative.debut, c.alternative.fin)},
-          salle {salle(c.alternative.salle)}, {c.alternative.condition}.
-        </p>
-      )}
       {c.notes.map((n) => (
         <p key={n} className="text-[13px] italic text-[var(--muted-foreground)]">{n}</p>
       ))}
@@ -224,7 +175,7 @@ function CarteRepli({ c }: { c: ColleVue }) {
         <span className="shrink-0 text-[13px]">{plage(a.debut, a.fin)}</span>
       </div>
       <p className="text-[13px] text-[var(--muted-foreground)]">
-        {c.colleur} · salle {salle(a.salle)}, {a.condition}
+        {salle(a.salle)} · {a.condition}
       </p>
     </article>
   );

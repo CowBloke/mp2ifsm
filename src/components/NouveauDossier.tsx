@@ -34,9 +34,8 @@ export function NouveauDossier({
               if (r.ok) { onFini(); router.refresh(); } else setErreur(r.erreur);
             });
           }}>
-      <h2 className="text-[15px] font-semibold">Nouveau dossier</h2>
       <input value={nom} onChange={(e) => setNom(e.target.value)} required maxLength={60} autoFocus
-             placeholder="Nom (ex. Analyse, DS 2026…)" aria-label="Nom du dossier" className="champ" />
+             placeholder="Nom du dossier" aria-label="Nom du dossier" className="champ" />
       {parentId === null && matieres && (
         <select value={matiere} onChange={(e) => setMatiere(e.target.value)} aria-label="Matière"
                 className="min-h-12 px-3">

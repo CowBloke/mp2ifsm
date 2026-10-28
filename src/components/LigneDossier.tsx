@@ -30,7 +30,9 @@ export function LigneDossier({
 }) {
   const [ouvert, setOuvert] = useState(defautOuvert);
   const [gerer, setGerer] = useState(false);
-  const peutGerer = gestion && (gestion.peutModifier || gestion.peutCreerEnfant);
+  // Créer un sous-dossier passe par le « + » de la page : « … » est
+  // réservé à qui peut renommer, déplacer ou supprimer.
+  const peutGerer = gestion?.peutModifier;
 
   const corps = (
     <>

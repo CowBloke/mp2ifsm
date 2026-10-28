@@ -11,7 +11,7 @@ import { Portefeuille } from "@/components/Portefeuille";
 import { ReglagePartageStats } from "@/components/ReglagesProfil";
 import { SquelettePortefeuille, SqueletteListe } from "@/components/Squelettes";
 import { deconnexion } from "@/lib/actions";
-import { formatCentimes, tempsRestant } from "@/lib/money";
+import { formatCentimes } from "@/lib/money";
 import {
   mouvements, positionsOuvertes, positionsReglees, soldeCentimes,
 } from "@/lib/queries";
@@ -26,78 +26,73 @@ import { mesRetours } from "@/lib/retours";
 
 export const dynamic = "force-dynamic";
 
+/*
+ * Profil : solde, paris, réglages. Les sections vides ne s'affichent pas ;
+ * le relevé détaillé reste replié.
+ */
 export default async function PageMoi({ searchParams }: { searchParams: Promise<{ onglet?: string }> }) {
   const u = await utilisateurCourant();
   if (!u) redirect("/connexion");
   const adminTab = u.role === "admin" && (await searchParams).onglet === "admin";
 
   return (
-    <main className="">
+    <main>
       <LienRetour href="/" label="Retour à l’accueil" />
       <header className="page-heading">
-        <div className="min-w-0">
-          <h1 className="[overflow-wrap:anywhere]">{u.display_name}</h1>
-          <p className="break-all">{u.email}</p>
-        </div>
-        <form action={deconnexion}>
-          <button type="submit" className="puce h-11">Déconnexion</button>
-        </form>
+        <h1 className="min-w-0 [overflow-wrap:anywhere]">{u.display_name}</h1>
+        {u.role === "admin" && (
+          <nav aria-label="Rubriques du profil" className="flex gap-2">
+            <Link href="/profil" aria-current={!adminTab ? "page" : undefined} className="puce">Profil</Link>
+            <Link href="/profil?onglet=admin" aria-current={adminTab ? "page" : undefined} className="puce">Admin</Link>
+          </nav>
+        )}
       </header>
 
-      {u.role === "admin" && <nav aria-label="Rubriques du profil" className="-mt-4 mb-10 flex flex-wrap gap-2">
-        <Link href="/profil" aria-current={!adminTab ? "page" : undefined} className="puce">Mon profil</Link>
-        <Link href="/profil?onglet=admin" aria-current={adminTab ? "page" : undefined} className="puce">Administration</Link>
-      </nav>}
-      {adminTab ? <Administration userId={u.id} /> : <>
-      <div className="page-stack">
-      <div className="min-w-0">
-      <h2 className="etiquette mb-2">
-        Portefeuille
-      </h2>
-      <Suspense fallback={<SquelettePortefeuille />}>
-        <Solde userId={u.id} />
-      </Suspense>
+      {adminTab ? <Administration userId={u.id} /> : (
+        <div className="page-stack">
+          <Suspense fallback={<SquelettePortefeuille />}>
+            <Solde userId={u.id} />
+          </Suspense>
 
-      <Suspense fallback={<div className="mt-6"><SqueletteListe n={1} /></div>}>
-        <Reglages userId={u.id} estAdmin={u.role === "admin"} groupe={u.groupe_colle} />
-      </Suspense>
-      </div>
+          <Suspense fallback={<SqueletteListe n={3} />}>
+            <Positions userId={u.id} />
+          </Suspense>
 
-      <div className="min-w-0 page-stack">
-      <Suspense fallback={<SqueletteListe n={2} />}>
-        <MesRetours userId={u.id} />
-      </Suspense>
-      <section><h2 className="etiquette mb-2">Mes propositions de paris</h2><ProposalList items={JSON.parse(JSON.stringify(await proposals(u.id)))} /></section>
-      </div>
+          <Suspense fallback={<SqueletteListe n={3} />}>
+            <Reglages userId={u.id} groupe={u.groupe_colle} />
+          </Suspense>
 
-      <Suspense fallback={<SqueletteListe n={3} />}>
-        <Positions userId={u.id} />
-      </Suspense>
-      </div>
-      </>}
+          <Suspense fallback={null}>
+            <MesRetours userId={u.id} />
+          </Suspense>
+
+          <Suspense fallback={null}>
+            <MesPropositions userId={u.id} />
+          </Suspense>
+
+          <form action={deconnexion}>
+            <button type="submit" className="lien-discret text-[var(--destructive)]">Déconnexion</button>
+          </form>
+        </div>
+      )}
     </main>
   );
 }
 
-async function Reglages({
-  userId, estAdmin, groupe,
-}: { userId: string; estAdmin: boolean; groupe: number | null }) {
+async function Reglages({ userId, groupe }: { userId: string; groupe: number | null }) {
   const r = await queryOne<{ partage_stats: boolean }>(
     `select partage_stats from app_user where id = $1::uuid`, [userId]);
 
   return (
-    <section className="mt-10">
-      <h2 className="mb-2 etiquette">
-        Réglages
-      </h2>
-      <div className="space-y-2">
-        <ReglageGroupe groupe={groupe} max={GROUPE_MAX} />
-        <ReglagePartageStats initial={r?.partage_stats ?? false} />
-      </div>
-      <div className="mt-3 flex flex-wrap items-center gap-2">
+    <section aria-label="Réglages">
+      <ReglageGroupe groupe={groupe} max={GROUPE_MAX} />
+      <ReglagePartageStats initial={r?.partage_stats ?? false} />
+      <div className="ligne">
+        <span className="ligne__titre flex-1">Thème</span>
         <ThemeToggle />
+      </div>
+      <div className="mt-4">
         <BoutonRetour />
-        {estAdmin && <Link href="/profil?onglet=admin" className="lien-discret ml-1">Administration</Link>}
       </div>
     </section>
   );
@@ -105,35 +100,36 @@ async function Reglages({
 
 async function MesRetours({ userId }: { userId: string }) {
   const retours = await mesRetours(userId);
+  if (retours.length === 0) return null;
   return (
     <section id="mes-retours" className="scroll-mt-24">
-      <h2 className="mb-2 etiquette">
-        Mes retours
-      </h2>
-      {retours.length === 0 ? (
-        <p className="py-3 text-[15px]
-                      text-[var(--muted-foreground)]">
-          Une idée, un bug ? Le bouton « Retour » en haut de chaque page est fait pour ça.
-        </p>
-      ) : (
-        <ul className="space-y-2">
-          {retours.map((r) => (
-            <li key={r.id} className="border-b py-4 last:border-b-0">
-              <div className="flex flex-wrap items-center gap-2 text-[11px] text-[var(--muted-foreground)]">
-                <BadgeStatut statut={r.statut} />
-                <span className="font-semibold">{NOM_CATEGORIE[r.categorie]}</span>
-                <span>{new Date(r.created_at).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })}</span>
-              </div>
-              <p className="mt-1.5 line-clamp-3 whitespace-pre-wrap break-words text-[13px]">{r.message}</p>
-              {r.reponse && (
-                <p className="mt-2 border-l-2 pl-2 text-[12px]">
-                  <span className="font-semibold">Réponse : </span>{r.reponse}
-                </p>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
+      <h2 className="etiquette mb-2">Mes retours</h2>
+      <ul>
+        {retours.map((r) => (
+          <li key={r.id} className="border-b py-4 last:border-b-0">
+            <div className="flex flex-wrap items-center gap-2 text-[11px] text-[var(--muted-foreground)]">
+              <BadgeStatut statut={r.statut} />
+              <span className="font-semibold">{NOM_CATEGORIE[r.categorie]}</span>
+              <span>{new Date(r.created_at).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })}</span>
+            </div>
+            <p className="mt-1.5 line-clamp-3 whitespace-pre-wrap break-words text-[13px]">{r.message}</p>
+            {r.reponse && (
+              <p className="mt-2 border-l-2 pl-2 text-[12px]">{r.reponse}</p>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+async function MesPropositions({ userId }: { userId: string }) {
+  const items = await proposals(userId);
+  if (items.length === 0) return null;
+  return (
+    <section>
+      <h2 className="etiquette mb-2">Mes propositions de paris</h2>
+      <ProposalList items={JSON.parse(JSON.stringify(items))} />
     </section>
   );
 }
@@ -147,89 +143,82 @@ async function Solde({ userId }: { userId: string }) {
 }
 
 async function Positions({ userId }: { userId: string }) {
-  const [ouvertes, reglees, relevé] = await Promise.all([
+  const [ouvertes, reglees, releve] = await Promise.all([
     positionsOuvertes(userId),
     positionsReglees(userId),
     mouvements(userId, 30),
   ]);
 
   return (
-    <div className="page-stack">
-      <Section titre="Positions en cours" vide="Aucune mise en cours.">
-        {ouvertes.map((p) => (
-          <Link
-            key={p.bet_id}
-            href={`/marche/${p.slug}`}
-            className="block border-b py-3 last:border-b-0
-                       transition-colors hover:bg-[var(--muted)]"
-          >
-            <p className="truncate text-[13px] font-medium">{p.question}</p>
-            <div className="tabular mt-1 flex justify-between text-[12px] text-[var(--muted-foreground)]">
-              <span>{p.outcome_label}</span>
-              <span className="font-semibold text-[var(--foreground)]">
-                {formatCentimes(p.amount)}
-              </span>
-            </div>
-            <p className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">
-              {p.status === "open" ? `Ferme dans ${tempsRestant(p.closes_at)}`
-                                   : "Fermé — en attente de résolution"}
-            </p>
-          </Link>
-        ))}
-      </Section>
+    <>
+      {ouvertes.length > 0 && (
+        <section>
+          <h2 className="etiquette mb-2">Paris en cours</h2>
+          <ul>
+            {ouvertes.map((p) => (
+              <li key={p.bet_id}>
+                <Link href={`/marche/${p.slug}`} className="ligne">
+                  <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span className="ligne__titre truncate">{p.question}</span>
+                    <span className="ligne__meta">{p.outcome_label}</span>
+                  </span>
+                  <span className="tabular shrink-0 text-[14px] font-semibold">{formatCentimes(p.amount)}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
-      <Section titre="Historique" vide="Aucun marché réglé pour l’instant.">
-        {reglees.map((p) => {
-          const gain = p.payout ?? 0;
-          const net = gain - p.amount;
-          return (
-            <Link
-              key={p.bet_id}
-              href={`/marche/${p.slug}`}
-              className="block border-b py-3 last:border-b-0
-                         transition-colors hover:bg-[var(--muted)]"
-            >
-              <p className="truncate text-[13px] font-medium">{p.question}</p>
-              <div className="tabular mt-1 flex justify-between text-[12px]">
-                <span className="text-[var(--muted-foreground)]">
-                  {p.outcome_label} · {formatCentimes(p.amount)} misés
-                </span>
-                <span
-                  className="font-semibold"
-                  style={{ color: net >= 0 ? "var(--outcome-1)" : "var(--outcome-2)" }}
-                >
-                  {net >= 0 ? "+" : ""}{formatCentimes(net)}
-                </span>
-              </div>
-            </Link>
-          );
-        })}
-      </Section>
+      {reglees.length > 0 && (
+        <section>
+          <h2 className="etiquette mb-2">Paris terminés</h2>
+          <ul>
+            {reglees.map((p) => {
+              const net = (p.payout ?? 0) - p.amount;
+              return (
+                <li key={p.bet_id}>
+                  <Link href={`/marche/${p.slug}`} className="ligne">
+                    <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                      <span className="ligne__titre truncate">{p.question}</span>
+                      <span className="ligne__meta">{p.outcome_label}</span>
+                    </span>
+                    <span className="tabular shrink-0 text-[14px] font-semibold"
+                          style={{ color: net >= 0 ? "var(--outcome-1)" : "var(--outcome-2)" }}>
+                      {net >= 0 ? "+" : ""}{formatCentimes(net)}
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
 
-      <Section titre="Relevé du compte" vide="Aucun mouvement.">
-        <ul className="divide-y">
-          {relevé.map((m) => (
-            <li key={`${m.id}-${m.kind}`} className="flex items-center justify-between gap-3 py-3">
-              <div className="min-w-0">
-                <p className="truncate text-[13px] font-medium">{LIBELLES[m.kind] ?? m.kind}</p>
-                <p className="truncate text-[11px] text-[var(--muted-foreground)]">
-                  {m.question ?? m.memo ?? "—"} ·{" "}
-                  {new Date(m.created_at).toLocaleDateString("fr-FR", {
-                    day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
-                  })}
-                </p>
-              </div>
-              <span
-                className="tabular shrink-0 text-[13px] font-semibold"
-                style={{ color: m.amount >= 0 ? "var(--outcome-1)" : "var(--foreground)" }}
-              >
-                {m.amount >= 0 ? "+" : ""}{formatCentimes(m.amount)}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </Section>
-    </div>
+      {releve.length > 0 && (
+        <details>
+          <summary className="etiquette min-h-11 cursor-pointer py-3">Relevé du compte</summary>
+          <ul className="divide-y">
+            {releve.map((m) => (
+              <li key={`${m.id}-${m.kind}`} className="flex items-center justify-between gap-3 py-3">
+                <div className="min-w-0">
+                  <p className="truncate text-[13px] font-medium">{m.question ?? LIBELLES[m.kind] ?? m.kind}</p>
+                  <p className="text-[11px] text-[var(--muted-foreground)]">
+                    {new Date(m.created_at).toLocaleDateString("fr-FR", {
+                      timeZone: "Europe/Paris", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
+                    })}
+                  </p>
+                </div>
+                <span className="tabular shrink-0 text-[13px] font-semibold"
+                      style={{ color: m.amount >= 0 ? "var(--outcome-1)" : "var(--foreground)" }}>
+                  {m.amount >= 0 ? "+" : ""}{formatCentimes(m.amount)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </>
   );
 }
 
@@ -240,29 +229,3 @@ const LIBELLES: Record<string, string> = {
   payout: "Gain",
   refund: "Remboursement",
 };
-
-function Section({
-  titre, vide, children,
-}: {
-  titre: string; vide: string; children: React.ReactNode;
-}) {
-  const liste = Array.isArray(children) ? children : [children];
-  const estVide = liste.flat().filter(Boolean).length === 0
-    || (liste.length === 1 && Array.isArray(liste[0]) && liste[0].length === 0);
-
-  return (
-    <section className="min-w-0">
-      <h2 className="mb-2 etiquette">
-        {titre}
-      </h2>
-      {estVide ? (
-        <p className="py-3 text-[15px]
-                      text-[var(--muted-foreground)]">
-          {vide}
-        </p>
-      ) : (
-        <div className="space-y-2">{children}</div>
-      )}
-    </section>
-  );
-}

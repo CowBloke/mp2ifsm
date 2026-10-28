@@ -48,7 +48,7 @@ export async function browserCheck(base: string, token: string) {
     await send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
     await send("Page.navigate", { url: base + "/" });
     await until('document.body.innerText.includes("Bonjour") || document.body.innerText.includes("Bonsoir") || document.body.innerText.includes("Bonne nuit")');
-    await until('document.body.innerText.includes("À réviser aujourd’hui") && document.body.innerText.includes("Cette semaine") && !document.querySelector(".skeleton")');
+    await until('!!document.querySelector(\'a[href^="/fiches"]\') && !document.querySelector(".skeleton")');
     assert.ok(await evaluate('document.documentElement.scrollWidth <= 390'), "dashboard fits mobile viewport");
     assert.ok(await evaluate('getComputedStyle(document.documentElement).getPropertyValue("--primary").trim() !== ""'),
       "shared tweakcn tokens are loaded");
@@ -86,6 +86,7 @@ export async function browserCheck(base: string, token: string) {
     await until(`document.documentElement.classList.contains("dark") === ${expectedDark}`);
     await send("Page.reload");
     await until(`document.documentElement.classList.contains("dark") === ${expectedDark} && !!document.querySelector('button[aria-pressed="${expectedDark}"]')`);
+    await capture("profil");
     await send("Page.navigate", { url: base + "/marche" });
     await until('document.body.innerText.includes("Proposer un pari")');
     await evaluate('new Promise(r => setTimeout(r, 500))');

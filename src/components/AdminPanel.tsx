@@ -50,9 +50,10 @@ function ProposalCard({p,admin}:{p:Proposal;admin:boolean}) {
  function review(approve:boolean){start(async()=>{const r=await examinerProposition(p.id,approve,note);setMessage(r.ok?(approve?'Pari publié':'Proposition refusée'):r.erreur);if(r.ok)router.refresh();});}
  return <article className="app-surface rounded-[var(--radius-md)] border p-4">
   <p className="text-xs text-[var(--muted-foreground)]">{p.status==='pending'?'En attente':p.status==='approved'?'Approuvée':'Refusée'}{admin?` · ${p.display_name}`:''}</p>
-  <h3 className="mt-1 break-words font-semibold">{p.question}</h3><p className="mt-2 whitespace-pre-wrap break-words text-sm">{p.description}</p>
-  <p className="mt-2 text-sm">{p.issues.join(' / ')}</p><p className="mt-1 text-xs">Fermeture : {new Date(p.closes_at).toLocaleString('fr-FR',{timeZone:'Europe/Paris'})} (Paris)</p>
-  {p.review_note && <p className="mt-2 text-sm">Réponse : {p.review_note}</p>}
+  <h3 className="mt-1 break-words font-semibold">{p.question}</h3>
+  {admin && <><p className="mt-2 whitespace-pre-wrap break-words text-sm">{p.description}</p>
+  <p className="mt-2 text-sm">{p.issues.join(' / ')}</p><p className="mt-1 text-xs">Fermeture : {new Date(p.closes_at).toLocaleString('fr-FR',{timeZone:'Europe/Paris'})} (Paris)</p></>}
+  {p.review_note && <p className="mt-2 border-l-2 pl-2 text-sm">{p.review_note}</p>}
   {p.slug && <Link href={`/marche/${p.slug}`} className="mt-2 inline-block text-sm underline">Voir le pari →</Link>}
   {admin && p.status==='pending' && <div className="mt-3 space-y-2"><label className="block text-sm">Message au proposant (facultatif)<textarea value={note} onChange={e=>setNote(e.target.value)} maxLength={500} className="mt-1 w-full rounded-lg border p-2"/></label><div className="flex gap-2"><button className={`${button} bg-[var(--primary)] text-[var(--primary-foreground)]`} disabled={busy} onClick={()=>review(true)}>Approuver et publier</button><button className={button} disabled={busy} onClick={()=>review(false)}>Refuser</button></div></div>}
   {message && <p className="mt-2 text-sm" role="status">{message}</p>}

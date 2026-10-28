@@ -15,7 +15,8 @@ export function ReglagePartageStats({ initial }: { initial: boolean }) {
   const [enCours, demarrer] = useTransition();
 
   return (
-    <label className="app-surface flex cursor-pointer items-start gap-3 rounded-[var(--radius-md)] border p-3">
+    <label className="ligne cursor-pointer">
+      <span className="ligne__titre flex-1">Partager mes révisions avec la classe</span>
       <input
         type="checkbox"
         checked={actif}
@@ -28,18 +29,8 @@ export function ReglagePartageStats({ initial }: { initial: boolean }) {
             if (!r.ok) { setActif(!valeur); window.alert(r.erreur); }
           });
         }}
-        className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--primary)]"
+        className="h-5 w-5 shrink-0 accent-[var(--primary)]"
       />
-      <span>
-        <span className="block text-[14px] font-medium">
-          Partager mes révisions avec la classe
-        </span>
-        <span className="mt-0.5 block text-[12px] text-[var(--muted-foreground)]">
-          Votre nom et votre nombre de révisions par jour apparaîtront dans la
-          heatmap des paquets. Rien d’autre n’est partagé : ni vos notes, ni vos
-          cartes difficiles.
-        </span>
-      </span>
     </label>
   );
 }
