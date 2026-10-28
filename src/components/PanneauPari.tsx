@@ -118,7 +118,7 @@ export function PanneauPari({ marche, solde }: { marche: MarcheVue; solde: numbe
                  onChange={(e) => { setMontant(e.target.value); if (etat.phase === "erreur") setEtat({ phase: "saisie" }); }}
                  className="champ-nu w-full min-w-0 border-0 bg-transparent p-0 text-[44px] font-semibold
                             leading-none tracking-[-0.03em] outline-none placeholder:text-[var(--muted-foreground)]" />
-          <span className="text-[44px] font-semibold leading-none text-[var(--muted-foreground)]">€</span>
+          <span className="text-[44px] font-semibold leading-none text-[var(--muted-foreground)]">PCK</span>
         </div>
         <div className="grid grid-cols-4 gap-2" role="group" aria-label="Montants rapides">
           {RAPIDES.map((v) => (
@@ -126,7 +126,7 @@ export function PanneauPari({ marche, solde }: { marche: MarcheVue; solde: numbe
                     aria-pressed={centimes === v}
                     onClick={() => setMontant(formatMontantBrut(v))}
                     className="puce h-11 justify-center disabled:opacity-40">
-              {v / 100} €
+              {v / 100} PCK
             </button>
           ))}
         </div>
@@ -140,7 +140,7 @@ export function PanneauPari({ marche, solde }: { marche: MarcheVue; solde: numbe
 
       {(etat.phase === "erreur" || tropCher || tropPetit) && (
         <p role="alert" className="-mt-4 text-[14px] font-medium text-[var(--destructive)]">
-          {etat.phase === "erreur" ? etat.message : tropCher ? "Solde insuffisant" : "Mise minimum : 0,10 €"}
+          {etat.phase === "erreur" ? etat.message : tropCher ? "Solde insuffisant" : "Mise minimum : 0,10 PCK"}
         </p>
       )}
 

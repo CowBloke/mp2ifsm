@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { query, queryOne, tx } from "./db";
 import { ErreurMetier, messageFr } from "./errors";
-import { parseMontant } from "./money";
+import { parseKc, parseMontant } from "./money";
 import { soldeCentimes } from "./queries";
 import {
   creerSession, detruireSession, exigerAdmin, exigerUtilisateur,
@@ -33,7 +33,7 @@ function echec(err: unknown): { ok: false; erreur: string } {
   return { ok: false, erreur: messageFr(err) };
 }
 
-const MISE_MINIMUM = 10; // 0,10 €
+const MISE_MINIMUM = 10; // 0,10 PCK
 
 /* ------------------------------------------------------------------ */
 /* Paris                                                               */
@@ -105,35 +105,47 @@ export async function placerPari(
 /* Portefeuille                                                        */
 /* ------------------------------------------------------------------ */
 
-export async function demanderRetrait(montantSaisi: string): Promise<Reponse<{ solde: number }>> {
+export type ResultatTransfert = {
+  statut: "effectue" | "en_attente" | "refuse";
+  motif: string | null;
+  solde: number;
+};
+
+/**
+ * Depot (KC coins de kcmaths convertis en pricoupenkoins) ou retrait
+ * (pricoupenkoins renvoyes en KC coins entiers). `cleIdempotence` est generee par le client a l'ouverture
+ * du formulaire et sert de ref chez kcmaths : un double envoi ne
+ * transfere jamais deux fois.
+ */
+export async function transfererKc(
+  sens: "depot" | "retrait",
+  montantSaisi: string,
+  cleIdempotence: string,
+): Promise<Reponse<ResultatTransfert>> {
   try {
     const u = await exigerUtilisateur();
-    const centimes = parseMontant(montantSaisi);
-    if (centimes === null) throw new ErreurMetier("MONTANT_INVALIDE");
+    const cle = z.string().uuid().safeParse(cleIdempotence);
+    if (!cle.success || (sens !== "depot" && sens !== "retrait")) {
+      throw new ErreurMetier("INVALID_TRANSFER");
+    }
+    // Les transferts avec kcmaths se font en KC coins entiers.
+    const montant = parseKc(montantSaisi);
+    if (montant === null) throw new ErreurMetier("MONTANT_KC_INVALIDE");
 
-    await tx(async (c) => {
-      await c.query(`select request_withdrawal($1::uuid, $2::bigint, $3::text)`, [
-        u.id, centimes, `withdraw:${u.id}:${randomUUID()}`,
-      ]);
-    });
+    const { demarrerTransfert, traiterTransfert } = await import("./kcmaths");
+    await demarrerTransfert(u.id, u.email, sens, montant, cle.data);
+    const r = await traiterTransfert(cle.data);
 
     revalidatePath("/profil");
     revalidatePath("/marche/classement");
-    return { ok: true, data: { solde: await soldeCentimes(u.id) } };
-  } catch (err) {
-    return echec(err);
-  }
-}
-
-/** Declenche un tirage des depots chez le fournisseur externe. */
-export async function synchroniserMesDepots(): Promise<Reponse<{ credites: number }>> {
-  try {
-    await exigerUtilisateur();
-    const { synchroniserDepots } = await import("./external");
-    const r = await synchroniserDepots();
-    revalidatePath("/profil");
-    revalidatePath("/marche/classement");
-    return { ok: true, data: { credites: r.credites } };
+    return {
+      ok: true,
+      data: {
+        statut: r.statut,
+        motif: r.motif ? messageFr(new ErreurMetier(r.motif)) : null,
+        solde: await soldeCentimes(u.id),
+      },
+    };
   } catch (err) {
     return echec(err);
   }

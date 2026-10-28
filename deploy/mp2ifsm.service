@@ -11,7 +11,7 @@ User=cowbloke
 Group=cowbloke
 WorkingDirectory=/var/lib/mp2ifsm-deploy/current
 
-# DATABASE_URL, SESSION_SECRET, CRON_TOKEN, DEPOSIT_* — jamais en dépôt.
+# DATABASE_URL, SESSION_SECRET, CRON_TOKEN, KCMATHS_API_* — jamais en dépôt.
 EnvironmentFile=/home/cowbloke/projects/mp2ifsm/.env
 Environment=NODE_ENV=production
 Environment=NEXT_BUILD_DIR=.next-production

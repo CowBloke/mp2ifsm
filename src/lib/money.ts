@@ -1,39 +1,58 @@
 /*
- * Toute la monnaie est un entier de centimes. Aucun flottant n'est
- * jamais stocke ni transmis. Ce module ne fait que du formatage et de
- * l'analyse de saisie : il ne calcule aucun solde.
+ * La monnaie du portail est le pricoupenkoin (PCK), divisible au
+ * centieme. En base tout est un entier de centiemes de PCK (colonnes
+ * `amount`, variables `centimes` historiques) : aucun flottant n'est
+ * jamais stocke ni transmis. 1 KC coin de kcmaths.com = 1 PCK, et les
+ * transferts avec kcmaths se font en KC coins entiers.
+ * Ce module ne fait que du formatage et de l'analyse de saisie : il ne
+ * calcule aucun solde.
  */
 
-export const CENTIMES_PAR_EURO = 100;
+export const CENTIEMES_PAR_PCK = 100;
+export const CENTIEMES_PAR_KC = CENTIEMES_PAR_PCK;
 
 const nf = new Intl.NumberFormat("fr-FR", {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
 
-/** 1234 -> "12,34 €" */
+/** 1234 -> "12,34 PCK" */
 export function formatCentimes(centimes: number): string {
   const sign = centimes < 0 ? "−" : "";
   const abs = Math.abs(centimes);
-  return `${sign}${nf.format(abs / CENTIMES_PAR_EURO)} €`;
+  return `${sign}${nf.format(abs / CENTIEMES_PAR_PCK)} PCK`;
 }
 
 /** 1234 -> "12,34" (sans symbole, pour les champs de saisie) */
 export function formatMontantBrut(centimes: number): string {
-  return nf.format(Math.abs(centimes) / CENTIMES_PAR_EURO);
+  return nf.format(Math.abs(centimes) / CENTIEMES_PAR_PCK);
 }
 
 /**
- * Analyse une saisie utilisateur ("12,34", "12.34", "12") en centimes.
- * Renvoie null si la saisie n'est pas un montant valide : l'appelant
- * decide du message. Jamais d'arrondi silencieux au-dela du centime.
+ * Analyse une saisie utilisateur ("12,34", "12.34", "12") en centiemes
+ * de PCK. Renvoie null si la saisie n'est pas un montant valide :
+ * l'appelant decide du message. Jamais d'arrondi silencieux.
  */
 export function parseMontant(input: string): number | null {
   const cleaned = input.trim().replace(/\s/g, "").replace(",", ".");
   if (cleaned === "" || !/^\d+(\.\d{0,2})?$/.test(cleaned)) return null;
-  const centimes = Math.round(Number(cleaned) * CENTIMES_PAR_EURO);
+  const centimes = Math.round(Number(cleaned) * CENTIEMES_PAR_PCK);
   if (!Number.isSafeInteger(centimes) || centimes <= 0) return null;
   return centimes;
+}
+
+/** Saisie d'un nombre entier de KC coins ("12", "1 234"), ou null. */
+export function parseKc(input: string): number | null {
+  const cleaned = input.trim().replace(/\s/g, "");
+  if (!/^\d+$/.test(cleaned)) return null;
+  const kc = Number(cleaned);
+  if (!Number.isSafeInteger(kc * CENTIEMES_PAR_KC) || kc <= 0) return null;
+  return kc;
+}
+
+/** Nombre entier de KC coins qu'un solde permet de renvoyer sur kcmaths. */
+export function kcRetirables(centimes: number): number {
+  return Math.max(0, Math.floor(centimes / CENTIEMES_PAR_KC));
 }
 
 /** Pourcentage affichable d'une part de cagnotte. */

@@ -96,7 +96,7 @@ exactement la cagnotte entrante**.
 
 | Règle | Où elle est appliquée |
 |---|---|
-| L'argent est un grand livre en partie double, en centimes entiers | `db/schema.sql` — `ledger_transfer` / `ledger_entry` |
+| L'argent est un grand livre en partie double, en centièmes de pricoupenkoin | `db/schema.sql` — `ledger_transfer` / `ledger_entry` |
 | Chaque mouvement = ≥ 2 écritures de somme nulle | contrainte différée `ledger_entry_balanced` |
 | Un solde est **toujours** un `sum(amount)`, jamais une colonne | `account_balance()` ; aucune colonne solde n'existe |
 | Le grand livre est immuable (pas d'UPDATE/DELETE) | trigger `forbid_mutation()` |
@@ -197,25 +197,31 @@ base. Le script se termine par `rollback`.
 
 ---
 
-## Les dépôts viennent d'une API externe
+## KC coins — transferts avec kcmaths.com
 
-⚠️ **Hypothèse à valider.** L'API du site externe n'était pas spécifiée.
-Tout ce qui la concerne est isolé derrière l'interface
-`FournisseurDepots` (`src/lib/external.ts`) ; l'implémentation par
-défaut (`mock`) ne crédite rien.
+La monnaie du portail est le **pricoupenkoin** (PCK), divisible au centième :
+le grand livre compte en centièmes de PCK (les colonnes et variables nommées
+« centimes » sont historiques). 1 KC coin de kcmaths.com = 1 PCK, et les
+transferts se font en **KC coins entiers** : un solde de 25,37 PCK permet de
+renvoyer 25 KC, les 0,37 restent sur mp2ifsm. Profil → **Déposer** / **Retirer** appelle
+`kcmaths.com/api/mp2ifsm.php` (fichier PHP fourni au professeur) avec
+`{ ref, email, delta }` et `Authorization: Bearer $KCMATHS_API_TOKEN`.
+Le PHP dédoublonne sur `ref` et refuse un solde négatif (409).
 
-Pour brancher le vrai service : écrire une classe qui implémente
-`listerPaiements()`, puis `DEPOSIT_PROVIDER=http` (ou le nom choisi) dans
-`.env`. Une implémentation HTTP générique est fournie ; elle attend
-`{ payments: [{ id, email, amount_cents }] }` et il suffit d'adapter le
-mapping.
+* **Dépôt** : kcmaths débite d'abord, puis `record_deposit()` crédite.
+* **Retrait** : `request_withdrawal()` débite d'abord, puis kcmaths crédite ;
+  un refus définitif (400/404/409) rembourse par `record_deposit()`.
+* Sans réponse (réseau, 401/403, 5xx), le transfert reste `en_attente` dans
+  `kcmaths_transfer` et le cron `/api/cron/sync-deposits` le rejoue avec la
+  même `ref` toutes les 10 minutes. Il n'est jamais abandonné.
 
-**Le seul contrat indispensable** est que chaque paiement expose un
-identifiant stable et unique (`source_ref`) : c'est lui qui rend le
-tirage idempotent. On peut rejouer tout l'historique sans jamais
-créditer deux fois.
+Les élèves sont reconnus par leur email : il doit être identique sur les deux
+sites. Configuration : `KCMATHS_API_URL` et `KCMATHS_API_TOKEN` dans `.env` ;
+sans elles, les transferts sont désactivés. Migration : `db/schema-kcmaths.sql`.
+Test : `node --env-file=.env --conditions=react-server --import tsx tests/kcmaths.integration.ts`
+(schéma isolé, kcmaths simulé).
 
-En attendant, un administrateur peut créditer à la main via
+Un administrateur peut toujours créditer à la main via
 `crediterManuellement()` (référence unique obligatoire).
 
 ---
@@ -231,7 +237,7 @@ scripts/seed.ts         initialise le compte administrateur
 src/lib/db.ts           pool PostgreSQL + helper de transaction
 src/lib/actions.ts      actions serveur — seule surface de mutation
 src/lib/queries.ts      modèles de lecture
-src/lib/external.ts     adaptateur de dépôts externes
+src/lib/kcmaths.ts      transferts de KC coins avec kcmaths.com
 src/lib/money.ts        formatage des centimes (aucun calcul de solde)
 src/lib/errors.ts       codes SQL → messages français
 src/components/         interface (feuille de pari, cartes, squelettes)

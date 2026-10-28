@@ -15,6 +15,7 @@ import { formatCentimes, tempsRestant } from "@/lib/money";
 import {
   mouvements, positionsOuvertes, positionsReglees, soldeCentimes,
 } from "@/lib/queries";
+import { transfertsEnAttente } from "@/lib/kcmaths";
 import { utilisateurCourant } from "@/lib/session";
 import { queryOne } from "@/lib/db";
 import { ReglageGroupe } from "@/components/Groupe";
@@ -138,8 +139,11 @@ async function MesRetours({ userId }: { userId: string }) {
 }
 
 async function Solde({ userId }: { userId: string }) {
-  const solde = await soldeCentimes(userId);
-  return <Portefeuille solde={solde} />;
+  const [solde, enAttente] = await Promise.all([
+    soldeCentimes(userId),
+    transfertsEnAttente(userId),
+  ]);
+  return <Portefeuille solde={solde} enAttente={enAttente} />;
 }
 
 async function Positions({ userId }: { userId: string }) {

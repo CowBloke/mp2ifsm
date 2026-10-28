@@ -32,6 +32,7 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/schema-portal.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/schema-proposals.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/schema-etudes.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/schema-dossiers.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/schema-kcmaths.sql
 
 # The privileged helper accepts only a release carrying this marker.
 git rev-parse HEAD > .mp2ifsm-release-sha

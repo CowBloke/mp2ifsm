@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
-import { synchroniserDepots } from "@/lib/external";
+import { reprendreTransferts } from "@/lib/kcmaths";
 import { purgerDocuments } from "@/lib/purge";
 import { purgerSessions } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 /*
- * Tirage periodique des depots, appele par cron sur le Pi :
+ * Reprise des transferts kcmaths restes en attente, appelee par cron
+ * sur le Pi :
  *   curl -fsS -H "authorization: Bearer $CRON_TOKEN" \
  *        http://127.0.0.1:4260/api/cron/sync-deposits
  *
@@ -29,12 +30,12 @@ export async function POST(request: Request) {
 
   try {
     const purge = await purgerDocuments();
-    const resultat = await synchroniserDepots();
+    const resultat = await reprendreTransferts();
     await purgerSessions();
     return NextResponse.json({ ...resultat, purge });
   } catch (err) {
     console.error("sync-deposits:", err);
-    return NextResponse.json({ erreur: "échec du tirage" }, { status: 502 });
+    return NextResponse.json({ erreur: "échec de la reprise" }, { status: 502 });
   }
 }
 
