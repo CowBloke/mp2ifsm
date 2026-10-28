@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { transfererKc } from "@/lib/actions";
 import { formatCentimes, kcRetirables, parseKc } from "@/lib/money";
+import { PiecePricoup } from "./PiecePricoup";
 
 /*
  * Depot / retrait avec kcmaths.com. Le solde est en pricoupenkoins
@@ -68,11 +69,12 @@ export function Portefeuille({
 
   return (
     <div>
+      <PiecePricoup />
       {/* Valeur calculee par PostgreSQL (somme du grand livre). */}
-      <p className="text-[44px] font-semibold leading-none tracking-[-0.03em]">{formatCentimes(solde)}</p>
+      <p className="mt-2 text-center text-[44px] font-semibold leading-none tracking-[-0.03em]">{formatCentimes(solde)}</p>
 
       {mode === null ? (
-        <div className="mt-4 flex gap-2">
+        <div className="mt-6 flex gap-2">
           <button
             type="button"
             onClick={() => ouvrir("depot")}

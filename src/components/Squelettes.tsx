@@ -47,9 +47,9 @@ export function SquelettePortefeuille() {
   return (
     <div className="space-y-4" aria-busy="true">
       <div>
-        <div className="skeleton h-3 w-20" />
-        <div className="skeleton mt-3 h-9 w-40" />
-        <div className="mt-4 flex gap-2">
+        <div className="mx-auto aspect-square w-full max-w-[280px]" />
+        <div className="skeleton mx-auto mt-2 h-11 w-48" />
+        <div className="mt-6 flex gap-2">
           <div className="skeleton h-10 flex-1" />
           <div className="skeleton h-10 flex-1" />
         </div>
