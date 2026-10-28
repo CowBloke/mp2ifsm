@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { annulerMarche, creerMarche, resoudreMarche } from "@/lib/actions";
 import { proposerPari } from "@/lib/actions-admin";
 import { couleurIssue } from "./couleurs";
+import { Dialogue } from "./Dialogue";
 import { cotesImplicites, formatCentimes, formatPourcentage, tempsRestant } from "@/lib/money";
 import type { MarcheVue } from "@/lib/queries";
 
@@ -35,24 +36,16 @@ export function FormulaireMarche({ proposition = false }: { proposition?: boolea
     });
   }
 
-  if (!ouvert) {
-    return (
-      <div><button
-        type="button"
-        onClick={() => setOuvert(true)}
-        className="lien-discret"
-      >
-        {proposition ? "+ Proposer un pari" : "+ Nouveau marché"}
-      </button>{message && <p role="status" className="mt-2 text-sm">{message.texte}</p>}</div>
-    );
-  }
-
   return (
+    <div>
+      <button type="button" onClick={() => setOuvert(true)} aria-haspopup="dialog" className="lien-discret">
+        {proposition ? "+ Proposer un pari" : "+ Nouveau marché"}
+      </button>
+      {!ouvert && message && <p role="status" className="mt-2 text-sm">{message.texte}</p>}
+      {ouvert && (
+      <Dialogue titre={proposition ? "Proposer un pari" : "Nouveau marché"} onFermer={() => setOuvert(false)}>
     <form action={envoyer} className="w-full">
-      <h2 className="text-[15px] font-semibold">{proposition ? "Proposer un pari" : "Nouveau marché"}</h2>
-      {proposition && <p className="mt-1 text-sm text-[var(--muted-foreground)]">Une idée amusante pour la classe ? Un administrateur la validera avant son ouverture.</p>}
-
-      <label htmlFor="question" className="mt-3 block text-[13px] font-medium">Question</label>
+      <label htmlFor="question" className="block text-[13px] font-medium">Question</label>
       <input
         id="question" name="question" required minLength={8} maxLength={200}
         placeholder="Y aura-t-il un DS de maths avant les vacances ?"
@@ -145,6 +138,9 @@ export function FormulaireMarche({ proposition = false }: { proposition?: boolea
         </button>
       </div>
     </form>
+      </Dialogue>
+      )}
+    </div>
   );
 }
 

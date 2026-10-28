@@ -1,6 +1,6 @@
 [Unit]
 Description=Deploy the latest approved mp2ifsm GitHub commit
-Documentation=file:/home/cowbloke/projects/mp2ifsm/README.md
+Documentation=file:/home/cowbloke/projects/apps/mp2ifsm/README.md
 After=network-online.target postgresql.service
 Wants=network-online.target
 Requires=postgresql.service
@@ -17,7 +17,7 @@ UMask=0027
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/home/cowbloke/projects/mp2ifsm /var/lib/mp2ifsm-deploy /run/mp2ifsm-deploy
+ReadWritePaths=/home/cowbloke/projects/apps/mp2ifsm /var/lib/mp2ifsm-deploy /run/mp2ifsm-deploy
 NoNewPrivileges=true
 ProtectKernelTunables=true
 ProtectControlGroups=true

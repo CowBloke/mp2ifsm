@@ -41,7 +41,10 @@ export default async function PagePaquet({
       <LienRetour href="/fiches" label="Retour aux fiches" />
 
       <header className="mb-10 flex items-start justify-between gap-4">
-        <h1 className="titre-page min-w-0 [overflow-wrap:anywhere]">{paquet.titre}</h1>
+        <div className="min-w-0">
+          <h1 className="titre-page [overflow-wrap:anywhere]">{paquet.titre}</h1>
+          <p className="mt-1.5 text-[14px] text-[var(--muted-foreground)]">{paquet.createur}</p>
+        </div>
         <BoutonSuivre deckId={paquet.id} abonne={paquet.abonne} />
       </header>
 

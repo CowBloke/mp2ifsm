@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ajouterEcheance } from "@/lib/actions-echeances";
 import { ChoixMatiere } from "@/components/Matiere";
+import { Dialogue } from "@/components/Dialogue";
 
 const TYPES = ["DS", "DM", "Colle", "TIPE", "Oral", "Projet", "Autre"] as const;
 
@@ -16,19 +17,14 @@ export function FormulaireEcheance({
   const [erreur, setErreur] = useState<string | null>(null);
   const [enCours, demarrer] = useTransition();
 
-  if (!ouvert) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOuvert(true)}
-        className="lien-discret mt-1 self-start"
-      >
-        + Ajouter une échéance
-      </button>
-    );
-  }
-
   return (
+    <>
+    <button type="button" onClick={() => setOuvert(true)} aria-haspopup="dialog"
+            className="lien-discret mt-1 self-start">
+      + Ajouter une échéance
+    </button>
+    {ouvert && (
+    <Dialogue titre="Nouvelle échéance" onFermer={() => setOuvert(false)}>
     <form
       action={(fd) => {
         setErreur(null);
@@ -40,7 +36,7 @@ export function FormulaireEcheance({
           else setErreur(r.erreur);
         });
       }}
-      className="mt-3 space-y-2"
+      className="space-y-2"
     >
       <input
         name="titre" required minLength={3} maxLength={120}
@@ -79,5 +75,8 @@ export function FormulaireEcheance({
         </button>
       </div>
     </form>
+    </Dialogue>
+    )}
+    </>
   );
 }

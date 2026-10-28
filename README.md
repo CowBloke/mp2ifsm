@@ -119,7 +119,7 @@ celui renvoyé par le serveur après écriture (`src/lib/actions.ts`).
 ## Installation
 
 ```bash
-cd /home/cowbloke/projects/mp2ifsm
+cd /home/cowbloke/projects/apps/mp2ifsm
 npm install
 
 # 1. Base de données
@@ -314,6 +314,11 @@ appliquées. Le lien `/var/lib/mp2ifsm-deploy/current` n’est remplacé qu’ap
 étapes. Le service est redémarré et contrôlé sur loopback ; en cas d’échec, le
 lien et le service reviennent au build précédent. Les migrations doivent donc
 rester additives et compatibles avec la version précédente.
+
+Le script d'aide n'est pas mis à jour par le déploiement : quand
+`deploy/build-release.sh` ajoute une migration, la lancer et réinstaller
+les scripts avec `bash scripts/remise-en-etat.sh` (rejouable, ne
+réinstalle que ce qui diffère).
 
 Installation ou restauration des unités (les copies sous `/etc` et
 `/usr/local/sbin` doivent rester détenues par root) :

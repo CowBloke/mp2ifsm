@@ -5,47 +5,50 @@ import { useRouter } from "next/navigation";
 import { creerPaquet } from "@/lib/actions-fiches";
 import { ChoixMatiere } from "@/components/Matiere";
 import { NouveauDossier } from "@/components/NouveauDossier";
+import { Dialogue } from "@/components/Dialogue";
 import type { OptionDestination } from "@/lib/arbre-dossiers";
 
 type Matieres = Array<{ id: number; nom: string }>;
 
+const TITRES = {
+  choix: "Créer", creer: "Nouveau paquet", dossier: "Nouveau dossier", importer: "Importer depuis Anki",
+} as const;
+
 /**
  * En-tête de la page Fiches : le titre et un seul bouton « + », qui
- * propose de créer un paquet, un dossier, ou d'importer un paquet Anki.
+ * ouvre une fenêtre pour créer un paquet, un dossier, ou importer.
  */
 export function OutilsPaquets({
   matieres, dossiers,
 }: { matieres: Matieres; dossiers: OptionDestination[] }) {
-  const [vue, setVue] = useState<null | "choix" | "creer" | "importer" | "dossier">(null);
+  const [vue, setVue] = useState<null | keyof typeof TITRES>(null);
+  const fermer = () => setVue(null);
 
   return (
     <>
       <header className="page-heading">
         <h1>Fiches</h1>
-        <button type="button" className="bouton-rond"
-                aria-label={vue ? "Fermer" : "Nouveau paquet, dossier ou import Anki"}
-                aria-expanded={vue !== null}
-                onClick={() => setVue(vue ? null : "choix")}>
+        <button type="button" className="bouton-rond" aria-label="Nouveau paquet, dossier ou import Anki"
+                aria-haspopup="dialog" onClick={() => setVue("choix")}>
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
                strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
-            <path d={vue ? "M6 6l12 12M18 6 6 18" : "M12 5v14M5 12h14"} />
+            <path d="M12 5v14M5 12h14" />
           </svg>
         </button>
       </header>
 
-      {vue === "choix" && (
-        <div className="-mt-4 mb-10 flex flex-wrap gap-2">
-          <button type="button" className="puce" onClick={() => setVue("creer")}>Nouveau paquet</button>
-          <button type="button" className="puce" onClick={() => setVue("dossier")}>Nouveau dossier</button>
-          <button type="button" className="puce" onClick={() => setVue("importer")}>Importer depuis Anki</button>
-        </div>
-      )}
-      {(vue === "creer" || vue === "importer" || vue === "dossier") && (
-        <div className="-mt-4 mb-10">
-          {vue === "creer" ? <FormulairePaquet matieres={matieres} dossiers={dossiers} onFini={() => setVue(null)} />
-            : vue === "importer" ? <FormulaireImport matieres={matieres} dossiers={dossiers} onFini={() => setVue(null)} />
-            : <NouveauDossier kind="deck" matieres={matieres} onFini={() => setVue(null)} />}
-        </div>
+      {vue && (
+        <Dialogue key={vue} titre={TITRES[vue]} onFermer={fermer}>
+          {vue === "choix" ? (
+            <div className="flex flex-col">
+              <button type="button" className="ligne ligne__titre w-full text-left" onClick={() => setVue("creer")}>Nouveau paquet</button>
+              <button type="button" className="ligne ligne__titre w-full text-left" onClick={() => setVue("dossier")}>Nouveau dossier</button>
+              <button type="button" className="ligne ligne__titre w-full text-left" onClick={() => setVue("importer")}>Importer depuis Anki</button>
+            </div>
+          ) : vue === "creer" ? <FormulairePaquet matieres={matieres} dossiers={dossiers} onFini={fermer} />
+            : vue === "importer" ? <FormulaireImport matieres={matieres} dossiers={dossiers} onFini={fermer} />
+            : <NouveauDossier kind="deck" parents={dossiers} matieres={matieres} onFini={fermer} />}
+        </Dialogue>
       )}
     </>
   );
@@ -100,7 +103,6 @@ function FormulairePaquet({
       }}
       className="space-y-2"
     >
-      <h2 className="text-[15px] font-semibold">Nouveau paquet</h2>
       <input name="titre" required minLength={2} maxLength={120}
              placeholder="Titre"
              className="w-full rounded-[var(--radius-md)] border-2 px-3 py-2 text-[14px]
@@ -139,7 +141,6 @@ function FormulaireImport({
 
   return (
     <form action={envoyer} className="space-y-2">
-      <h2 className="text-[15px] font-semibold">Importer depuis Anki</h2>
       <input type="file" name="apkg" accept=".apkg" required
              className="w-full text-[13px] file:mr-3 file:rounded-[var(--radius-sm)]
                         file:border-0 file:bg-[var(--secondary)] file:px-3 file:py-1.5

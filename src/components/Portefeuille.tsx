@@ -20,9 +20,12 @@ type Mode = "depot" | "retrait";
 export function Portefeuille({
   solde,
   enAttente,
+  transferts,
 }: {
   solde: number;
   enAttente: { sens: Mode; montant: number }[];
+  /** Faux tant que kcmaths n'est pas branché : solde seul, sans boutons. */
+  transferts: boolean;
 }) {
   const router = useRouter();
   const [mode, setMode] = useState<null | Mode>(null);
@@ -73,7 +76,7 @@ export function Portefeuille({
       {/* Valeur calculee par PostgreSQL (somme du grand livre). */}
       <p className="mt-2 text-center text-[44px] font-semibold leading-none tracking-[-0.03em]">{formatCentimes(solde)}</p>
 
-      {mode === null ? (
+      {!transferts ? null : mode === null ? (
         <div className="mt-6 flex gap-2">
           <button
             type="button"

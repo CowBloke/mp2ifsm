@@ -74,7 +74,7 @@ sudo install -o root -g root -m 0755 deploy/mp2ifsm-auto-deploy /usr/local/sbin/
 
 Dès lors, `npm run jeu:test` fait partie de la validation.
 
-**2. 🔒 Variables** dans `/home/cowbloke/projects/mp2ifsm/.env` :
+**2. 🔒 Variables** dans `/home/cowbloke/projects/apps/mp2ifsm/.env` :
 
 ```
 JEU_ACTIF=                    # vide pour l'instant : jeu caché

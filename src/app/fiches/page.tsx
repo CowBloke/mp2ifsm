@@ -95,18 +95,24 @@ function Liste({
   const ctx = { paquets, dossiers, matieresActives, moi, sousArbre };
 
   return (
-    <div className="page-stack">
+    <div className="flex flex-col gap-6">
       {ordre.map((g) => (
-        <section key={g.cle} aria-label={g.nom ?? "Sans matière"}>
-          <h2 className="etiquette flex items-center gap-2" style={styleMatiere(g.couleur)}>
+        <details key={g.cle} open className="groupe-matiere">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2"
+                   style={styleMatiere(g.couleur)}>
             <span className="m-plein h-2 w-2 rounded-full" aria-hidden />
-            {g.nom ?? "Sans matière"}
-          </h2>
+            <h2 className="etiquette m-0 flex-1">{g.nom ?? "Sans matière"}</h2>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2"
+                 strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+                 className="chevron shrink-0 text-[var(--muted-foreground)] transition-transform">
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </summary>
           <ul>
             {g.racines.map((n) => <Dossier key={`d${n.id}`} n={n} ctx={ctx} />)}
             {g.paquets.sort(parChapitre).map((p) => <LignePaquet key={p.id} p={p} />)}
           </ul>
-        </section>
+        </details>
       ))}
     </div>
   );
@@ -150,7 +156,10 @@ function LignePaquet({ p }: { p: PaquetVue }) {
         <span aria-hidden="true" className="tabular w-6 shrink-0 text-[14px] text-[var(--muted-foreground)]">
           {/^\d{1,2}$/.test(p.chapitre) ? p.chapitre : ""}
         </span>
-        <span className="ligne__titre min-w-0 flex-1 [overflow-wrap:anywhere]">{p.titre}</span>
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="ligne__titre [overflow-wrap:anywhere]">{p.titre}</span>
+          <span className="ligne__meta truncate">{p.createur}</span>
+        </span>
       </Link>
       {!p.abonne ? (
         <BoutonSuivre deckId={p.id} abonne={false} compact />

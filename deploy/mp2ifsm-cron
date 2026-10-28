@@ -6,7 +6,7 @@ SHELL=/bin/bash
 PATH=/usr/local/bin:/usr/bin:/bin
 
 # Tirage des dépôts depuis le site externe, toutes les 10 minutes.
-*/10 * * * * cowbloke set -a; . /home/cowbloke/projects/mp2ifsm/.env; set +a; curl -fsS -m 30 -X POST -H "authorization: Bearer $CRON_TOKEN" http://127.0.0.1:4260/api/cron/sync-deposits >/dev/null
+*/10 * * * * cowbloke set -a; . /home/cowbloke/projects/apps/mp2ifsm/.env; set +a; curl -fsS -m 30 -X POST -H "authorization: Bearer $CRON_TOKEN" http://127.0.0.1:4260/api/cron/sync-deposits >/dev/null
 
 # Rapprochement comptable quotidien : toute ligne ECHEC part par mail.
-17 3 * * * cowbloke set -a; . /home/cowbloke/projects/mp2ifsm/.env; set +a; psql "$DATABASE_URL" -f /home/cowbloke/projects/mp2ifsm/db/reconcile.sql 2>&1 | grep -q ECHEC && echo "RAPPROCHEMENT MP2IFSM EN ECHEC" || true
+17 3 * * * cowbloke set -a; . /home/cowbloke/projects/apps/mp2ifsm/.env; set +a; psql "$DATABASE_URL" -f /home/cowbloke/projects/apps/mp2ifsm/db/reconcile.sql 2>&1 | grep -q ECHEC && echo "RAPPROCHEMENT MP2IFSM EN ECHEC" || true

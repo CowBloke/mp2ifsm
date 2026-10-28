@@ -9,12 +9,13 @@ import {
 import type { GestionDossier } from "@/lib/arbre-dossiers";
 import { IconeDossier } from "./IconeDossier";
 import { styleMatiere } from "./Matiere";
+import { Dialogue } from "./Dialogue";
 
 /*
  * Une ligne de dossier. Deux formes :
  *  - `href` : le dossier est une page (Documents), la ligne est un lien ;
  *  - sinon un accordéon (Fiches) dont `children` est le contenu.
- * Le bouton « … » ouvre le panneau de gestion, quel que soit le mode.
+ * Le bouton « … » ouvre la gestion dans une fenêtre, quel que soit le mode.
  */
 export function LigneDossier({
   nom, meta, badge, couleur, href, defautOuvert = false, gestion, children,
@@ -65,7 +66,7 @@ export function LigneDossier({
                   className="flex min-w-0 flex-1 items-center gap-3.5 py-2">{corps}</button>
         )}
         {peutGerer && (
-          <button type="button" aria-expanded={gerer} aria-label={`Gérer le dossier ${nom}`}
+          <button type="button" aria-haspopup="dialog" aria-label={`Gérer le dossier ${nom}`}
                   onClick={() => setGerer(!gerer)}
                   className="grid h-11 w-11 shrink-0 place-items-center rounded-full
                              text-[var(--muted-foreground)] hover:bg-[var(--muted)]">
@@ -76,7 +77,11 @@ export function LigneDossier({
         )}
       </div>
 
-      {gerer && gestion && <PanneauDossier g={gestion} onFermer={() => setGerer(false)} />}
+      {gerer && gestion && (
+        <Dialogue titre={nom} onFermer={() => setGerer(false)}>
+          <PanneauDossier g={gestion} onFermer={() => setGerer(false)} />
+        </Dialogue>
+      )}
 
       {!href && ouvert && (
         <ul className="ml-[18px] border-l pl-3">{children}</ul>
@@ -86,8 +91,8 @@ export function LigneDossier({
 }
 
 export function PanneauDossier({
-  g, onFermer, decale = true,
-}: { g: GestionDossier; onFermer: () => void; decale?: boolean }) {
+  g, onFermer,
+}: { g: GestionDossier; onFermer: () => void }) {
   const router = useRouter();
   const [erreur, setErreur] = useState<string | null>(null);
   const [enCours, demarrer] = useTransition();
@@ -104,7 +109,7 @@ export function PanneauDossier({
   }
 
   return (
-    <div className={`mb-3 flex flex-col gap-3 text-[14px] ${decale ? "ml-[50px]" : ""}`}>
+    <div className="flex flex-col gap-3 text-[14px]">
       {g.peutModifier && (
         <form className="flex flex-col gap-2"
               onSubmit={(e) => {

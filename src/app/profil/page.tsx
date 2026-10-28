@@ -15,7 +15,7 @@ import { formatCentimes } from "@/lib/money";
 import {
   mouvements, positionsOuvertes, positionsReglees, soldeCentimes,
 } from "@/lib/queries";
-import { transfertsEnAttente } from "@/lib/kcmaths";
+import { kcmathsDisponible, transfertsEnAttente } from "@/lib/kcmaths";
 import { utilisateurCourant } from "@/lib/session";
 import { queryOne } from "@/lib/db";
 import { ReglageGroupe } from "@/components/Groupe";
@@ -135,11 +135,12 @@ async function MesPropositions({ userId }: { userId: string }) {
 }
 
 async function Solde({ userId }: { userId: string }) {
-  const [solde, enAttente] = await Promise.all([
+  const [solde, enAttente, transferts] = await Promise.all([
     soldeCentimes(userId),
     transfertsEnAttente(userId),
+    kcmathsDisponible(),
   ]);
-  return <Portefeuille solde={solde} enAttente={enAttente} />;
+  return <Portefeuille solde={solde} enAttente={enAttente} transferts={transferts} />;
 }
 
 async function Positions({ userId }: { userId: string }) {

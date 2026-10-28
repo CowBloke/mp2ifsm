@@ -1,6 +1,6 @@
 [Unit]
 Description=mp2ifsm.com — portail de classe
-Documentation=file:/home/cowbloke/projects/mp2ifsm/README.md
+Documentation=file:/home/cowbloke/projects/apps/mp2ifsm/README.md
 After=network-online.target postgresql.service
 Wants=network-online.target
 Requires=postgresql.service
@@ -12,7 +12,7 @@ Group=cowbloke
 WorkingDirectory=/var/lib/mp2ifsm-deploy/current
 
 # DATABASE_URL, SESSION_SECRET, CRON_TOKEN, KCMATHS_API_* — jamais en dépôt.
-EnvironmentFile=/home/cowbloke/projects/mp2ifsm/.env
+EnvironmentFile=/home/cowbloke/projects/apps/mp2ifsm/.env
 Environment=NODE_ENV=production
 Environment=NEXT_BUILD_DIR=.next-production
 Environment=PORT=4260

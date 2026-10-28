@@ -39,6 +39,25 @@ function config(): Config | null {
   return url && token ? { url, token } : null;
 }
 
+/*
+ * Tant que kcmaths n'a pas installe son point d'entree (pas de jeton) ou
+ * que la migration db/schema-kcmaths.sql n'est pas passee, le portefeuille
+ * reste lisible : pas de transfert, aucune erreur. La presence de la
+ * table n'est memorisee qu'une fois constatee.
+ */
+let tableVue = false;
+async function tableExiste(): Promise<boolean> {
+  if (!tableVue) {
+    const r = await queryOne<{ ok: boolean }>(`select to_regclass('kcmaths_transfer') is not null as ok`);
+    tableVue = r?.ok ?? false;
+  }
+  return tableVue;
+}
+
+export async function kcmathsDisponible(): Promise<boolean> {
+  return config() !== null && (await tableExiste());
+}
+
 /** Codes renvoyes par kcmaths qui ne changeront pas en reessayant. */
 const REFUS_DEFINITIFS: Record<number, string> = {
   400: "KCMATHS_REQUETE_INVALIDE",
@@ -93,7 +112,7 @@ export async function demarrerTransfert(
   montant: number,
   ref: string,
 ): Promise<void> {
-  if (!config()) throw new ErreurMetier("KCMATHS_NON_CONFIGURE");
+  if (!(await kcmathsDisponible())) throw new ErreurMetier("KCMATHS_NON_CONFIGURE");
 
   await tx(async (c) => {
     if (sens === "retrait") {
@@ -183,7 +202,7 @@ export async function traiterTransfert(
 
 /** Rejoue les transferts restes en_attente (appele par le cron). */
 export async function reprendreTransferts(): Promise<{ vus: number; termines: number }> {
-  if (!config()) return { vus: 0, termines: 0 };
+  if (!(await kcmathsDisponible())) return { vus: 0, termines: 0 };
   const lignes = await query<{ ref: string }>(
     `select ref from kcmaths_transfer
       where statut = 'en_attente' and maj_le < now() - interval '1 minute'
@@ -200,6 +219,7 @@ export async function reprendreTransferts(): Promise<{ vus: number; termines: nu
 export type TransfertVue = { sens: Sens; montant: number; cree_le: string };
 
 export async function transfertsEnAttente(userId: string): Promise<TransfertVue[]> {
+  if (!(await tableExiste())) return [];
   return query<TransfertVue>(
     `select sens, montant, cree_le from kcmaths_transfer
       where user_id = $1::uuid and statut = 'en_attente'

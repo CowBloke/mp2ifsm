@@ -2,26 +2,22 @@
 
 import { useState } from "react";
 import { EditeurCarte } from "./EditeurCarte";
+import { Dialogue } from "./Dialogue";
 
-/** Repli/dépli du formulaire d'ajout, pour ne pas encombrer la liste. */
+/** Ajout d'une carte dans une fenêtre, pour ne pas décaler la liste. */
 export function PanneauAjoutCarte({ deckId }: { deckId: number }) {
   const [ouvert, setOuvert] = useState(false);
 
-  if (!ouvert) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOuvert(true)}
-        className="lien-discret"
-      >
+  return (
+    <>
+      <button type="button" onClick={() => setOuvert(true)} aria-haspopup="dialog" className="lien-discret">
         + Ajouter une carte
       </button>
-    );
-  }
-
-  return (
-    <div className="py-2">
-      <EditeurCarte deckId={deckId} onFini={() => setOuvert(false)} />
-    </div>
+      {ouvert && (
+        <Dialogue titre="Nouvelle carte" onFermer={() => setOuvert(false)}>
+          <EditeurCarte deckId={deckId} onFini={() => setOuvert(false)} />
+        </Dialogue>
+      )}
+    </>
   );
 }

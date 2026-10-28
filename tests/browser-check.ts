@@ -67,6 +67,20 @@ export async function browserCheck(base: string, token: string) {
       assert.ok(await evaluate('document.documentElement.scrollWidth <= 390'), `${nom} fits mobile viewport`);
       await capture(nom);
     }
+    // Les formulaires de création s'ouvrent dans une fenêtre modale.
+    await send("Page.navigate", { url: base + "/fiches" });
+    await until('!!document.querySelector(\'button[aria-haspopup="dialog"]\') && !document.querySelector(".skeleton")');
+    await evaluate('new Promise(r => setTimeout(r, 500))');
+    await evaluate(`document.querySelector('button[aria-haspopup="dialog"]').click()`);
+    await until('document.querySelector("dialog")?.open === true');
+    await evaluate(`Array.from(document.querySelectorAll("dialog button")).find(b => b.textContent === "Nouveau dossier").click()`);
+    await until('!!document.querySelector("dialog input[aria-label=\\"Nom du dossier\\"]")');
+    await evaluate('new Promise(r => setTimeout(r, 400))'); // fin de l'animation d'entrée
+    assert.ok(await evaluate('document.querySelector("dialog").getBoundingClientRect().bottom <= innerHeight + 1'),
+      "creation dialog sits inside the viewport");
+    assert.ok(await evaluate('document.documentElement.scrollWidth <= 390'), "creation dialog fits mobile viewport");
+    await capture("creation");
+    console.log("PASS creation forms open in a modal dialog");
     await send("Page.navigate", { url: base + "/marche" });
     await until('!!document.querySelector(\'a[href^="/marche/"]:not([href="/marche/classement"])\')');
     const premier = await evaluate('document.querySelector(\'a[href^="/marche/"]:not([href="/marche/classement"])\').href');

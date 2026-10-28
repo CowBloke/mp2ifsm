@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { Dialogue } from "./Dialogue";
 import { useRouter } from "next/navigation";
 import {
   archiverMatiere, creerMatiere, deplacerMatiere, modifierMatiere,
@@ -103,28 +104,31 @@ function Nuancier({ valeur, onChange, nom }: { valeur: string; onChange: (c: str
 function NouvelleMatiere({
   enCours, onCreer,
 }: { enCours: boolean; onCreer: (nom: string, couleur: string) => void }) {
+  const [ouvert, setOuvert] = useState(false);
   const [nom, setNom] = useState("");
   const [couleur, setCouleur] = useState<string>("bleu");
   return (
-    <form
-      className="space-y-2 rounded-lg border bg-[var(--card)] p-3"
-      onSubmit={(e) => { e.preventDefault(); onCreer(nom, couleur); setNom(""); }}
-    >
-      <h3 className="text-[14px] font-semibold">Nouvelle matière</h3>
-      <div className="flex gap-2">
-        <input value={nom} onChange={(e) => setNom(e.target.value)} required maxLength={40}
-               placeholder="Nom (ex. Informatique)" aria-label="Nom de la matière"
-               className="min-w-0 flex-1 rounded-[var(--radius-md)] border-2 px-3 py-2 text-[14px]
-                          outline-none focus:border-[var(--ring)]" />
-        <button type="submit" disabled={enCours || !nom.trim()}
-                className="rounded-[var(--radius-md)] bg-[var(--primary)] px-4 py-2 text-[13px] font-semibold
-                           text-[var(--primary-foreground)] disabled:opacity-40">
-          Ajouter
-        </button>
-      </div>
-      <Nuancier valeur={couleur} onChange={setCouleur} nom={nom} />
-      {nom.trim() && <PastilleMatiere nom={nom.trim()} couleur={couleur} />}
-    </form>
+    <>
+      <button type="button" onClick={() => setOuvert(true)} aria-haspopup="dialog" className="lien-discret">
+        + Nouvelle matière
+      </button>
+      {ouvert && (
+        <Dialogue titre="Nouvelle matière" onFermer={() => setOuvert(false)}>
+          <form
+            className="space-y-3"
+            onSubmit={(e) => { e.preventDefault(); onCreer(nom, couleur); setNom(""); setOuvert(false); }}
+          >
+            <input value={nom} onChange={(e) => setNom(e.target.value)} required maxLength={40} autoFocus
+                   placeholder="Nom" aria-label="Nom de la matière" className="champ" />
+            <Nuancier valeur={couleur} onChange={setCouleur} nom={nom} />
+            {nom.trim() && <PastilleMatiere nom={nom.trim()} couleur={couleur} />}
+            <button type="submit" disabled={enCours || !nom.trim()} className="bouton-principal h-12">
+              Ajouter
+            </button>
+          </form>
+        </Dialogue>
+      )}
+    </>
   );
 }
 

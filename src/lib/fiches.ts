@@ -27,6 +27,8 @@ export type PaquetVue = {
   chapitre: string;
   description: string | null;
   created_by: string;
+  /** Pseudo du créateur du paquet. */
+  createur: string;
   total: number;
   nouvelles: number;
   apprentissage: number;
@@ -40,13 +42,14 @@ const SELECT_PAQUET = `
          coalesce(sj.archived_at is not null, false) as matiere_archivee,
          exists (select 1 from deck_subscription ab
                   where ab.deck_id = d.id and ab.user_id = $1::uuid) as abonne,
-         d.chapitre, d.description, d.created_by,
+         d.chapitre, d.description, d.created_by, cu.display_name as createur,
          coalesce(c.total, 0)                      as total,
          coalesce(c.nouvelles, 0)                  as nouvelles,
          coalesce(c.apprentissage, 0)              as apprentissage,
          coalesce(c.a_revoir, 0)                   as a_revoir,
          coalesce(r.signalements, 0)               as signalements
     from deck d
+    join app_user cu on cu.id = d.created_by
     left join subject sj on sj.id = d.subject_id
     left join lateral (
       select count(*) as total,

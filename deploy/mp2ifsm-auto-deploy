@@ -6,7 +6,7 @@ set -Eeuo pipefail
 # application account. Root is retained only for the atomic switch and systemd.
 
 readonly APP_USER=cowbloke
-readonly REPOSITORY=/home/cowbloke/projects/mp2ifsm
+readonly REPOSITORY=/home/cowbloke/projects/apps/mp2ifsm
 readonly STATE_DIR=/var/lib/mp2ifsm-deploy
 readonly RELEASES="$STATE_DIR/releases"
 readonly CURRENT="$STATE_DIR/current"

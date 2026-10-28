@@ -1,6 +1,6 @@
 [Unit]
 Description=mp2ifsm.com — serveur de jeu (Taupe Fighter)
-Documentation=file:/home/cowbloke/projects/mp2ifsm/deploy/JEU.md
+Documentation=file:/home/cowbloke/projects/apps/mp2ifsm/deploy/JEU.md
 After=network-online.target
 Wants=network-online.target
 
@@ -14,7 +14,7 @@ WorkingDirectory=/var/lib/mp2ifsm-deploy/current
 
 # SESSION_SECRET (vérification des tickets), PUBLIC_ORIGIN (origine
 # acceptée), JEU_PORT. JEU_HOTE doit y rester vide : loopback.
-EnvironmentFile=/home/cowbloke/projects/mp2ifsm/.env
+EnvironmentFile=/home/cowbloke/projects/apps/mp2ifsm/.env
 Environment=NODE_ENV=production
 
 # tsx (installé par npm ci dans la release) exécute le TypeScript du jeu.

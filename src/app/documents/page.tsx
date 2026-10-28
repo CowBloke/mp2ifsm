@@ -57,6 +57,10 @@ export default async function PageDocuments({ searchParams }: { searchParams: Pa
 
   return (
     <main>
+      {courant && (
+        <LienRetour href={courant.parent_id === null ? "/documents" : `/documents?dossier=${courant.parent_id}`}
+                    label="Dossier parent" />
+      )}
       <DepotDocuments
         titre={courant?.nom ?? "Documents"}
         quotaAtteint={us.utilise_membre >= us.quota_membre}
@@ -65,7 +69,7 @@ export default async function PageDocuments({ searchParams }: { searchParams: Pa
         peutCreerDossier={fil.length < PROFONDEUR_MAX_DOSSIERS}
         gestion={courant ? gestionDe(courant, dossiers, moi, matieresForm) : undefined}
       >
-        {courant && <FilAriane fil={fil} />}
+        {fil.length > 1 && <FilAriane fil={fil} />}
       </DepotDocuments>
 
       {presquePlein && (
