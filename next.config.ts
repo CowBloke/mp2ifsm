@@ -9,6 +9,13 @@ const config: NextConfig = {
   // Module natif : laissé à Node, jamais bundlé par Turbopack.
   serverExternalPackages: ["better-sqlite3"],
   reactStrictMode: true,
+  // Fichiers versionnés par leur dossier : aucune revalidation nécessaire.
+  async headers() {
+    return [{
+      source: "/medaille/v2/:fichier*",
+      headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
+    }];
+  },
   experimental: {
     // Money pages must never be served from a stale cache.
     staleTimes: { dynamic: 0, static: 0 },

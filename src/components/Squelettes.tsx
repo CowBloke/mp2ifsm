@@ -1,3 +1,5 @@
+import { PieceAttente } from "./PiecePricoup";
+
 /*
  * Etats de chargement. Ils reprennent exactement la geometrie du
  * contenu reel pour que rien ne saute quand les donnees arrivent.
@@ -47,7 +49,7 @@ export function SquelettePortefeuille() {
   return (
     <div className="space-y-4" aria-busy="true">
       <div>
-        <div className="mx-auto aspect-square w-full max-w-[280px]" />
+        <PieceAttente />
         <div className="skeleton mx-auto mt-2 h-11 w-48" />
         <div className="mt-6 flex gap-2">
           <div className="skeleton h-10 flex-1" />

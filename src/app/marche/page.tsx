@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CarteMarche } from "@/components/CarteMarche";
+import { LienProfil } from "@/components/PiecePricoup";
 import { SqueletteFil } from "@/components/Squelettes";
 import { formatCentimes } from "@/lib/money";
 import { listerMarches, soldeCentimes } from "@/lib/queries";
@@ -38,12 +39,9 @@ export default async function PageMarche() {
 async function PastilleSolde({ userId }: { userId: string }) {
   const solde = await soldeCentimes(userId);
   return (
-    <Link
-      href="/profil"
-      className="solde shrink-0" aria-label={`Solde : ${formatCentimes(solde)}`}
-    >
+    <LienProfil className="solde shrink-0" aria-label={`Solde : ${formatCentimes(solde)}`}>
       {formatCentimes(solde)}
-    </Link>
+    </LienProfil>
   );
 }
 

@@ -2,12 +2,14 @@ import { Administration } from "@/components/Administration";
 import { ProposalList } from "@/components/AdminPanel";
 import { proposals } from "@/lib/proposals";
 import { Suspense } from "react";
+import { preload } from "react-dom";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { LienRetour } from "@/components/LienRetour";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { BoutonRetour } from "@/components/BoutonRetour";
 import { Portefeuille } from "@/components/Portefeuille";
+import { AFFICHE_PIECE } from "@/lib/constantes";
 import { ReglagePartageStats } from "@/components/ReglagesProfil";
 import { SquelettePortefeuille, SqueletteListe } from "@/components/Squelettes";
 import { deconnexion } from "@/lib/actions";
@@ -34,6 +36,7 @@ export default async function PageMoi({ searchParams }: { searchParams: Promise<
   const u = await utilisateurCourant();
   if (!u) redirect("/connexion");
   const adminTab = u.role === "admin" && (await searchParams).onglet === "admin";
+  if (!adminTab) preload(AFFICHE_PIECE, { as: "image", fetchPriority: "high" });
 
   return (
     <main>

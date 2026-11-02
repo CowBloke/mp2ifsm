@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { FormulaireEcheance } from "@/components/Echeances";
+import { LienProfil, PrechargePiece } from "@/components/PiecePricoup";
 import { tempsRestant } from "@/lib/money";
 import { marchesBientotFermes, resumeFiches } from "@/lib/dashboard";
 import { echeancesAVenir } from "@/lib/echeances";
@@ -40,11 +41,12 @@ export default async function Accueil() {
               </svg>
             </Link>
           ) : null}
-          <Link href="/profil" aria-label="Profil"
-                className="grid h-11 w-11 place-items-center rounded-full bg-[var(--secondary)]
-                           text-[16px] font-semibold text-[var(--secondary-foreground)]">
+          <LienProfil aria-label="Profil"
+                      className="grid h-11 w-11 place-items-center rounded-full bg-[var(--secondary)]
+                                 text-[16px] font-semibold text-[var(--secondary-foreground)]">
             {u.display_name.trim().charAt(0).toLocaleUpperCase("fr") || "?"}
-          </Link>
+          </LienProfil>
+          <PrechargePiece />
         </div>
       </header>
 

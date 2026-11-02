@@ -5,6 +5,9 @@
  * un composant client sans entraîner `pg` dans le bundle du navigateur.
  */
 
+/** Image fixe de la pièce, affichée avant le rendu WebGL (voir PiecePricoup). */
+export const AFFICHE_PIECE = "/medaille/v2/affiche.webp";
+
 /** Ancien enum SQL `matiere` : ne sert plus qu'à la compatibilité. */
 export const MATIERES = ["Maths", "Physique", "Chimie", "SI", "Français", "Anglais"] as const;
 export type Matiere = (typeof MATIERES)[number];

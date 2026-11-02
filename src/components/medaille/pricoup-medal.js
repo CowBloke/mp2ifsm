@@ -2,12 +2,17 @@
  * Pièce de pricoupenkoin en 3D (paquet pricoup-medal, Three.js 0.180.0).
  * Adaptée au portail : textures servies depuis public/medaille/ et
  * libellés en français, sans texte de chargement. Rotation limitée à l'axe vertical.
+ *
+ * public/medaille/v2/ est servi en cache « immutable » (next.config.ts) :
+ * tout changement de fichier doit passer par un nouveau dossier de version.
  */
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { createMedal } from './medal-model.js';
+import { loadMedal } from './medal-model.js';
 
-const defaultAssets = '/medaille/';
+const defaultAssets = '/medaille/v2/';
+/** Télécharge et prépare la pièce sans rien afficher. */
+export function preloadMedal() { return loadMedal(new URL(defaultAssets,document.baseURI)); }
 const style = `
  :host { display:block; position:relative; width:100%; height:100%; min-height:180px; contain:layout paint; }
  canvas { display:block; width:100%; height:100%; touch-action:pan-y; cursor:grab; outline:none; }
@@ -33,7 +38,7 @@ export class PricoupMedal extends HTMLElement {
     this._renderer?.dispose(); this._renderer?.forceContextLoss(); this._renderer?.domElement.remove();
     this._model?.medal.traverse(o=>o.geometry?.dispose());
     this._model?.materials.forEach(m=>m.dispose()); this._model?.textures.forEach(t=>t.dispose());
-    this._env?.dispose(); this._model=null; this._renderer=null; this._lastRelief=undefined;
+    this._env?.dispose(); this._model=null; this._renderer=null;
   }
   attributeChangedCallback() { this._apply(); }
   _number(name,fallback,min,max) {
@@ -61,15 +66,17 @@ export class PricoupMedal extends HTMLElement {
       const fill=new THREE.DirectionalLight(0xc5dfff,1.5); fill.position.set(4,0,3); this._lights.add(fill);
       const rim=new THREE.DirectionalLight(0xffe2a4,3.6); rim.position.set(-2,1,-4); this._lights.add(rim);
       this._scene.add(new THREE.HemisphereLight(0xffffff,0x8f9aa5,.75));
-      const assets=new URL(this.getAttribute('asset-base')??defaultAssets,document.baseURI);
-      // Asset-base must end with / to denote a directory.
-      const model=await createMedal(assets,{signal});
-      if(signal.aborted) { model.medal.traverse(o=>o.geometry?.dispose()); model.materials.forEach(m=>m.dispose()); model.textures.forEach(t=>t.dispose()); return; }
+      const model=await preloadMedal();
+      if(signal.aborted) return;
       this._model=model; this._scene.add(model.medal);
       this._observer=new ResizeObserver(()=>this._resize()); this._observer.observe(this); this._resize();
       this._bind(canvas,signal); this._apply(); this._message.hidden=true;
+      // Premier rendu tout de suite : medal-ready signifie « pièce à l'écran »
+      // et l'affiche fixe peut céder la place sans clignotement.
+      model.medal.rotation.set(0,this._yaw,0);
+      renderer.render(this._scene,this._camera); this._dirty=false;
       this.dispatchEvent(new CustomEvent('medal-ready',{bubbles:true,composed:true}));
-      let last=performance.now(), lastYaw=NaN;
+      let last=performance.now(), lastYaw=this._yaw;
       const frame=(now)=>{
         if(signal.aborted) return;
         const dt=Math.min((now-last)/1000,.05); last=now;
@@ -106,9 +113,9 @@ export class PricoupMedal extends HTMLElement {
     this._dirty=true;
     const scale=this._number('relief',1,0,3);
     const g=this._model.front.geometry, p=g.attributes.position, depths=g.userData.depths;
-    if(this._lastRelief!==scale) {
+    if(g.userData.relief!==scale) {
       for(let i=0;i<p.count;i++) p.setZ(i,.062+depths[i]*scale);
-      p.needsUpdate=true; g.computeVertexNormals(); this._lastRelief=scale;
+      p.needsUpdate=true; g.computeVertexNormals(); g.userData.relief=scale;
     }
     const presets={studio:[1.06,0],warm:[1.15,.7],dramatic:[.78,-.7]};
     const [exposure,angle]=presets[this.getAttribute('lighting')]||presets.studio;

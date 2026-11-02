@@ -41,20 +41,30 @@ function faceGeometry(height, reverse = false) {
     const n=new THREE.Vector3().fromBufferAttribute(normals,a).add(new THREE.Vector3().fromBufferAttribute(normals,b)).normalize();
     normals.setXYZ(a,n.x,n.y,n.z); normals.setXYZ(b,n.x,n.y,n.z);
   }
-  g.userData.depths=depths;
+  g.userData.depths=depths; g.userData.relief=1;
   return g;
 }
 
-export async function createMedal(assetBase, { signal } = {}) {
+/*
+ * Le modèle est construit une seule fois par page : le préchargement et les
+ * retours sur le profil réutilisent les images décodées et la géométrie.
+ * Chaque élément ne libère que ses ressources GPU, recréées à l'affichage.
+ */
+let modele=null;
+export function loadMedal(assetBase) {
+  modele??=createMedal(assetBase).catch(error=>{modele=null;throw error;});
+  return modele;
+}
+
+async function createMedal(assetBase) {
   const loader=new THREE.TextureLoader();
-  const files=['medal-color.jpg','medal-height.png','medal-detail.png','medal-roughness.png','medal-back.jpg','medal-back-height.png'];
+  const files=['medal-color.webp','medal-height.webp','medal-detail.webp','medal-roughness.webp','medal-back.webp','medal-back-height.webp'];
   const textures=[];
   try {
     await Promise.all(files.map(async (f,i)=>{
       textures[i]=await loader.loadAsync(new URL(f,assetBase).href);
       textures[i].anisotropy=8;
     }));
-    if(signal?.aborted) throw new DOMException('Aborted','AbortError');
     const [color,height,detail,roughness,back,backHeight]=textures;
     color.colorSpace=back.colorSpace=THREE.SRGBColorSpace;
     const frontMaterial=new THREE.MeshStandardMaterial({map:color,metalness:.78,roughness:.62,roughnessMap:roughness,bumpMap:detail,bumpScale:.014,envMapIntensity:1.1});
