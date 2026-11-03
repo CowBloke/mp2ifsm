@@ -123,7 +123,6 @@ export async function reviserCarte(
 
 const SchemaPaquet = z.object({
   titre: z.string().trim().min(2).max(120),
-  chapitre: z.string().trim().min(1).max(120),
   description: z.string().trim().max(1000).optional(),
 });
 
@@ -132,7 +131,6 @@ export async function creerPaquet(formData: FormData): Promise<Reponse<{ slug: s
     const u = await exigerUtilisateur();
     const p = SchemaPaquet.safeParse({
       titre: formData.get("titre"),
-      chapitre: formData.get("chapitre"),
       description: formData.get("description") || undefined,
     });
     if (!p.success) return { ok: false, erreur: "Formulaire invalide" };
@@ -143,7 +141,7 @@ export async function creerPaquet(formData: FormData): Promise<Reponse<{ slug: s
       const matiere = dossier ? dossier.subject_id : await matiereDuFormulaire(formData.get("matiere"), c);
       const nom = matiere === null ? "" : (await c.query<{ nom: string }>(
         `select nom from subject where id = $1`, [matiere])).rows[0].nom;
-      const base = slugifier(`${nom}-${p.data.chapitre}-${p.data.titre}`);
+      const base = slugifier(`${nom}-${p.data.titre}`);
       let candidat = base;
       for (let n = 2; ; n++) {
         const pris = await c.query(`select 1 from deck where slug = $1`, [candidat]);
@@ -153,7 +151,8 @@ export async function creerPaquet(formData: FormData): Promise<Reponse<{ slug: s
       const d = await c.query<{ id: number }>(
         `insert into deck (slug, titre, subject_id, folder_id, chapitre, description, created_by)
          values ($1,$2,$3,$4,$5,$6,$7::uuid) returning id`,
-        [candidat, p.data.titre, matiere, dossier?.id ?? null, p.data.chapitre,
+        // La colonne chapitre (historique, non nulle) reprend le titre.
+        [candidat, p.data.titre, matiere, dossier?.id ?? null, p.data.titre,
          p.data.description ?? null, u.id],
       );
       // Qui crée un paquet le suit : c'est lui qui va le remplir.
@@ -231,6 +230,81 @@ export async function changerMatierePaquet(
     revalidatePath("/fiches");
     revalidatePath("/");
     return { ok: true };
+  } catch (err) {
+    return echec(err);
+  }
+}
+
+/**
+ * Modifie titre, description et matière d'un paquet : son créateur ou
+ * un administrateur. Le slug ne change pas, les liens restent valides.
+ */
+export async function modifierPaquet(
+  deckId: number,
+  formData: FormData,
+): Promise<Reponse<undefined>> {
+  try {
+    const u = await exigerUtilisateur();
+    if (!Number.isSafeInteger(deckId) || deckId <= 0) throw new ErreurMetier("PAQUET_INTROUVABLE");
+    const p = SchemaPaquet.safeParse({
+      titre: formData.get("titre"),
+      description: formData.get("description") ?? "",
+    });
+    if (!p.success) return { ok: false, erreur: "Titre : 2 à 120 caractères" };
+
+    await tx(async (c) => {
+      const d = await c.query<{ subject_id: number | null }>(
+        `select subject_id from deck where id = $1 and archived_at is null
+            and ($3::boolean or created_by = $2::uuid) for update`,
+        [deckId, u.id, u.role === "admin"],
+      );
+      if (d.rowCount === 0) throw new ErreurMetier("NON_AUTORISE");
+      // Une matière archivée reste acceptée si c'est déjà celle du paquet.
+      const brut = String(formData.get("matiere") ?? "").trim();
+      const matiere = brut !== "" && Number(brut) === d.rows[0].subject_id
+        ? d.rows[0].subject_id : await matiereDuFormulaire(brut, c);
+      await c.query(
+        `update deck set titre = $2, description = $3, subject_id = $4,
+                folder_id = case when folder_id is not null and not exists (
+                    select 1 from dossier f where f.id = deck.folder_id
+                       and f.subject_id is not distinct from $4::smallint)
+                  then null else folder_id end
+          where id = $1`,
+        [deckId, p.data.titre, p.data.description || null, matiere],
+      );
+    });
+
+    revalidatePath("/fiches");
+    revalidatePath("/");
+    return { ok: true };
+  } catch (err) {
+    return echec(err);
+  }
+}
+
+/** « J'aime » sur un paquet, un par membre. */
+export async function aimerPaquet(
+  deckId: number,
+  aime: boolean,
+): Promise<Reponse<{ likes: number; aime: boolean }>> {
+  try {
+    const u = await exigerUtilisateur();
+    if (!Number.isSafeInteger(deckId) || deckId <= 0 || typeof aime !== "boolean") {
+      throw new ErreurMetier("PAQUET_INTROUVABLE");
+    }
+    if (aime) {
+      await query(
+        `insert into deck_like (user_id, deck_id)
+         select $1::uuid, id from deck where id = $2 and archived_at is null
+         on conflict do nothing`, [u.id, deckId]);
+    } else {
+      await query(`delete from deck_like where user_id = $1::uuid and deck_id = $2`, [u.id, deckId]);
+    }
+    const r = await queryOne<{ likes: number; aime: boolean }>(
+      `select count(*)::int as likes, bool_or(user_id = $2::uuid) as aime
+         from deck_like where deck_id = $1`, [deckId, u.id]);
+    revalidatePath("/fiches");
+    return { ok: true, data: { likes: r?.likes ?? 0, aime: r?.aime ?? false } };
   } catch (err) {
     return echec(err);
   }

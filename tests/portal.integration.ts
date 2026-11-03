@@ -265,7 +265,7 @@ try {
 
   const image = Buffer.from([137,80,78,71,13,10,26,10]);
   const apkg = await ecrireApkg("Schémas", [{ recto: "![](figure.png)", verso: "$x$" }], new Map([["figure.png", image]]));
-  const fd = new FormData(); fd.set("apkg", new File([new Uint8Array(apkg)], "test.apkg")); fd.set("matiere", ""); fd.set("chapitre", "Optique");
+  const fd = new FormData(); fd.set("apkg", new File([new Uint8Array(apkg)], "test.apkg")); fd.set("matiere", "");
   const imp = await fetch(base + "/api/fiches/import", { method: "POST", headers: { ...auth, origin: base }, body: fd });
   const imported = await imp.json();
   ok(imp.ok && imported.images === 1, "Anki import stores images");
@@ -274,6 +274,26 @@ try {
   const exp = await fetch(base + `/api/fiches/export/${imported.slug}`, { headers: auth });
   const exported = await lireApkg(Buffer.from(await exp.arrayBuffer()));
   ok(exported.medias.size === 1 && exported.notes[0].recto.includes("anki-media:"), "Anki export includes referenced image bytes");
+  const [importe] = await query<{ id: number }>("select id from deck where slug=$1", [imported.slug]);
+  const [avantMaj] = await query<{ id: number; anki_guid: string }>("select id, anki_guid from card where deck_id=$1", [importe.id]);
+  const majApkg = await ecrireApkg("Schémas", [
+    { recto: "![](figure.png) modifié", verso: "$x$", guid: avantMaj.anki_guid },
+    { recto: "Nouvelle", verso: "carte" },
+  ], new Map([["figure.png", image]]));
+  const fdMaj = new FormData(); fdMaj.set("apkg", new File([new Uint8Array(majApkg)], "maj.apkg")); fdMaj.set("deck", String(importe.id));
+  const maj = await fetch(base + "/api/fiches/import", { method: "POST", headers: { ...auth, origin: base }, body: fdMaj });
+  const bilan = await maj.json();
+  ok(maj.ok && bilan.ajoutees === 1 && bilan.modifiees === 1, `Anki update matches cards by GUID (${JSON.stringify(bilan)})`);
+  ok((await query("select 1 from card where id=$1 and recto like '%modifié'", [avantMaj.id])).length === 1, "Anki update keeps the card id");
+  ok((await query("select 1 from card_image")).length === 1, "Anki update reuses identical images");
+  ok((await query("select 1 from card_revision where card_id=$1 and motif='Mise à jour depuis Anki'", [avantMaj.id])).length === 1,
+    "Anki update records a revision");
+  const like = await action("aimerPaquet", [importe.id, true]);
+  ok(like.ok && like.data.likes === 1 && like.data.aime, "deck can be liked");
+  ok((await action("aimerPaquet", [importe.id, true])).data.likes === 1, "liking twice counts once");
+  ok((await action("aimerPaquet", [importe.id, false])).data.likes === 0, "deck can be unliked");
+  const pageFiches = await (await fetch(base + "/fiches", { headers: auth })).text();
+  ok(pageFiches.includes("Récemment ajoutés") && pageFiches.includes("Suivis"), "fiches page shows recent and followed sections");
   if (process.env.TEST_BROWSER === "1") {
     await query("insert into card(deck_id,recto,verso,author_id) values ($1,'Calculer $2+2$','$4$',$2)", [deck.id, alice]);
     const [trous] = await query<{ id: number }>(`insert into deck(slug,titre,matiere,chapitre,created_by)

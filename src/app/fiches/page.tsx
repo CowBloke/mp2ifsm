@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { OutilsPaquets } from "@/components/OutilsFiches";
 import { BoutonSuivre } from "@/components/BoutonSuivre";
+import { BoutonJaime } from "@/components/BoutonJaime";
 import { LigneDossier } from "@/components/LigneDossier";
 import { styleMatiere } from "@/components/Matiere";
 import { comparerNoms, construireArbre, destinations, type Noeud } from "@/lib/arbre-dossiers";
@@ -16,8 +17,9 @@ type Moi = { id: string; role: "member" | "admin" };
 type Matieres = Array<{ id: number; nom: string }>;
 
 /*
- * Une seule liste, par matière puis chapitre. Les paquets suivis
- * portent le nombre de cartes dues ; les autres, un bouton « Suivre ».
+ * Trois sections : les paquets récemment ajoutés, ceux que je suis,
+ * puis tous les paquets par matière. Les paquets suivis portent le
+ * nombre de cartes dues ; les autres, un bouton « Suivre ».
  */
 export default async function PageFiches() {
   const u = await utilisateurCourant();
@@ -34,6 +36,7 @@ export default async function PageFiches() {
         matieres={matieresActives}
         dossiers={destinations(dossiers, { avecMatiere: true })}
       />
+      {paquets.length > 0 && <Sections paquets={paquets} />}
       <Liste
         paquets={paquets} dossiers={dossiers} matieres={matieres}
         matieresActives={matieresActives} moi={{ id: u.id, role: u.role }}
@@ -54,8 +57,37 @@ type Groupe = {
 const rangDe = (matieres: Array<{ id: number }>, id: number | null) =>
   id === null ? matieres.length : matieres.findIndex((m) => m.id === id);
 
-const parChapitre = (a: PaquetVue, b: PaquetVue) =>
-  comparerNoms(a.chapitre, b.chapitre) || comparerNoms(a.titre, b.titre);
+const parChapitre = (a: PaquetVue, b: PaquetVue) => comparerNoms(a.titre, b.titre);
+
+const RECENTS = 5;
+
+/** « Récemment ajoutés » et « Suivis », au-dessus de la liste par matière. */
+function Sections({ paquets }: { paquets: PaquetVue[] }) {
+  const recents = [...paquets]
+    .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
+    .slice(0, RECENTS);
+  const suivis = paquets.filter((p) => p.abonne).sort((a, b) => duDe(b) - duDe(a) || parChapitre(a, b));
+
+  return (
+    <div className="mb-10 flex flex-col gap-8">
+      <section aria-labelledby="recents">
+        <h2 id="recents" className="etiquette">Récemment ajoutés</h2>
+        <ul>{recents.map((p) => <LignePaquet key={p.id} p={p} avecMatiere />)}</ul>
+      </section>
+      <section aria-labelledby="suivis">
+        <h2 id="suivis" className="etiquette">Suivis</h2>
+        {suivis.length === 0 ? (
+          <p className="py-3 text-[14px] text-[var(--muted-foreground)]">
+            Aucun paquet suivi. « Suivre » un paquet l’ajoute à vos révisions.
+          </p>
+        ) : (
+          <ul>{suivis.map((p) => <LignePaquet key={p.id} p={p} avecMatiere />)}</ul>
+        )}
+      </section>
+      <h2 className="text-[17px] font-semibold -mb-4">Par matière</h2>
+    </div>
+  );
+}
 
 function Liste({
   paquets, dossiers, matieres, matieresActives, moi,
@@ -147,20 +179,22 @@ function Dossier({ n, ctx }: { n: Noeud<DossierVue>; ctx: Contexte }) {
   );
 }
 
-/** Le numéro de chapitre tient lieu d'étiquette : une colonne étroite à gauche. */
-function LignePaquet({ p }: { p: PaquetVue }) {
+function LignePaquet({ p, avecMatiere = false }: { p: PaquetVue; avecMatiere?: boolean }) {
   const du = duDe(p);
   return (
-    <li className="ligne gap-3">
-      <Link href={`/fiches/${p.slug}`} className="flex min-w-0 flex-1 items-center gap-3">
-        <span aria-hidden="true" className="tabular w-6 shrink-0 text-[14px] text-[var(--muted-foreground)]">
-          {/^\d{1,2}$/.test(p.chapitre) ? p.chapitre : ""}
-        </span>
+    <li className="ligne gap-2">
+      <Link href={`/fiches/${p.slug}`} className="flex min-w-0 flex-1 items-center gap-3"
+            style={avecMatiere ? styleMatiere(p.couleur) : undefined}>
+        {avecMatiere && <span className="m-plein h-2 w-2 shrink-0 rounded-full" aria-hidden />}
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="ligne__titre [overflow-wrap:anywhere]">{p.titre}</span>
-          <span className="ligne__meta truncate">{p.createur}</span>
+          <span className="ligne__meta truncate">
+            {avecMatiere ? `${p.matiere ?? "Sans matière"} · ` : ""}{p.createur}
+            {` · ${p.total} carte${p.total > 1 ? "s" : ""}`}
+          </span>
         </span>
       </Link>
+      <BoutonJaime deckId={p.id} likes={p.likes} aime={p.aime} compact />
       {!p.abonne ? (
         <BoutonSuivre deckId={p.id} abonne={false} compact />
       ) : du > 0 ? (

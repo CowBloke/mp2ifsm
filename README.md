@@ -10,7 +10,23 @@ qui ferme le plus tôt.
 
 ## Fiches
 
-Paquets partagés par matière et chapitre, corrections attribuées et historique
+Page Fiches : **Récemment ajoutés**, **Suivis**, puis tous les paquets **par
+matière**. Un paquet se crée avec un titre seulement (la colonne historique
+`chapitre` reprend le titre). Chaque membre peut aimer un paquet
+(`deck_like`, un par membre). Le créateur — ou un admin — clique **Modifier**
+sur la page du paquet : onglet *Infos* (titre, description, matière, dossier)
+et onglet *Contenu* (ajouter une carte, ou **mettre à jour depuis Anki** : les
+cartes sont rapprochées par GUID, gardent leur id et la progression de chacun,
+chaque changement laisse une version « Mise à jour depuis Anki » ; option pour
+retirer les cartes importées absentes du fichier, jamais celles ajoutées dans
+le portail ; les images identiques sont réutilisées).
+
+L’accueil affiche un **message de la classe** (table `message_accueil`, une
+ligne) qu’un administrateur écrit, modifie ou retire directement sur la page.
+Ces deux tables sont dans `db/schema-dossiers.sql` (bloc du 3 novembre 2026),
+que le script de build installé rejoue déjà.
+
+Paquets partagés par matière, corrections attribuées et historique
 des deux faces, signalements, images collées/téléversées et LaTeX rendu par
 KaTeX sur le serveur. Chaque membre possède son état FSRS personnel.
 Espace révèle la réponse ; 1–4 donnent Encore, Difficile, Correct ou Facile.

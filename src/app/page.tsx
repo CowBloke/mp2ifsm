@@ -8,6 +8,8 @@ import { marchesBientotFermes, resumeFiches } from "@/lib/dashboard";
 import { echeancesAVenir } from "@/lib/echeances";
 import { deMatiere, jourRelatif, prochainesColles } from "@/lib/colles";
 import { listerMatieres } from "@/lib/matieres";
+import { lireMessageAccueil } from "@/lib/accueil";
+import { MessageAccueil } from "@/components/MessageAccueil";
 import { utilisateurCourant } from "@/lib/session";
 import { jeuOuvertPour } from "./jeu/acces";
 
@@ -50,6 +52,10 @@ export default async function Accueil() {
         </div>
       </header>
 
+      <Suspense fallback={null}>
+        <Message estAdmin={u.role === "admin"} />
+      </Suspense>
+
       <Suspense fallback={<div className="skeleton h-[220px]" />}>
         <Semaine groupe={u.groupe_colle} />
       </Suspense>
@@ -64,6 +70,11 @@ export default async function Accueil() {
       </ul>
     </main>
   );
+}
+
+async function Message({ estAdmin }: { estAdmin: boolean }) {
+  const m = await lireMessageAccueil();
+  return <MessageAccueil key={m.updated_at ?? ""} texte={m.texte} estAdmin={estAdmin} />;
 }
 
 /* Une ligne : le nombre de cartes dues, ou Fiches quand tout est fait. */

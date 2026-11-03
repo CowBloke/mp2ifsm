@@ -34,6 +34,10 @@ export type PaquetVue = {
   apprentissage: number;
   a_revoir: number;
   signalements: number;
+  created_at: string;
+  /** Nombre de « j'aime » et si le membre courant a aimé. */
+  likes: number;
+  aime: boolean;
 };
 
 /* Décompte par paquet. Les cartes neuves ne sont pas plafonnées par jour. */
@@ -47,7 +51,11 @@ const SELECT_PAQUET = `
          coalesce(c.nouvelles, 0)                  as nouvelles,
          coalesce(c.apprentissage, 0)              as apprentissage,
          coalesce(c.a_revoir, 0)                   as a_revoir,
-         coalesce(r.signalements, 0)               as signalements
+         coalesce(r.signalements, 0)               as signalements,
+         d.created_at,
+         (select count(*) from deck_like l where l.deck_id = d.id)::int as likes,
+         exists (select 1 from deck_like l
+                  where l.deck_id = d.id and l.user_id = $1::uuid) as aime
     from deck d
     join app_user cu on cu.id = d.created_by
     left join subject sj on sj.id = d.subject_id
@@ -70,7 +78,7 @@ const SELECT_PAQUET = `
 
 export async function listerPaquets(userId: string): Promise<PaquetVue[]> {
   return query<PaquetVue>(
-    `${SELECT_PAQUET} order by sj.id is null, sj.position, sj.nom, d.chapitre, d.titre`,
+    `${SELECT_PAQUET} order by sj.id is null, sj.position, sj.nom, d.titre`,
     [userId],
   );
 }

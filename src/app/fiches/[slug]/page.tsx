@@ -5,8 +5,8 @@ import { ListeCartes } from "@/components/ListeCartes";
 import { PanneauAjoutCarte } from "@/components/PanneauAjoutCarte";
 import { SqueletteListe } from "@/components/Squelettes";
 import { BoutonSuivre } from "@/components/BoutonSuivre";
-import { MatierePaquet } from "@/components/MatierePaquet";
-import { ChoixDossier } from "@/components/ChoixDossier";
+import { ModifierPaquet } from "@/components/ModifierPaquet";
+import { BoutonJaime } from "@/components/BoutonJaime";
 import { LienRetour } from "@/components/LienRetour";
 import { destinations } from "@/lib/arbre-dossiers";
 import { listerDossiers } from "@/lib/dossiers";
@@ -40,12 +40,22 @@ export default async function PagePaquet({
     <main>
       <LienRetour href="/fiches" label="Retour aux fiches" />
 
-      <header className="mb-10 flex items-start justify-between gap-4">
+      <header className="mb-10 flex flex-col gap-3">
         <div className="min-w-0">
           <h1 className="titre-page [overflow-wrap:anywhere]">{paquet.titre}</h1>
           <p className="mt-1.5 text-[14px] text-[var(--muted-foreground)]">{paquet.createur}</p>
         </div>
-        <BoutonSuivre deckId={paquet.id} abonne={paquet.abonne} />
+        <div className="-ml-2 flex flex-wrap items-center gap-2">
+          <BoutonJaime deckId={paquet.id} likes={paquet.likes} aime={paquet.aime} />
+          {peutReclasser && (
+            <ModifierPaquet
+              key={`${paquet.titre}-${paquet.subject_id}-${paquet.folder_id}-${paquet.description ?? ""}`}
+              paquet={paquet} matieres={matieres}
+              dossiers={destinations(dossiers, { avecMatiere: true })}
+            />
+          )}
+          <BoutonSuivre deckId={paquet.id} abonne={paquet.abonne} />
+        </div>
       </header>
 
       <div className="page-stack">
@@ -84,13 +94,6 @@ export default async function PagePaquet({
         <details>
           <summary className="etiquette min-h-11 cursor-pointer py-3">Plus</summary>
           <div className="flex flex-col items-start gap-3">
-            {peutReclasser && (
-              <>
-                <MatierePaquet key={`m${paquet.subject_id}`} deckId={paquet.id} actuelle={paquet.subject_id} matieres={matieres} />
-                <ChoixDossier key={`f${paquet.folder_id}-${paquet.subject_id}`} cible="deck" id={paquet.id} actuel={paquet.folder_id}
-                              options={destinations(dossiers, { avecMatiere: true })} />
-              </>
-            )}
             <a href={`/api/fiches/export/${paquet.slug}`} className="lien-discret">Exporter vers Anki</a>
           </div>
         </details>

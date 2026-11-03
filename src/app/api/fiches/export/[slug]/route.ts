@@ -39,7 +39,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
   }
   const remplacer = (s: string) => s.replace(/\/api\/fiches\/image\/(\d+)/g, (url, id) => noms.get(Number(id)) ?? url);
   const archive = await ecrireApkg(
-    `${deck.matiere} — ${deck.chapitre} — ${deck.titre}`,
+    `${deck.matiere} — ${deck.titre}`,
     cartes.map((c) => ({ recto: remplacer(c.recto), verso: remplacer(c.verso), guid: c.anki_guid ?? `mp2i-${c.id}` })),
     medias,
   );

@@ -122,3 +122,29 @@ begin
 end $$;
 
 commit;
+
+-- ---------------------------------------------------------------------
+-- J'aime sur les paquets et message d'accueil (3 novembre 2026).
+-- Ajouté ici plutôt que dans un nouveau fichier : le script de build
+-- installé ne rejoue que la liste de migrations connue.
+-- ---------------------------------------------------------------------
+begin;
+
+create table if not exists deck_like (
+  user_id    uuid   not null references app_user(id) on delete cascade,
+  deck_id    bigint not null references deck(id)     on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (user_id, deck_id)
+);
+create index if not exists deck_like_deck_idx on deck_like (deck_id);
+create index if not exists deck_created_idx on deck (created_at desc) where archived_at is null;
+
+-- Message d'accueil : une seule ligne (id = 1), modifiable par un admin.
+create table if not exists message_accueil (
+  id         smallint primary key default 1 check (id = 1),
+  texte      text not null default '' check (length(texte) <= 1000),
+  updated_by uuid references app_user(id) on delete set null,
+  updated_at timestamptz not null default now()
+);
+
+commit;

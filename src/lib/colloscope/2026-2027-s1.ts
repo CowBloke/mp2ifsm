@@ -8,6 +8,10 @@ import type { Periode } from "./types";
  * La composition nominative des groupes n'est volontairement pas
  * reprise : chaque membre renseigne son numéro dans son profil.
  */
+/** Consigne de M. Raquin, transmise hors PDF. */
+const NOTE_RAQUIN =
+  "Les deux premiers du groupe prennent chacun un texte en avance (pas seulement le premier)\u00a0; le troisième reçoit le sien en arrivant.";
+
 export const S1_2026_2027: Periode = {
   id: "2026-2027-S1",
   anneeScolaire: "2026-2027",
@@ -77,8 +81,8 @@ export const S1_2026_2027: Periode = {
     { code: "M15", matiere: "M", colleur: "M. Corbineau", horaire: { jour: 2, debut: "18:00", fin: "19:00", salle: "N 13" } },
 
     // Français, les semaines de repos en maths.
-    { code: "F4", matiere: "F", colleur: "M. Raquin", horaire: { jour: 3, debut: "13:00", fin: "14:30", salle: "N 15" } },
-    { code: "F12", matiere: "F", colleur: "M. Raquin", horaire: { jour: 3, debut: "14:30", fin: "16:00", salle: "N 15" } },
+    { code: "F4", matiere: "F", colleur: "M. Raquin", horaire: { jour: 3, debut: "13:00", fin: "14:30", salle: "N 15" }, note: NOTE_RAQUIN },
+    { code: "F12", matiere: "F", colleur: "M. Raquin", horaire: { jour: 3, debut: "14:30", fin: "16:00", salle: "N 15" }, note: NOTE_RAQUIN },
   ],
 
   rotations: {

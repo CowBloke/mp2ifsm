@@ -55,7 +55,7 @@ export function OutilsPaquets({
 }
 
 /**
- * Matière + chapitre, et le dossier où ranger le paquet. Dans un
+ * Matière et dossier où ranger le paquet où ranger le paquet. Dans un
  * dossier, la matière est celle du dossier : le menu est donc masqué.
  */
 function ChampsClassement({ matieres, dossiers }: { matieres: Matieres; dossiers: OptionDestination[] }) {
@@ -73,13 +73,7 @@ function ChampsClassement({ matieres, dossiers }: { matieres: Matieres; dossiers
           ))}
         </select>
       </label>}
-      <div className={`grid gap-2 ${dossier === "" ? "grid-cols-2" : ""}`}>
-        {dossier === "" && <ChoixMatiere matieres={matieres} />}
-        <input name="chapitre" required maxLength={120}
-               placeholder="Chapitre"
-               className="rounded-[var(--radius-md)] border-2 px-3 py-2 text-[14px]
-                          outline-none focus:border-[var(--ring)]" />
-      </div>
+      {dossier === "" && <ChoixMatiere matieres={matieres} />}
     </div>
   );
 }
