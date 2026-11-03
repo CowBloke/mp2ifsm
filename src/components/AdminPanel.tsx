@@ -2,12 +2,13 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { examinerProposition, revoquerSessions } from "@/lib/actions-admin";
+import { examinerProposition, reinitialiserMotDePasse, revoquerSessions } from "@/lib/actions-admin";
 import type { Proposal } from "@/lib/proposals";
 import type { Retour } from "@/lib/retours";
 import type { MatiereVue } from "@/lib/constantes";
 import { AdminMatieres } from "@/components/AdminMatieres";
 import { AdminRetours } from "@/components/AdminRetours";
+import { Dialogue } from "@/components/Dialogue";
 export type AdminUser = { id: string; display_name: string; email: string; role: string; created_at: string; sessions: number };
 const button = 'rounded-[var(--radius-md)] border px-3 py-2 text-sm disabled:opacity-50';
 export function AdminPanel({ users, proposals, matieres, retours, currentId, children }: { users: AdminUser[]; proposals: Proposal[]; matieres: MatiereVue[]; retours: Retour[]; currentId: string; children: React.ReactNode }) {
@@ -27,20 +28,44 @@ export function AdminPanel({ users, proposals, matieres, retours, currentId, chi
   {tab==='subjects' && <AdminMatieres matieres={matieres} />}
   {tab==='users' && <div className="space-y-3">
    <label className="block text-sm">Rechercher un compte<input type="search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Pseudo ou adresse e-mail" className="mt-1 w-full rounded-lg border p-3" /></label>
-   <p className="text-sm text-[var(--muted-foreground)]">{users.length} comptes inscrits · Déconnecter ferme les sessions ; le membre pourra se reconnecter.</p>
+   <p className="text-sm text-[var(--muted-foreground)]">{users.length} comptes inscrits · Déconnecter ferme les sessions ; le membre pourra se reconnecter. Changer le mot de passe ferme aussi ses sessions.</p>
    {users.filter(u=>`${u.display_name} ${u.email}`.toLowerCase().includes(search.toLowerCase())).map(u=><article key={u.id} className="rounded-lg border bg-[var(--card)] p-3">
     <div className="flex justify-between gap-2"><strong className="break-all">{u.display_name}</strong><span className="text-xs">{u.role==='admin'?'Administrateur':'Membre'}</span></div>
     <p className="break-all text-sm">{u.email}</p><p className="mt-1 text-xs text-[var(--muted-foreground)]">Inscrit le {new Date(u.created_at).toLocaleDateString('fr-FR')} · {u.sessions} session(s) active(s)</p>
-    {u.id!==currentId && u.sessions>0 && <button className={`${button} mt-2`} disabled={busy} onClick={()=>{
-     if (!confirm(`Déconnecter toutes les sessions de ${u.display_name} ?`)) return;
-     start(async()=>{const r=await revoquerSessions(u.id);setMessage(r.ok?'Sessions déconnectées':r.erreur);if(r.ok)router.refresh();});
-    }}>Déconnecter les sessions</button>}
+    {u.id!==currentId && <div className="mt-2 flex flex-wrap gap-2">
+     {u.sessions>0 && <button className={button} disabled={busy} onClick={()=>{
+      if (!confirm(`Déconnecter toutes les sessions de ${u.display_name} ?`)) return;
+      start(async()=>{const r=await revoquerSessions(u.id);setMessage(r.ok?'Sessions déconnectées':r.erreur);if(r.ok)router.refresh();});
+     }}>Déconnecter les sessions</button>}
+     <ChangerMotDePasse user={u} onSucces={setMessage} />
+    </div>}
    </article>)}
    {!users.some(u=>`${u.display_name} ${u.email}`.toLowerCase().includes(search.toLowerCase())) && <p>Aucun compte trouvé.</p>}
    {message && <p role="status">{message}</p>}
   </div>}
   {tab==='markets' && children}
  </section>;
+}
+function ChangerMotDePasse({ user, onSucces }: { user: AdminUser; onSucces: (message: string) => void }) {
+ const [ouvert,setOuvert]=useState(false);const [motDePasse,setMotDePasse]=useState('');const [erreur,setErreur]=useState('');const [busy,start]=useTransition();const router=useRouter();
+ function fermer(){setOuvert(false);setMotDePasse('');setErreur('');}
+ return <>
+  <button className={button} onClick={()=>setOuvert(true)}>Changer le mot de passe</button>
+  {ouvert && <Dialogue titre={`Mot de passe de ${user.display_name}`} onFermer={fermer}>
+   <form className="space-y-3" onSubmit={e=>{e.preventDefault();start(async()=>{
+    const r=await reinitialiserMotDePasse(user.id,motDePasse);
+    if(!r.ok){setErreur(r.erreur);return;}
+    fermer();onSucces(`Mot de passe de ${user.display_name} modifié, sessions déconnectées`);router.refresh();
+   });}}>
+    <label className="block text-sm">Nouveau mot de passe
+     <input type="text" required minLength={8} value={motDePasse} onChange={e=>setMotDePasse(e.target.value)} autoComplete="off" autoCapitalize="none" autoCorrect="off" spellCheck={false} className="mt-1 w-full rounded-lg border p-3" />
+    </label>
+    <p className="text-sm text-[var(--muted-foreground)]">8 caractères minimum. Toutes les sessions de ce compte seront déconnectées ; transmettez-lui ce mot de passe.</p>
+    {erreur && <p className="text-sm text-[var(--destructive)]" role="alert">{erreur}</p>}
+    <button className={`${button} bg-[var(--primary)] text-[var(--primary-foreground)]`} disabled={busy}>Enregistrer</button>
+   </form>
+  </Dialogue>}
+ </>;
 }
 export function ProposalList({ items, admin=false }: { items: Proposal[]; admin?: boolean }) {
  return <div className="space-y-3">{!items.length && <p className="rounded-lg border border-dashed p-5 text-sm text-[var(--muted-foreground)]">Aucune proposition pour l’instant.</p>}{items.map(p=><ProposalCard key={p.id} p={p} admin={admin}/>)}</div>;

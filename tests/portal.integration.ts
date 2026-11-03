@@ -21,6 +21,7 @@ const { pool, query, tx } = await import("../src/lib/db");
 const { statsPaquet, heatmapClasse, prochaineCarte, listerPaquets } = await import("../src/lib/fiches");
 const { purgerDocuments } = await import("../src/lib/purge");
 const { jetonRevision } = await import("../src/lib/revision-token");
+const { verifierMotDePasse } = await import("../src/lib/session");
 const { ecrireApkg, lireApkg } = await import("../src/lib/anki");
 let serveur: ReturnType<typeof spawn> | undefined;
 let logs = "";
@@ -103,6 +104,17 @@ try {
   ok(!(await action('proposerPari',[suggestion],'')).ok, "anonymous proposals rejected");
   const adminPage = await fetch(base+'/profil?onglet=admin',{headers:{cookie:adminCookie}});
   ok((await adminPage.text()).includes('test-a@example.invalid'), "admin profile contains account directory");
+  const [carol] = await query<{ id: string }>(`insert into app_user (email, display_name, password_hash)
+    values ('test-c@example.invalid', 'Test C', 'ancien') returning id`);
+  await query("insert into user_session(token_hash,user_id,expires_at) values ($1,$2,now()+interval '1 hour')", [randomBytes(32), carol.id]);
+  const hashCarol = async () => (await query<{ password_hash: string }>("select password_hash from app_user where id=$1", [carol.id]))[0].password_hash;
+  ok(!(await action("reinitialiserMotDePasse", [carol.id, "nouveau-secret"])).ok, "member cannot reset a password");
+  ok(!(await action("reinitialiserMotDePasse", [carol.id, "court"], adminCookie)).ok, "short reset password rejected");
+  ok(!(await action("reinitialiserMotDePasse", [bob, "nouveau-secret"], adminCookie)).ok, "admin cannot reset their own password here");
+  ok(await hashCarol() === "ancien", "refused resets leave the password unchanged");
+  ok((await action("reinitialiserMotDePasse", [carol.id, "nouveau-secret"], adminCookie)).ok, "admin resets a member password");
+  ok(await verifierMotDePasse("nouveau-secret", await hashCarol()), "reset password is stored hashed and verifies");
+  ok((await query("select 1 from user_session where user_id=$1", [carol.id])).length === 0, "reset closes the member sessions");
   await query("update app_user set role='member' where id=$1",[bob]);
   ok((await fetch(base + "/api/documents/1")).status === 401, "unauthenticated download rejected");
   const revs = await Promise.all([action("reviserCarte", [card.id, "good", first!.jeton, 1000]), action("reviserCarte", [card.id, "good", first!.jeton, 1000])]);
