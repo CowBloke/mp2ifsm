@@ -321,16 +321,20 @@ try {
   const suivanteFlash = await action("carteSuivante", [null, [flash1!.card_id]]);
   ok(suivanteFlash.ok && suivanteFlash.data?.paquet, "flash session action returns a card with its deck title");
   const notifs = await import("../src/lib/notifications");
-  await query(`insert into flash_tirage (jour, heure) values ($1::date, now() - interval '1 minute')
-               on conflict (jour) do update set heure = excluded.heure, envoye_at = null`, [notifs.jourDeParis(new Date())]);
-  await notifs.tic();
-  ok((await query("select 1 from flash_tirage where jour=$1::date and envoye_at is not null", [notifs.jourDeParis(new Date())])).length === 1, "daily flash is sent once its surprise time passes");
-  ok((await query("select 1 from notif_envoi where user_id=$1 and genre='flash'", [alice])).length === 1, "flash delivery is recorded once per member");
+  const maintenant = new Date();
+  const heureParis = notifs.partiesParis(maintenant).h;
+  const autreHeure = heureParis === 12 ? 13 : 12;
+  await query("update notif_pref set flash_heure=$2 where user_id=$1", [alice, autreHeure]);
+  await notifs.tic(maintenant);
+  ok((await query("select 1 from notif_envoi where user_id=$1 and genre='flash'", [alice])).length === 0, "daily reminder waits for the chosen hour");
+  ok((await action("definirPrefsNotif", [{ flash_heure: 99 }])).data.flash_heure === autreHeure, "out-of-range reminder hour is ignored");
+  if (heureParis >= notifs.FLASH_HEURE_MIN && heureParis <= notifs.FLASH_HEURE_MAX) {
+    await query("update notif_pref set flash_heure=$2 where user_id=$1", [alice, heureParis]);
+    await notifs.tic(maintenant);
+    await notifs.tic(maintenant);
+    ok((await query("select 1 from notif_envoi where user_id=$1 and genre='flash'", [alice])).length === 1, "daily reminder is sent once at the chosen hour");
+  }
   ok((await query<{ echecs: number }>("select echecs from push_abonnement where endpoint=$1", [abo.endpoint]))[0]?.echecs >= 1, "unreachable push endpoint counts a failure");
-  const t2 = await notifs.tirageDuJour("2030-01-15");
-  const heureParis = notifs.partiesParis(new Date(t2.heure));
-  const minutes = heureParis.h * 60 + heureParis.min;
-  ok(minutes >= notifs.FLASH_DEBUT_MIN && minutes < notifs.FLASH_FIN_MIN, "surprise time falls inside the Paris window");
   if (process.env.TEST_BROWSER === "1") {
     await query("insert into card(deck_id,recto,verso,author_id) values ($1,'Calculer $2+2$','$4$',$2)", [deck.id, alice]);
     const [trous] = await query<{ id: number }>(`insert into deck(slug,titre,matiere,chapitre,created_by)

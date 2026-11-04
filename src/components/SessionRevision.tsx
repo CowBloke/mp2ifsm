@@ -27,8 +27,8 @@ export function SessionRevision({
   deckId: number | null;
   deckSlug: string | null;
   deckTitre: string;
-  /** Flash du jour : quelques cartes seulement, puis fin. */
-  flash?: { limite: number; envoyeA: string | null; delaiALHeureMs: number };
+  /** Fiches du jour : quelques cartes seulement, puis fin. */
+  flash?: { limite: number };
 }) {
   const router = useRouter();
   const [carte, setCarte] = useState<CarteRendue | null>(carteInitiale);
@@ -40,7 +40,6 @@ export function SessionRevision({
   const [fini, setFini] = useState(carteInitiale === null);
   const debutRef = useRef<number>(Date.now());
   const vuesRef = useRef<number[]>([]);
-  const [finiA, setFiniA] = useState<number | null>(null);
   const sortie = deckSlug ? `/fiches/${deckSlug}` : "/fiches";
   const rectoRef = useRef<HTMLDivElement>(null);
 
@@ -96,7 +95,6 @@ export function SessionRevision({
     vuesRef.current.push(carte.cardId);
 
     if (flash && faites + 1 >= flash.limite) {
-      setFiniA(Date.now());
       setFini(true);
       setCarte(null);
       setEnCours(false);
@@ -112,7 +110,6 @@ export function SessionRevision({
       return;
     }
     if (suivante.data === null) {
-      setFiniA(Date.now());
       setFini(true);
       setCarte(null);
       router.refresh();   // les compteurs du paquet se remettent à jour
@@ -150,7 +147,7 @@ export function SessionRevision({
   }, [revele, carte, noter, avancer]);
 
   if (fini && flash) {
-    return <FinFlash faites={faites} envoyeA={flash.envoyeA} finiA={finiA} delai={flash.delaiALHeureMs} />;
+    return <FinFichesDuJour faites={faites} />;
   }
 
   if (fini) {
@@ -205,7 +202,7 @@ export function SessionRevision({
         className={`flex flex-1 flex-col justify-center gap-7 py-10 ${revele ? "" : "cursor-pointer"}`}
       >
         <p className="text-[13px] text-[var(--muted-foreground)]">
-          {flash ? `⚡ ${carte.paquet}` : deckTitre}{carte.nouvelle ? " · nouvelle carte" : ""}
+          {flash ? carte.paquet : deckTitre}{carte.nouvelle ? " · nouvelle carte" : ""}
         </p>
 
         <div ref={rectoRef}
@@ -274,37 +271,17 @@ export function SessionRevision({
   );
 }
 
-/** Fin du flash du jour : à l'heure ou en retard, comme le BeReal. */
-function FinFlash({
-  faites, envoyeA, finiA, delai,
-}: { faites: number; envoyeA: string | null; finiA: number | null; delai: number }) {
-  const ecart = envoyeA && finiA ? finiA - new Date(envoyeA).getTime() : null;
-  const aLHeure = ecart !== null && ecart >= 0 && ecart <= delai;
-  const retard = ecart !== null && ecart > delai ? Math.round(ecart / 60_000) : null;
-  const libelleRetard = retard === null ? null
-    : retard < 60 ? `${retard} min de retard`
-    : `${Math.floor(retard / 60)} h ${String(retard % 60).padStart(2, "0")} de retard`;
-
+/** Fin des fiches du jour. */
+function FinFichesDuJour({ faites }: { faites: number }) {
   return (
     <div className="flex min-h-[60dvh] flex-col justify-center gap-8">
       <div>
-        <p className="text-[44px] leading-none" aria-hidden="true">⚡</p>
-        <h1 className="titre-page mt-4">
-          {faites > 0 ? "Flash terminé" : "Rien à réviser"}
-        </h1>
+        <h1 className="titre-page">{faites > 0 ? "C’est fait pour aujourd’hui" : "Rien à réviser"}</h1>
         <p className="mt-3 text-[17px] text-[var(--muted-foreground)]">
           {faites > 0
-            ? `${faites} carte${faites > 1 ? "s" : ""} révisée${faites > 1 ? "s" : ""}. À demain, heure surprise !`
-            : "Aucune carte due ni nouvelle dans vos paquets suivis. Suivez un paquet pour recevoir des cartes."}
+            ? `${faites} carte${faites > 1 ? "s" : ""} révisée${faites > 1 ? "s" : ""}. Prochain rappel demain.`
+            : "Aucune carte due ni nouvelle dans vos paquets suivis."}
         </p>
-        {faites > 0 && aLHeure && (
-          <p className="mt-4 inline-flex rounded-full bg-[var(--primary)] px-3 py-1 text-[13px] font-semibold text-[var(--primary-foreground)]">
-            À l’heure !
-          </p>
-        )}
-        {faites > 0 && libelleRetard && (
-          <p className="mt-4 text-[13px] text-[var(--muted-foreground)]">{libelleRetard}</p>
-        )}
       </div>
       <div className="flex flex-col gap-3">
         <Link href="/" className="bouton-principal">Retour à l’accueil</Link>

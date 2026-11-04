@@ -16,13 +16,13 @@ import {
  *   1. Installation (mobile, hors app) : « installer comme une app ? »,
  *      puis un tutoriel propre à l'appareil. Sur iPhone/iPad c'est
  *      obligatoire pour recevoir des notifications.
- *   2. Flash du jour : chaque jour, à une heure surprise (la même pour
- *      toute la classe), une notif propose 3 cartes. Posée une fois.
- *   3. Notifications (dans l'app installée, flash déjà répondu) :
+ *   2. Rappel des fiches : une notif par jour, à l'heure choisie, qui
+ *      ouvre 3 cartes au plus. Posée une fois.
+ *   3. Notifications (dans l'app installée, rappel déjà répondu) :
  *      devoirs et messages de la classe.
  *
  * Les réponses « installation » et « notifications » sont gardées sur
- * l'appareil (localStorage) ; celle du flash est en base.
+ * l'appareil (localStorage) ; celle du rappel est en base.
  */
 
 const CLE_INSTALL = "mp2-install";
@@ -149,10 +149,23 @@ export function InvitationsNotifications({
 /* Flash du jour                                                       */
 /* ------------------------------------------------------------------ */
 
+const HEURES = Array.from({ length: 22 - 7 + 1 }, (_, i) => 7 + i);
+
+function ChoixHeure({ valeur, onChange, id, disabled }: {
+  valeur: number; onChange: (h: number) => void; id?: string; disabled?: boolean;
+}) {
+  return (
+    <select id={id} value={valeur} disabled={disabled} onChange={(e) => onChange(Number(e.target.value))}
+            className="h-11 px-3 text-[14px]">
+      {HEURES.map((h) => <option key={h} value={h}>{h}{"\u00a0"}h</option>)}
+    </select>
+  );
+}
+
 function FenetreFlash({ onFermer }: { onFermer: () => void }) {
   const [erreur, setErreur] = useState<string | null>(null);
   const [enCours, setEnCours] = useState(false);
-  const [ok, setOk] = useState(false);
+  const [heure, setHeure] = useState(18);
 
   async function oui() {
     setEnCours(true); setErreur(null);
@@ -163,10 +176,10 @@ function FenetreFlash({ onFermer }: { onFermer: () => void }) {
       if (r.refuse) await definirPrefsNotif({ flash: false });
       return;
     }
-    const p = await definirPrefsNotif({ flash: true });
+    const p = await definirPrefsNotif({ flash: true, flash_heure: heure });
     setEnCours(false);
     if (!p.ok) { setErreur(p.erreur); return; }
-    setOk(true);
+    onFermer();
   }
 
   function plusTard() {
@@ -174,34 +187,20 @@ function FenetreFlash({ onFermer }: { onFermer: () => void }) {
     onFermer();
   }
 
-  if (ok) {
-    return (
-      <Dialogue titre="C’est noté ⚡" onFermer={onFermer}>
-        <p className="text-[15px] leading-relaxed text-[var(--muted-foreground)]">
-          Chaque jour, entre 11 h et 21 h 30, la même notif tombe pour toute la classe.
-          Ouvrez-la vite : 3 cartes, et un badge « À l’heure » si vous répondez dans les 10 minutes.
-        </p>
-        <button type="button" className="bouton-principal mt-5" onClick={onFermer}>Parfait</button>
-      </Dialogue>
-    );
-  }
-
   return (
-    <Dialogue titre="⚡ Le flash du jour" onFermer={plusTard}>
+    <Dialogue titre="Rappel quotidien des fiches" onFermer={plusTard}>
       <p className="text-[15px] leading-relaxed text-[var(--muted-foreground)]">
-        Une notif par jour, à une <strong className="text-[var(--foreground)]">heure surprise</strong> —
-        comme BeReal. Elle ouvre <strong className="text-[var(--foreground)]">2 ou 3 fiches</strong> de vos
-        paquets suivis, pas plus. Deux minutes, et c’est fait.
+        Une notification par jour pour réviser 2 ou 3 cartes de vos paquets suivis.
+        Les cartes dues passent en premier.
       </p>
-      <ul className="mt-4 flex flex-col gap-2 text-[14px]">
-        <li className="flex gap-2"><span aria-hidden="true">🎲</span> Même heure pour toute la classe, entre 11 h et 21 h 30</li>
-        <li className="flex gap-2"><span aria-hidden="true">🃏</span> Les cartes dues d’abord, sinon des nouvelles</li>
-        <li className="flex gap-2"><span aria-hidden="true">⏱️</span> « À l’heure » si vous répondez dans les 10 minutes</li>
-      </ul>
+      <div className="mt-4 flex items-center justify-between gap-3">
+        <label htmlFor="heure-rappel" className="text-[15px] font-medium">Heure du rappel</label>
+        <ChoixHeure id="heure-rappel" valeur={heure} onChange={setHeure} disabled={enCours} />
+      </div>
       {erreur && <p role="alert" className="mt-3 text-[13px] font-medium text-[var(--destructive)]">{erreur}</p>}
       <div className="mt-5 flex flex-col gap-2">
         <button type="button" className="bouton-principal" disabled={enCours} onClick={() => void oui()}>
-          {enCours ? "Activation…" : "Oui, je veux le flash"}
+          {enCours ? "Activation…" : "Activer le rappel"}
         </button>
         <div className="grid grid-cols-2 gap-2">
           <button type="button" className="h-11 rounded-[var(--radius-md)] border text-[14px] font-medium"
@@ -465,7 +464,7 @@ export function ReglagesNotifications({ initial }: { initial: PrefsNotif }) {
   }
   useEffect(() => { void rafraichir(); }, []);
 
-  function basculer(cle: keyof PrefsNotif, valeur: boolean) {
+  function basculer<K extends keyof PrefsNotif>(cle: K, valeur: PrefsNotif[K]) {
     const avant = prefs;
     setPrefs({ ...prefs, [cle]: valeur });
     demarrer(async () => {
@@ -510,15 +509,19 @@ export function ReglagesNotifications({ initial }: { initial: PrefsNotif }) {
         )}
       </div>
 
-      <label className="ligne cursor-pointer">
-        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span className="ligne__titre">⚡ Flash du jour</span>
-          <span className="ligne__meta">3 fiches à une heure surprise, chaque jour</span>
-        </span>
-        <input type="checkbox" checked={prefs.flash} disabled={enCours}
+      <div className="ligne">
+        <label htmlFor="rappel-fiches" className="flex min-w-0 flex-1 cursor-pointer flex-col gap-0.5">
+          <span className="ligne__titre">Rappel des fiches</span>
+          <span className="ligne__meta">2 ou 3 cartes chaque jour</span>
+        </label>
+        {prefs.flash && (
+          <ChoixHeure valeur={prefs.flash_heure} disabled={enCours}
+                      onChange={(h) => basculer("flash_heure", h)} />
+        )}
+        <input id="rappel-fiches" type="checkbox" checked={prefs.flash} disabled={enCours}
                onChange={(e) => basculer("flash", e.target.checked)}
                className="h-5 w-5 shrink-0 accent-[var(--primary)]" />
-      </label>
+      </div>
       <label className="ligne cursor-pointer">
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="ligne__titre">Devoirs et DS</span>

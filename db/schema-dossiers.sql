@@ -184,12 +184,9 @@ create table if not exists notif_pref (
   updated_at    timestamptz not null default now()
 );
 
--- Tirage du flash du jour : la même heure surprise pour toute la classe.
-create table if not exists flash_tirage (
-  jour       date primary key,
-  heure      timestamptz not null,
-  envoye_at  timestamptz
-);
+-- Rappel quotidien des fiches : heure choisie par le membre (Paris).
+alter table notif_pref add column if not exists flash_heure smallint not null default 18
+  check (flash_heure between 7 and 22);
 
 -- Envois déjà faits (un par membre, genre et jour) : rejouer ne double rien.
 create table if not exists notif_envoi (

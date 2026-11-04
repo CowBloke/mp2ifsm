@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { query, queryOne } from "./db";
 import { ErreurMetier, messageFr } from "./errors";
-import { clesVapid, envoyerAuMembre } from "./notifications";
+import { FLASH_HEURE_MAX, FLASH_HEURE_MIN, clesVapid, envoyerAuMembre } from "./notifications";
 import { exigerUtilisateur } from "./session";
 import type { Reponse } from "./actions";
 
@@ -60,7 +60,7 @@ export async function supprimerAbonnement(endpoint: string): Promise<Reponse<und
   }
 }
 
-export type PrefsNotif = { flash: boolean; devoirs: boolean; messages: boolean };
+export type PrefsNotif = { flash: boolean; flash_heure: number; devoirs: boolean; messages: boolean };
 
 /** Change une ou plusieurs préférences. Répondre au flash ferme sa fenêtre. */
 export async function definirPrefsNotif(
@@ -69,18 +69,22 @@ export async function definirPrefsNotif(
   try {
     const u = await exigerUtilisateur();
     const b = (v: unknown) => (typeof v === "boolean" ? v : null);
+    const h = prefs.flash_heure;
+    const heure = Number.isInteger(h) && h! >= FLASH_HEURE_MIN && h! <= FLASH_HEURE_MAX ? h! : null;
     const r = await queryOne<PrefsNotif>(
-      `insert into notif_pref as p (user_id, flash, flash_repondu, devoirs, messages)
-       values ($1::uuid, coalesce($2, false), coalesce($3, false), coalesce($4, true), coalesce($5, true))
+      `insert into notif_pref as p (user_id, flash, flash_repondu, devoirs, messages, flash_heure)
+       values ($1::uuid, coalesce($2, false), coalesce($3, false), coalesce($4, true), coalesce($5, true),
+               coalesce($6::smallint, 18))
        on conflict (user_id) do update set
          flash         = coalesce($2, p.flash),
          flash_repondu = coalesce($3, p.flash_repondu) or $2 is not null,
          devoirs       = coalesce($4, p.devoirs),
          messages      = coalesce($5, p.messages),
+         flash_heure   = coalesce($6::smallint, p.flash_heure),
          updated_at    = now()
-       returning flash, devoirs, messages`,
+       returning flash, flash_heure::int as flash_heure, devoirs, messages`,
       [u.id, b(prefs.flash), b(prefs.flashRepondu) ?? (b(prefs.flash) === null ? null : true),
-       b(prefs.devoirs), b(prefs.messages)],
+       b(prefs.devoirs), b(prefs.messages), heure],
     );
     return { ok: true, data: r! };
   } catch (err) {
@@ -93,7 +97,7 @@ export async function envoyerNotifTest(): Promise<Reponse<{ appareils: number }>
   try {
     const u = await exigerUtilisateur();
     const n = await envoyerAuMembre(u.id, {
-      titre: "Ça marche ✅", corps: "Les notifications mp2ifsm arrivent bien sur cet appareil.",
+      titre: "Notifications activées", corps: "Les notifications mp2ifsm arrivent bien sur cet appareil.",
       url: "/profil", tag: "test",
     });
     return { ok: true, data: { appareils: n } };

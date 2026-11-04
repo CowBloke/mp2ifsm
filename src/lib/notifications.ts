@@ -139,27 +139,15 @@ export function jourDeParis(d: Date): string {
 }
 
 /* ------------------------------------------------------------------ */
-/* Flash du jour                                                       */
+/* Rappel quotidien des fiches                                         */
 /* ------------------------------------------------------------------ */
 
-/** Fenêtre du tirage, en minutes depuis minuit (heure de Paris). */
-export const FLASH_DEBUT_MIN = 11 * 60;
-export const FLASH_FIN_MIN = 21 * 60 + 30;
-/** Cartes proposées par le flash. */
+/** Cartes proposées par le rappel. */
 export const FLASH_CARTES = 3;
-/** Délai pour être « à l'heure », comme le BeReal. */
-export const FLASH_A_L_HEURE_MS = 10 * 60_000;
-
-/** Heure surprise du jour, tirée une fois pour toute la classe. */
-export async function tirageDuJour(jour: string): Promise<{ heure: string; envoye_at: string | null }> {
-  const minutes = FLASH_DEBUT_MIN + Math.floor(Math.random() * (FLASH_FIN_MIN - FLASH_DEBUT_MIN));
-  await query(
-    `insert into flash_tirage (jour, heure)
-     values ($1::date, ($1::date + make_interval(mins => $2)) at time zone 'Europe/Paris')
-     on conflict (jour) do nothing`, [jour, minutes]);
-  return (await queryOne<{ heure: string; envoye_at: string | null }>(
-    `select heure, envoye_at from flash_tirage where jour = $1::date`, [jour]))!;
-}
+/** Heure du rappel par défaut et bornes du choix (heure de Paris). */
+export const FLASH_HEURE_DEFAUT = 18;
+export const FLASH_HEURE_MIN = 7;
+export const FLASH_HEURE_MAX = 22;
 
 /** Cartes disponibles (dues ou neuves) dans les paquets suivis. */
 export async function cartesFlashDisponibles(userId: string): Promise<number> {
@@ -174,23 +162,19 @@ export async function cartesFlashDisponibles(userId: string): Promise<number> {
   return r?.n ?? 0;
 }
 
-const PHRASES_FLASH = [
-  "3 cartes, 2 minutes. C’est maintenant !",
-  "Tes 3 fiches du jour t’attendent. Go !",
-  "Deux minutes, trois cartes, zéro excuse.",
-  "C’est l’heure du flash : 3 cartes avant que ça refroidisse.",
-];
-
-async function envoyerFlash(jour: string): Promise<void> {
-  const ids = await destinataires("flash");
-  for (const id of ids) {
+/** Envoie le rappel aux membres dont l'heure choisie est `heure`. */
+async function envoyerRappelFiches(jour: string, heure: number): Promise<void> {
+  const ids = await query<{ id: string }>(
+    `select distinct a.user_id as id
+       from push_abonnement a join notif_pref p on p.user_id = a.user_id
+      where p.flash and p.flash_heure = $1`, [heure]);
+  for (const { id } of ids) {
     const n = await cartesFlashDisponibles(id);
     if (n === 0) continue;
-    const corps = n < FLASH_CARTES
-      ? `${n} carte${n > 1 ? "s" : ""} à revoir, 1 minute. C’est maintenant !`
-      : PHRASES_FLASH[Math.floor(Math.random() * PHRASES_FLASH.length)];
     await envoyerUneFois(id, "flash", jour, {
-      titre: "⚡ Flash du jour ⚡", corps, url: "/fiches/flash", tag: "flash",
+      titre: "Fiches du jour",
+      corps: `${n} carte${n > 1 ? "s" : ""} à réviser, environ deux minutes.`,
+      url: "/flash", tag: "flash",
     });
   }
 }
@@ -227,16 +211,8 @@ async function envoyerDevoirs(jour: string): Promise<void> {
 export async function tic(maintenant = new Date()): Promise<void> {
   const jour = jourDeParis(maintenant);
   const p = partiesParis(maintenant);
-
-  const t = await tirageDuJour(jour);
-  const heure = new Date(t.heure).getTime();
-  if (!t.envoye_at && maintenant.getTime() >= heure) {
-    // Réservé par un seul processus ; trop tard (serveur arrêté) = sauté.
-    const pris = await query(
-      `update flash_tirage set envoye_at = now() where jour = $1::date and envoye_at is null returning 1`, [jour]);
-    if (pris.length > 0 && maintenant.getTime() - heure < 2 * 3_600_000) await envoyerFlash(jour);
-  }
-
+  // Pendant l'heure choisie seulement : un serveur arrêté ne rattrape pas.
+  await envoyerRappelFiches(jour, p.h);
   if (p.h >= DEVOIRS_HEURE && p.h < 22) await envoyerDevoirs(jour);
 }
 

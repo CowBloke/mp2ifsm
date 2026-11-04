@@ -93,7 +93,7 @@ async function Reglages({ userId, groupe }: { userId: string; groupe: number | n
 
   return (
     <>
-    <ReglagesNotifications initial={{ flash: notif.flash, devoirs: notif.devoirs, messages: notif.messages }} />
+    <ReglagesNotifications initial={{ flash: notif.flash, flash_heure: notif.flash_heure, devoirs: notif.devoirs, messages: notif.messages }} />
     <section aria-label="Réglages">
       <ReglageGroupe groupe={groupe} max={GROUPE_MAX} />
       <ReglagePartageStats initial={r?.partage_stats ?? false} />

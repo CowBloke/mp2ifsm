@@ -66,11 +66,11 @@ jamais pendant une révision ni par-dessus la demande de groupe :
    tutoriel propre à l’appareil (Safari/Chrome iOS, Chrome, Samsung,
    Firefox Android ; ordinateur depuis le profil). « Plus tard » revient
    après 3 jours, « Non merci » jamais (mémorisé sur l’appareil).
-2. **Flash du jour** : chaque jour, à une heure surprise tirée entre 11 h et
-   21 h 30 (la même pour toute la classe, table `flash_tirage`), une notif
+2. **Rappel des fiches** : une notification par jour à l’heure choisie par
+   le membre (18 h par défaut, de 7 h à 22 h, `notif_pref.flash_heure`). Elle
    ouvre `/flash` : 3 cartes au plus des paquets suivis (dues d’abord, puis
-   neuves au hasard), notées comme une révision normale, badge « À l’heure »
-   sous 10 minutes. Posée une fois (`notif_pref.flash_repondu`).
+   neuves au hasard), notées comme une révision normale. Rien n’est envoyé
+   s’il n’y a aucune carte. Posée une fois (`notif_pref.flash_repondu`).
 3. **Notifications** dans l’app installée si l’appareil n’est pas abonné :
    devoirs (la veille à 19 h, échéances du lendemain) et messages de la
    classe (case « Envoyer en notification » quand un admin publie).
