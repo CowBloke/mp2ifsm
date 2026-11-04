@@ -35,6 +35,8 @@ function quandCourt(iso: string, maintenant: Date): string {
   return new Date(iso).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", weekday: "long" });
 }
 
+const majuscule = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
 export function rappelsColles(colles: ColleVue[], maintenant = new Date()): Rappel[] {
   return colles
     .filter((c) => new Date(c.debut).getTime() - maintenant.getTime() < HORIZON_COLLES_MS)
@@ -72,9 +74,9 @@ export function rappelFiches(r: ResumeFiches): Rappel[] {
 }
 
 export async function rappelsEcheances(maintenant = new Date()): Promise<Rappel[]> {
-  const lignes = await query<{ id: number; titre: string; kind: string; due_at: string;
+  const lignes = await query<{ id: number; titre: string; due_at: string;
                                matiere: string | null; couleur: string | null }>(
-    `select e.id, e.titre, e.kind::text as kind, e.due_at, sj.nom as matiere, sj.couleur
+    `select e.id, e.titre, e.due_at, sj.nom as matiere, sj.couleur
        from echeance e left join subject sj on sj.id = e.subject_id
       where e.deleted_at is null and e.due_at > $1 and e.due_at < $1 + interval '48 hours'
       order by e.due_at limit 3`,
@@ -83,7 +85,7 @@ export async function rappelsEcheances(maintenant = new Date()): Promise<Rappel[
   return lignes.map((e) => ({
     id: `echeance:${e.id}`,
     genre: "echeance",
-    titre: `${e.kind} ${quandCourt(new Date(e.due_at).toISOString(), maintenant)}\u00a0: ${e.titre}`,
+    titre: `${majuscule(quandCourt(new Date(e.due_at).toISOString(), maintenant))}\u00a0: ${e.titre}`,
     detail: e.matiere ?? "Échéance de la classe",
     lien: "/",
     couleur: e.couleur,

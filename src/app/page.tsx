@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { FormulaireEcheance } from "@/components/Echeances";
+import { EcheanceModifiable, FormulaireEcheance } from "@/components/Echeances";
 import { LienProfil, PrechargePiece } from "@/components/PiecePricoup";
 import { tempsRestant } from "@/lib/money";
 import { marchesBientotFermes, resumeFiches } from "@/lib/dashboard";
@@ -102,14 +102,19 @@ async function Semaine({ groupe }: { groupe: number | null }) {
     listerMatieres(),
   ]);
 
+  const choixMatieres = matieres.map(({ id, nom }) => ({ id, nom }));
+  // Les colles viennent du colloscope : seules les échéances sont modifiables.
   const lignes = [
-    ...colles.map((c) => ({ cle: `c${c.id}`, titre: `Colle ${deMatiere(c.matiere)}`, quand: c.debut })),
+    ...colles.map((c) => ({
+      cle: `c${c.id}`, titre: `Colle ${deMatiere(c.matiere)}`, quand: c.debut, echeance: null,
+    })),
     ...echeances
       .filter((e) => new Date(e.due_at).getTime() <= horizon)
       .map((e) => ({
         cle: `e${e.id}`,
         titre: e.matiere ? `${e.titre} · ${e.matiere}` : e.titre,
         quand: e.due_at,
+        echeance: e,
       })),
   ].sort((a, b) => Date.parse(a.quand) - Date.parse(b.quand)).slice(0, 6);
 
@@ -125,18 +130,27 @@ async function Semaine({ groupe }: { groupe: number | null }) {
         <p className="py-3 text-[15px] text-[var(--muted-foreground)]">Rien de prévu.</p>
       ) : (
         <ul>
-          {lignes.map((l, i) => (
-            <li key={l.cle} className="flex items-baseline justify-between gap-3 border-b py-3 last:border-b-0">
-              <span className="min-w-0 text-[16px] [overflow-wrap:anywhere]">{l.titre}</span>
-              <span className={`shrink-0 text-[14px] ${i === 0
-                ? "font-medium text-[var(--primary)]" : "text-[var(--muted-foreground)]"}`}>
-                {jourRelatif(l.quand)}
-              </span>
-            </li>
-          ))}
+          {lignes.map((l, i) => {
+            const contenu = (
+              <>
+                <span className="min-w-0 text-[16px] [overflow-wrap:anywhere]">{l.titre}</span>
+                <span className={`shrink-0 text-[14px] ${i === 0
+                  ? "font-medium text-[var(--primary)]" : "text-[var(--muted-foreground)]"}`}>
+                  {jourRelatif(l.quand)}
+                </span>
+              </>
+            );
+            return (
+              <li key={l.cle} className="flex items-baseline justify-between gap-3 border-b py-3 last:border-b-0">
+                {l.echeance
+                  ? <EcheanceModifiable echeance={l.echeance} matieres={choixMatieres}>{contenu}</EcheanceModifiable>
+                  : contenu}
+              </li>
+            );
+          })}
         </ul>
       )}
-      <FormulaireEcheance matieres={matieres.map(({ id, nom }) => ({ id, nom }))} />
+      <FormulaireEcheance matieres={choixMatieres} />
     </section>
   );
 }

@@ -4,7 +4,7 @@ import { query } from "./db";
 export type EcheanceVue = {
   id: number;
   titre: string;
-  kind: string;
+  subject_id: number | null;
   matiere: string | null;
   couleur: string | null;
   due_at: string;
@@ -15,7 +15,7 @@ export type EcheanceVue = {
 
 export async function echeancesAVenir(limite = 20): Promise<EcheanceVue[]> {
   return query<EcheanceVue>(
-    `select e.id, e.titre, e.kind::text as kind, sj.nom as matiere, sj.couleur,
+    `select e.id, e.titre, e.subject_id, sj.nom as matiere, sj.couleur,
             e.due_at, e.details, u.display_name as auteur, e.created_by
        from echeance e join app_user u on u.id = e.created_by
        left join subject sj on sj.id = e.subject_id

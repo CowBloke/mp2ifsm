@@ -6,7 +6,11 @@ sessions et tables PostgreSQL ; les fichiers restent privés sur le SSD.
 
 L’accueil montre d’abord la semaine (colles du groupe et échéances saisies
 par la classe), puis une ligne pour les révisions dues et une pour le marché
-qui ferme le plus tôt.
+qui ferme le plus tôt. Une échéance n’a qu’un titre (le type, « DS », « DM »…,
+s’écrit dedans), une matière facultative et une date ; tout membre peut en
+corriger une en touchant sa ligne. Les colles viennent du colloscope et ne se
+modifient pas ici. La colonne `echeance.kind` reste en base (défaut `Autre`)
+mais n’est plus lue.
 
 ## Fiches
 
