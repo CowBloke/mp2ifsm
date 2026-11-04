@@ -12,6 +12,8 @@ export function MessageAccueil({ texte, estAdmin }: { texte: string; estAdmin: b
   const router = useRouter();
   const [edition, setEdition] = useState(false);
   const [brouillon, setBrouillon] = useState(texte);
+  // Nouveau message : notifié par défaut ; simple correction : non.
+  const [notifier, setNotifier] = useState(!texte);
   const [erreur, setErreur] = useState<string | null>(null);
   const [enCours, demarrer] = useTransition();
 
@@ -20,7 +22,7 @@ export function MessageAccueil({ texte, estAdmin }: { texte: string; estAdmin: b
   function enregistrer(valeur: string) {
     setErreur(null);
     demarrer(async () => {
-      const r = await modifierMessageAccueil(valeur);
+      const r = await modifierMessageAccueil(valeur, valeur !== "" && notifier);
       if (r.ok) { setEdition(false); router.refresh(); } else setErreur(r.erreur);
     });
   }
@@ -33,6 +35,11 @@ export function MessageAccueil({ texte, estAdmin }: { texte: string; estAdmin: b
                   maxLength={1000} rows={3} placeholder="Message pour toute la classe…"
                   className="w-full resize-y bg-transparent text-[15px] leading-relaxed outline-none" />
         {erreur && <p role="alert" className="text-[13px] font-medium text-[var(--destructive)]">{erreur}</p>}
+        <label className="mt-2 flex min-h-11 cursor-pointer items-center gap-2 text-[14px]">
+          <input type="checkbox" checked={notifier} onChange={(e) => setNotifier(e.target.checked)}
+                 className="h-5 w-5 accent-[var(--primary)]" />
+          Envoyer en notification à la classe
+        </label>
         <div className="mt-2 flex items-center gap-2">
           <span className="tabular mr-auto text-[12px] text-[var(--muted-foreground)]">{brouillon.length}/1000</span>
           {texte && (
@@ -67,7 +74,7 @@ export function MessageAccueil({ texte, estAdmin }: { texte: string; estAdmin: b
         {texte}
       </p>
       {estAdmin && (
-        <button type="button" onClick={() => { setBrouillon(texte); setEdition(true); }}
+        <button type="button" onClick={() => { setBrouillon(texte); setNotifier(false); setEdition(true); }}
                 aria-label="Modifier le message"
                 className="-m-2 grid h-11 w-11 shrink-0 place-items-center rounded-full hover:bg-[var(--muted)]">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8"

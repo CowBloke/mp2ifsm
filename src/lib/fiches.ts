@@ -112,7 +112,10 @@ export type CarteARevisier = {
  */
 export async function prochaineCarte(
   userId: string,
-  deckId: number,
+  /** null = tous les paquets suivis (flash du jour). */
+  deckId: number | null,
+  /** Cartes déjà vues dans cette session (flash : jamais deux fois). */
+  exclure: number[] = [],
 ): Promise<CarteARevisier | null> {
   const ligne = await queryOne<{
     card_id: number; recto: string; verso: string; anki_guid: string | null; auteur: string; author_id: string;
@@ -129,7 +132,9 @@ export async function prochaineCarte(
        join deck d     on d.id = k.deck_id
        join app_user u on u.id = k.author_id
        left join card_state s on s.card_id = k.id and s.user_id = $1::uuid
-      where k.deck_id = $2 and k.deleted_at is null
+      where ($2::bigint is null or k.deck_id = $2) and k.deleted_at is null
+        and ($2::bigint is not null or d.archived_at is null)
+        and not (k.id = any($3::bigint[]))
         and (s.user_id is null or s.due <= now())
         and exists (select 1 from deck_subscription ab
                      where ab.deck_id = k.deck_id and ab.user_id = $1::uuid)
@@ -138,9 +143,11 @@ export async function prochaineCarte(
              when s.state = 'Review'                   then 1
              else 2 end,
         s.due asc nulls last,
+        -- Flash : les cartes neuves sont piochées au hasard, tous paquets confondus.
+        case when $2::bigint is null and s.user_id is null then random() end,
         k.id asc
       limit 1`,
-    [userId, deckId],
+    [userId, deckId, exclure],
   );
   if (!ligne) return null;
 
@@ -170,15 +177,19 @@ export async function prochaineCarte(
   };
 }
 
-export async function compterRestant(userId: string, deckId: number) {
+export async function compterRestant(userId: string, deckId: number | null) {
   const r = await queryOne<{ nouvelles: number; apprentissage: number; a_revoir: number }>(
     `select count(*) filter (where s.user_id is null)::int                as nouvelles,
             count(*) filter (where s.state in ('Learning','Relearning')
                                and s.due <= now())::int                    as apprentissage,
             count(*) filter (where s.state = 'Review' and s.due <= now())::int as a_revoir
        from card k
+       join deck d on d.id = k.deck_id
        left join card_state s on s.card_id = k.id and s.user_id = $1::uuid
-      where k.deck_id = $2 and k.deleted_at is null`,
+      where ($2::bigint is null or k.deck_id = $2) and k.deleted_at is null
+        and ($2::bigint is not null
+             or d.archived_at is null and exists (select 1 from deck_subscription ab
+                         where ab.deck_id = k.deck_id and ab.user_id = $1::uuid))`,
     [userId, deckId],
   );
   return r ?? { nouvelles: 0, apprentissage: 0, a_revoir: 0 };

@@ -147,4 +147,57 @@ create table if not exists message_accueil (
   updated_at timestamptz not null default now()
 );
 
+-- ---------------------------------------------------------------------
+-- Notifications (bloc du 4 novembre 2026) : web push, « flash du jour ».
+-- ---------------------------------------------------------------------
+
+-- Clés VAPID du serveur, créées au premier besoin (une seule ligne).
+create table if not exists push_cle (
+  id         smallint primary key default 1 check (id = 1),
+  publique   text not null,
+  privee     text not null,
+  created_at timestamptz not null default now()
+);
+
+-- Un abonnement par appareil (navigateur ou app installée).
+create table if not exists push_abonnement (
+  id          bigserial primary key,
+  user_id     uuid not null references app_user(id) on delete cascade,
+  endpoint    text not null unique,
+  p256dh      text not null,
+  auth        text not null,
+  appareil    text,
+  created_at  timestamptz not null default now(),
+  last_ok_at  timestamptz,
+  echecs      smallint not null default 0
+);
+create index if not exists push_abonnement_user_idx on push_abonnement (user_id);
+
+-- Préférences par membre. flash_repondu : la question du flash du jour
+-- a été posée (oui ou non), la fenêtre ne revient plus.
+create table if not exists notif_pref (
+  user_id       uuid primary key references app_user(id) on delete cascade,
+  flash         boolean not null default false,
+  flash_repondu boolean not null default false,
+  devoirs       boolean not null default true,
+  messages      boolean not null default true,
+  updated_at    timestamptz not null default now()
+);
+
+-- Tirage du flash du jour : la même heure surprise pour toute la classe.
+create table if not exists flash_tirage (
+  jour       date primary key,
+  heure      timestamptz not null,
+  envoye_at  timestamptz
+);
+
+-- Envois déjà faits (un par membre, genre et jour) : rejouer ne double rien.
+create table if not exists notif_envoi (
+  user_id  uuid not null references app_user(id) on delete cascade,
+  genre    text not null check (genre in ('flash','devoirs','message')),
+  cle      text not null,
+  envoye_at timestamptz not null default now(),
+  primary key (user_id, genre, cle)
+);
+
 commit;

@@ -25,6 +25,8 @@ import { BadgeStatut } from "@/components/AdminRetours";
 import { NOM_CATEGORIE } from "@/lib/constantes";
 import { GROUPE_MAX } from "@/lib/colloscope";
 import { mesRetours } from "@/lib/retours";
+import { ReglagesNotifications } from "@/components/Notifications";
+import { lireEtatNotif } from "@/lib/notif-prefs";
 
 export const dynamic = "force-dynamic";
 
@@ -83,10 +85,15 @@ export default async function PageMoi({ searchParams }: { searchParams: Promise<
 }
 
 async function Reglages({ userId, groupe }: { userId: string; groupe: number | null }) {
-  const r = await queryOne<{ partage_stats: boolean }>(
-    `select partage_stats from app_user where id = $1::uuid`, [userId]);
+  const [r, notif] = await Promise.all([
+    queryOne<{ partage_stats: boolean }>(
+      `select partage_stats from app_user where id = $1::uuid`, [userId]),
+    lireEtatNotif(userId),
+  ]);
 
   return (
+    <>
+    <ReglagesNotifications initial={{ flash: notif.flash, devoirs: notif.devoirs, messages: notif.messages }} />
     <section aria-label="Réglages">
       <ReglageGroupe groupe={groupe} max={GROUPE_MAX} />
       <ReglagePartageStats initial={r?.partage_stats ?? false} />
@@ -98,6 +105,7 @@ async function Reglages({ userId, groupe }: { userId: string; groupe: number | n
         <BoutonRetour />
       </div>
     </section>
+    </>
   );
 }
 

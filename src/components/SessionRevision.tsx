@@ -20,12 +20,15 @@ import { carteSuivante, reviserCarte, signalerCarte, type CarteRendue } from "@/
  */
 
 export function SessionRevision({
-  carteInitiale, deckId, deckSlug, deckTitre,
+  carteInitiale, deckId, deckSlug, deckTitre, flash,
 }: {
   carteInitiale: CarteRendue | null;
-  deckId: number;
-  deckSlug: string;
+  /** null avec `flash` : cartes piochées dans tous les paquets suivis. */
+  deckId: number | null;
+  deckSlug: string | null;
   deckTitre: string;
+  /** Flash du jour : quelques cartes seulement, puis fin. */
+  flash?: { limite: number; envoyeA: string | null; delaiALHeureMs: number };
 }) {
   const router = useRouter();
   const [carte, setCarte] = useState<CarteRendue | null>(carteInitiale);
@@ -36,6 +39,9 @@ export function SessionRevision({
   const [erreur, setErreur] = useState<string | null>(null);
   const [fini, setFini] = useState(carteInitiale === null);
   const debutRef = useRef<number>(Date.now());
+  const vuesRef = useRef<number[]>([]);
+  const [finiA, setFiniA] = useState<number | null>(null);
+  const sortie = deckSlug ? `/fiches/${deckSlug}` : "/fiches";
   const rectoRef = useRef<HTMLDivElement>(null);
 
   // Remis à zéro à chaque nouvelle carte, pour mesurer le temps de réponse.
@@ -44,7 +50,7 @@ export function SessionRevision({
   const restant = carte
     ? carte.restant.nouvelles + carte.restant.apprentissage + carte.restant.a_revoir
     : 0;
-  const total = faites + restant;
+  const total = flash ? Math.min(flash.limite, faites + restant) : faites + restant;
   const progression = total > 0 ? faites / total : 1;
 
   // Révélation mot par mot : seulement s'il y a au moins deux trous.
@@ -87,8 +93,18 @@ export function SessionRevision({
       return;
     }
     setFaites((n) => n + 1);
+    vuesRef.current.push(carte.cardId);
 
-    const suivante = await carteSuivante(deckId);
+    if (flash && faites + 1 >= flash.limite) {
+      setFiniA(Date.now());
+      setFini(true);
+      setCarte(null);
+      setEnCours(false);
+      router.refresh();
+      return;
+    }
+
+    const suivante = await carteSuivante(deckId, flash ? vuesRef.current : []);
     if (!suivante.ok) {
       setErreur(suivante.erreur + " — rechargez la page pour continuer.");
       setCarte(null);
@@ -96,6 +112,7 @@ export function SessionRevision({
       return;
     }
     if (suivante.data === null) {
+      setFiniA(Date.now());
       setFini(true);
       setCarte(null);
       router.refresh();   // les compteurs du paquet se remettent à jour
@@ -105,7 +122,7 @@ export function SessionRevision({
       setOuverts([]);
     }
     setEnCours(false);
-  }, [carte, enCours, deckId, router]);
+  }, [carte, enCours, deckId, router, flash, faites]);
 
   useEffect(() => {
     const surTouche = (e: KeyboardEvent) => {
@@ -132,6 +149,10 @@ export function SessionRevision({
     return () => window.removeEventListener("keydown", surTouche);
   }, [revele, carte, noter, avancer]);
 
+  if (fini && flash) {
+    return <FinFlash faites={faites} envoyeA={flash.envoyeA} finiA={finiA} delai={flash.delaiALHeureMs} />;
+  }
+
   if (fini) {
     return (
       <div className="flex min-h-[60dvh] flex-col justify-center gap-8">
@@ -145,7 +166,7 @@ export function SessionRevision({
         </div>
         <div className="flex flex-col gap-3">
           <Link href="/" className="bouton-principal">Retour à l’accueil</Link>
-          <Link href={`/fiches/${deckSlug}`} className="lien-discret justify-center">Voir le paquet</Link>
+          <Link href={sortie} className="lien-discret justify-center">Voir le paquet</Link>
         </div>
       </div>
     );
@@ -163,7 +184,7 @@ export function SessionRevision({
   return (
     <div className="-mt-6 flex min-h-[calc(100dvh-var(--bottom-nav-clearance)-1rem)] flex-col md:-mt-12">
       <header className="-ml-3 flex items-center gap-2">
-        <Link href={`/fiches/${deckSlug}`} aria-label="Quitter la session"
+        <Link href={sortie} aria-label="Quitter la session"
               className="grid h-11 w-11 shrink-0 place-items-center rounded-full hover:bg-[var(--muted)]">
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8"
                strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
@@ -184,7 +205,7 @@ export function SessionRevision({
         className={`flex flex-1 flex-col justify-center gap-7 py-10 ${revele ? "" : "cursor-pointer"}`}
       >
         <p className="text-[13px] text-[var(--muted-foreground)]">
-          {deckTitre}{carte.nouvelle ? " · nouvelle carte" : ""}
+          {flash ? `⚡ ${carte.paquet}` : deckTitre}{carte.nouvelle ? " · nouvelle carte" : ""}
         </p>
 
         <div ref={rectoRef}
@@ -248,6 +269,46 @@ export function SessionRevision({
           ) : <span />}
           <BoutonSignaler cardId={carte.cardId} />
         </div>
+      </div>
+    </div>
+  );
+}
+
+/** Fin du flash du jour : à l'heure ou en retard, comme le BeReal. */
+function FinFlash({
+  faites, envoyeA, finiA, delai,
+}: { faites: number; envoyeA: string | null; finiA: number | null; delai: number }) {
+  const ecart = envoyeA && finiA ? finiA - new Date(envoyeA).getTime() : null;
+  const aLHeure = ecart !== null && ecart >= 0 && ecart <= delai;
+  const retard = ecart !== null && ecart > delai ? Math.round(ecart / 60_000) : null;
+  const libelleRetard = retard === null ? null
+    : retard < 60 ? `${retard} min de retard`
+    : `${Math.floor(retard / 60)} h ${String(retard % 60).padStart(2, "0")} de retard`;
+
+  return (
+    <div className="flex min-h-[60dvh] flex-col justify-center gap-8">
+      <div>
+        <p className="text-[44px] leading-none" aria-hidden="true">⚡</p>
+        <h1 className="titre-page mt-4">
+          {faites > 0 ? "Flash terminé" : "Rien à réviser"}
+        </h1>
+        <p className="mt-3 text-[17px] text-[var(--muted-foreground)]">
+          {faites > 0
+            ? `${faites} carte${faites > 1 ? "s" : ""} révisée${faites > 1 ? "s" : ""}. À demain, heure surprise !`
+            : "Aucune carte due ni nouvelle dans vos paquets suivis. Suivez un paquet pour recevoir des cartes."}
+        </p>
+        {faites > 0 && aLHeure && (
+          <p className="mt-4 inline-flex rounded-full bg-[var(--primary)] px-3 py-1 text-[13px] font-semibold text-[var(--primary-foreground)]">
+            À l’heure !
+          </p>
+        )}
+        {faites > 0 && libelleRetard && (
+          <p className="mt-4 text-[13px] text-[var(--muted-foreground)]">{libelleRetard}</p>
+        )}
+      </div>
+      <div className="flex flex-col gap-3">
+        <Link href="/" className="bouton-principal">Retour à l’accueil</Link>
+        <Link href="/fiches" className="lien-discret justify-center">Continuer dans les fiches</Link>
       </div>
     </div>
   );

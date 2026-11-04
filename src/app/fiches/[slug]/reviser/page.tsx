@@ -43,6 +43,7 @@ export default async function PageRevision({
             apercu: c.apercu,
             restant: c.restant,
             nouvelle: c.etat === null,
+            paquet: c.deck_titre,
           }
         }
       />

@@ -294,6 +294,43 @@ try {
   ok((await action("aimerPaquet", [importe.id, false])).data.likes === 0, "deck can be unliked");
   const pageFiches = await (await fetch(base + "/fiches", { headers: auth })).text();
   ok(pageFiches.includes("Récemment ajoutés") && pageFiches.includes("Suivis"), "fiches page shows recent and followed sections");
+  // Notifications : web app, préférences, abonnement, flash du jour.
+  const manifeste = await (await fetch(base + "/manifest.webmanifest")).json();
+  ok(manifeste.display === "standalone" && manifeste.icons.length >= 2, "web app manifest is served");
+  ok((await fetch(base + "/sw.js")).ok, "service worker is served");
+  const flashPage = await (await fetch(base + "/flash", { headers: auth })).text();
+  ok(!flashPage.includes('"digest":'), "flash page renders");
+  const prefs = await action("definirPrefsNotif", [{ flash: true }]);
+  ok(prefs.ok && prefs.data.flash && prefs.data.devoirs, "member opts in to the daily flash");
+  ok((await query("select 1 from notif_pref where user_id=$1 and flash_repondu", [alice])).length === 1, "flash answer is remembered");
+  const { createECDH } = await import("node:crypto");
+  const ecdh = createECDH("prime256v1"); ecdh.generateKeys();
+  const abo = { endpoint: "https://127.0.0.1:9/push/test", keys: { p256dh: ecdh.getPublicKey("base64url"), auth: randomBytes(16).toString("base64url") } };
+  ok((await action("enregistrerAbonnement", [abo, "Test · app"])).ok, "push subscription is stored");
+  ok(!(await action("enregistrerAbonnement", [{ endpoint: "http://insecure.invalid", keys: abo.keys }, "x"])).ok, "non-https push endpoint is refused");
+  const [flashDeck] = await query<{ id: number }>(`insert into deck(slug,titre,matiere,chapitre,created_by)
+    values ('flash-test','Flash test','Maths','Analyse',$1) returning id`, [alice]);
+  const flashCartes = await query<{ id: number }>(`insert into card(deck_id,recto,verso,author_id)
+    values ($1,'Flash A','A',$2),($1,'Flash B','B',$2) returning id`, [flashDeck.id, alice]);
+  await query("insert into deck_subscription(user_id,deck_id) values ($1,$2)", [alice, flashDeck.id]);
+  const flash1 = await prochaineCarte(alice, null);
+  ok(flash1 !== null, "flash draws a card across followed decks");
+  const flash2 = await prochaineCarte(alice, null, [flash1!.card_id]);
+  ok(flash2 !== null && flash2.card_id !== flash1!.card_id, "flash never repeats a card in the same session");
+  ok((await prochaineCarte(alice, flashDeck.id, flashCartes.map(c => c.id))) === null, "excluded cards are skipped");
+  const suivanteFlash = await action("carteSuivante", [null, [flash1!.card_id]]);
+  ok(suivanteFlash.ok && suivanteFlash.data?.paquet, "flash session action returns a card with its deck title");
+  const notifs = await import("../src/lib/notifications");
+  await query(`insert into flash_tirage (jour, heure) values ($1::date, now() - interval '1 minute')
+               on conflict (jour) do update set heure = excluded.heure, envoye_at = null`, [notifs.jourDeParis(new Date())]);
+  await notifs.tic();
+  ok((await query("select 1 from flash_tirage where jour=$1::date and envoye_at is not null", [notifs.jourDeParis(new Date())])).length === 1, "daily flash is sent once its surprise time passes");
+  ok((await query("select 1 from notif_envoi where user_id=$1 and genre='flash'", [alice])).length === 1, "flash delivery is recorded once per member");
+  ok((await query<{ echecs: number }>("select echecs from push_abonnement where endpoint=$1", [abo.endpoint]))[0]?.echecs >= 1, "unreachable push endpoint counts a failure");
+  const t2 = await notifs.tirageDuJour("2030-01-15");
+  const heureParis = notifs.partiesParis(new Date(t2.heure));
+  const minutes = heureParis.h * 60 + heureParis.min;
+  ok(minutes >= notifs.FLASH_DEBUT_MIN && minutes < notifs.FLASH_FIN_MIN, "surprise time falls inside the Paris window");
   if (process.env.TEST_BROWSER === "1") {
     await query("insert into card(deck_id,recto,verso,author_id) values ($1,'Calculer $2+2$','$4$',$2)", [deck.id, alice]);
     const [trous] = await query<{ id: number }>(`insert into deck(slug,titre,matiere,chapitre,created_by)

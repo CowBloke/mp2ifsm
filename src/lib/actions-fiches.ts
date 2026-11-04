@@ -474,6 +474,8 @@ export type CarteRendue = {
   apercu: Array<{ cle: string; label: string; touche: string; intervalle: string }>;
   restant: { nouvelles: number; apprentissage: number; a_revoir: number };
   nouvelle: boolean;
+  /** Titre du paquet de la carte (le flash mélange les paquets). */
+  paquet: string;
 };
 
 /**
@@ -482,13 +484,19 @@ export type CarteRendue = {
  * Le HTML (KaTeX compris) est produit ici : le navigateur ne reçoit ni
  * la bibliothèque de rendu, ni les intervalles à calculer.
  */
-export async function carteSuivante(deckId: number): Promise<Reponse<CarteRendue | null>> {
+export async function carteSuivante(
+  deckId: number | null,
+  exclure: number[] = [],
+): Promise<Reponse<CarteRendue | null>> {
   try {
     const u = await exigerUtilisateur();
     const { prochaineCarte } = await import("./fiches");
     const { composerCarte } = await import("./rendu");
 
-    const c = await prochaineCarte(u.id, deckId);
+    if (deckId !== null && (!Number.isSafeInteger(deckId) || deckId <= 0)) throw new ErreurMetier("PAQUET_INTROUVABLE");
+    const vues = Array.isArray(exclure)
+      ? exclure.filter((n) => Number.isSafeInteger(n) && n > 0).slice(0, 50) : [];
+    const c = await prochaineCarte(u.id, deckId, vues);
     if (!c) return { ok: true, data: null };
 
     return {
@@ -502,6 +510,7 @@ export async function carteSuivante(deckId: number): Promise<Reponse<CarteRendue
         apercu: c.apercu,
         restant: c.restant,
         nouvelle: c.etat === null,
+        paquet: c.deck_titre,
       },
     };
   } catch (err) {

@@ -52,6 +52,36 @@ Les modèles complexes et leur mise en page ne sont pas reproduits. Images,
 accents et formules sont conservés ; sons et vidéos sont ignorés. Les exports
 contiennent un modèle Basique, les images référencées et des GUID stables.
 
+## Notifications et flash du jour
+
+Le portail est une **web app installable** (`src/app/manifest.ts`, icônes
+dans `public/icons/`) avec un service worker minimal (`public/sw.js` :
+notifications seulement, aucun cache). Sur iPhone/iPad, les notifications
+n’existent qu’une fois l’app ajoutée à l’écran d’accueil (iOS 16.4+).
+
+Trois fenêtres (`src/components/Notifications.tsx`), une seule par page,
+jamais pendant une révision ni par-dessus la demande de groupe :
+
+1. **Installation** (mobile hors app) : « Installer l’app ? » puis un
+   tutoriel propre à l’appareil (Safari/Chrome iOS, Chrome, Samsung,
+   Firefox Android ; ordinateur depuis le profil). « Plus tard » revient
+   après 3 jours, « Non merci » jamais (mémorisé sur l’appareil).
+2. **Flash du jour** : chaque jour, à une heure surprise tirée entre 11 h et
+   21 h 30 (la même pour toute la classe, table `flash_tirage`), une notif
+   ouvre `/flash` : 3 cartes au plus des paquets suivis (dues d’abord, puis
+   neuves au hasard), notées comme une révision normale, badge « À l’heure »
+   sous 10 minutes. Posée une fois (`notif_pref.flash_repondu`).
+3. **Notifications** dans l’app installée si l’appareil n’est pas abonné :
+   devoirs (la veille à 19 h, échéances du lendemain) et messages de la
+   classe (case « Envoyer en notification » quand un admin publie).
+
+Le planificateur tourne dans le processus Next.js (`src/instrumentation.ts`,
+une passe par minute, `MP2_NOTIFS=off` le coupe). `notif_envoi` garantit un
+seul envoi par membre, genre et jour. Les clés VAPID sont créées au premier
+besoin dans `push_cle` ; un abonnement qui répond 404/410 est supprimé.
+Réglages et notification de test dans le Profil. Tables dans
+`db/schema-dossiers.sql` (bloc du 4 novembre 2026).
+
 ## Documents et capacité
 
 `STORAGE_ROOT` vaut `/home/cowbloke/mp2ifsm-data` : sous-dossiers `documents`
