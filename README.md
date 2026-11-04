@@ -1,7 +1,7 @@
 # mp2ifsm.com — portail de classe
 
 Portail mobile en français pour la prépa MP2I/FSM : **Accueil, Fiches,
-Documents, Marché, Profil**. Les rubriques utilisent les mêmes comptes,
+Colles, Documents, Divertissement** (et le Profil depuis l’avatar). Les rubriques utilisent les mêmes comptes,
 sessions et tables PostgreSQL ; les fichiers restent privés sur le SSD.
 
 L’accueil montre d’abord la semaine (colles du groupe et échéances saisies
@@ -96,6 +96,16 @@ Le service doit pouvoir écrire dans `STORAGE_ROOT`. nginx doit accepter
 `X-Frame-Options SAMEORIGIN` pour permettre les aperçus PDF. Valider nginx
 avant son rechargement. La construction de vérification utilise un dossier
 séparé et ne remplace pas le build `.next` du service en cours.
+
+## Divertissement
+
+L’onglet **Divertissement** (`/divertissement`) regroupe le **Marché**
+(`/marche`, inchangé) et les **Réels** (`/divertissement/reels`) : une blague
+façon reels d’Instagram où chaque « vidéo » est un nombre réel tiré au hasard
+(décimaux, √n, notation scientifique, π, e, φ…), avec des commentaires
+élogieux et des compteurs fictifs. Tout est généré dans le navigateur
+(`src/lib/reels.ts`) ; likes, abonnements et commentaires ajoutés ne sont
+pas enregistrés et disparaissent au rechargement.
 
 ## Marché
 

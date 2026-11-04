@@ -1,6 +1,7 @@
 import { FormulaireMarche } from "@/components/AdminMarches";
 import { Suspense } from "react";
 import Link from "next/link";
+import { LienRetour } from "@/components/LienRetour";
 import { redirect } from "next/navigation";
 import { CarteMarche } from "@/components/CarteMarche";
 import { LienProfil } from "@/components/PiecePricoup";
@@ -17,6 +18,7 @@ export default async function PageMarche() {
 
   return (
     <main>
+      <LienRetour href="/divertissement" label="Retour au divertissement" />
       <header className="page-heading">
         <h1>Marché</h1>
         <Suspense fallback={<div className="skeleton h-9 w-24 rounded-full" />}>

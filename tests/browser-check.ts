@@ -60,6 +60,7 @@ export async function browserCheck(base: string, token: string) {
     await capture("dashboard");
     for (const [chemin, nom, texte] of [
       ["/fiches", "fiches", "Fiches"], ["/documents", "documents", "Documents"],
+      ["/divertissement", "divertissement", "Divertissement"],
       ["/marche", "marche", "Marché"], ["/colles", "colles", "Colles"],
     ]) {
       await send("Page.navigate", { url: base + chemin });
