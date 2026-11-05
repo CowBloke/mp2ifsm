@@ -140,9 +140,16 @@ pas enregistrés et disparaissent au rechargement.
 ## Vidéos éducatives
 
 `/divertissement/videos` : les membres publient des vidéos où ils expliquent
-une notion à la classe, présentées comme sur un réseau social (galerie
-filtrable par matière, puis fil vertical plein écran avec lecture
-automatique, j’aime, commentaires, vues, partage du lien).
+une notion à la classe, présentées comme sur un réseau social. L’onglet
+ouvre **directement le fil** vertical plein écran (lecture automatique,
+toucher = pause, double toucher = j’aime, commentaires, vues, partage du
+lien). Une barre basse propre au fil donne **Fil · + · Profil** : le **+**
+ouvre le studio. Toucher un auteur (dans le fil ou les commentaires) ouvre
+son **profil** (`/divertissement/videos/profil/<id>`, `moi` pour soi) :
+compteurs, grille de ses vidéos, puis fil limité à ses vidéos
+(`?auteur=`). L’étiquette de matière filtre le fil (`?matiere=`). Le
+profil personnel montre les vidéos en montage ; on y arrive après la
+publication.
 
 **Tout se filme dans l’app** (`/divertissement/videos/nouvelle`, aucun
 import de fichier) : caméra avant/arrière, minuteur 3 s, plusieurs clips

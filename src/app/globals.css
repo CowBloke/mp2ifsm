@@ -483,6 +483,42 @@ textarea:not(.champ-nu):focus, select:not(.champ-nu):focus {
 }
 .videos__desc--ouverte { max-height: 30dvh; overflow-y: auto; white-space: pre-line; }
 .videos__etiquette { padding: 2px 8px; border-radius: 999px; background: rgb(255 255 255 / 0.2); font-weight: 600; }
+a.videos__etiquette { color: #fff; }
+a.videos__etiquette:hover { color: #fff; background: rgb(255 255 255 / 0.32); }
+
+/* Fil : barre basse propre aux vidéos (Fil · + · Profil), au-dessus de la navigation. */
+.videos { display: flex; flex-direction: column; }
+.videos .reels__fil { flex: 1; min-height: 0; height: auto; }
+.videos__barre {
+  display: flex; flex-shrink: 0; align-items: center; justify-content: space-around;
+  width: min(100%, 480px); height: 58px; margin-inline: auto; padding: 0 12px;
+  border-top: 1px solid rgb(255 255 255 / 0.12); background: #000;
+}
+.videos__onglet {
+  display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 64px;
+  color: rgb(255 255 255 / 0.6); font-size: 11px; font-weight: 600;
+}
+.videos__onglet:hover, .videos__onglet[aria-current="page"] { color: #fff; }
+.videos__plus {
+  display: grid; place-items: center; width: 56px; height: 38px; border-radius: 12px;
+  background: #fff; color: #000; box-shadow: -3px 0 0 #25f4ee, 3px 0 0 #fe2c55;
+}
+.videos__plus:hover { color: #000; transform: scale(1.04); }
+.videos__plus:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.videos__auteur { display: flex; min-width: 0; align-items: center; gap: 10px; color: #fff; }
+.videos__auteur:hover { color: #fff; }
+.videos__auteur:hover > span:last-child { text-decoration: underline; }
+.videos__vide { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; text-align: center; }
+.videos__montage {
+  position: absolute; z-index: 3; left: 50%; top: calc(max(10px, env(safe-area-inset-top)) + 54px); translate: -50% 0;
+  display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; border-radius: 999px;
+  background: rgb(255 255 255 / 0.16); color: #fff; font-size: 13px; font-weight: 600; white-space: nowrap;
+  backdrop-filter: blur(8px);
+}
+.videos__montage:hover { color: #fff; background: rgb(255 255 255 / 0.24); }
+.videos__roue--clair { width: 16px; height: 16px; border-width: 2px; border-color: rgb(255 255 255 / 0.3); border-top-color: #fff; }
+.videos__avatar-profil { width: 88px; height: 88px; font-size: 36px; box-shadow: none; }
+.videos__vignette--grille { aspect-ratio: 9 / 16; border-radius: 4px; }
 
 .studio {
   position: fixed; z-index: 60; inset: 0; overflow: hidden;

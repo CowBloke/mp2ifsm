@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { formatCompte, genererReel, type CommentaireReel, type Reel } from "@/lib/reels";
 
 /*
@@ -203,7 +204,8 @@ function FeuilleCommentaires({ reel, pseudo, ajoutes, onFermer, onAjouter }: {
 
   const liste = [...ajoutes, ...reel.commentaires];
 
-  return (
+  // Portail vers <body> : la feuille doit passer au-dessus de la navigation basse.
+  return createPortal(
     <div className="reels__voile" onClick={(e) => { if (e.target === e.currentTarget) onFermer(); }}>
       <div role="dialog" aria-modal="true" aria-labelledby="reels-commentaires" className="reels__feuille">
         <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-[var(--border)]" aria-hidden="true" />
@@ -243,6 +245,7 @@ function FeuilleCommentaires({ reel, pseudo, ajoutes, onFermer, onAjouter }: {
           <button type="submit" disabled={!texte.trim()} className="lien-discret px-2 disabled:opacity-40">Publier</button>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

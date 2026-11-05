@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   aimerVideo, commentairesVideo, commenterVideo, marquerVue, supprimerCommentaire, supprimerVideo,
 } from "@/lib/actions-videos";
@@ -28,10 +28,18 @@ function ilYa(iso: string): string {
 
 type Etat = { likes: number; aime: boolean; commentaires: number };
 
-export function FilVideos({ videos: initiales, moi, admin, pseudo }: {
+const PROFIL = (id: string) => `/divertissement/videos/profil/${id}`;
+
+export function FilVideos({ videos: initiales, moi, admin, pseudo, contexte, requete, retour, enMontage }: {
   videos: VideoVue[]; moi: string; admin: boolean; pseudo: string;
+  /** « Vidéos de X », nom d'une matière, ou null pour toute la classe. */
+  contexte: string | null;
+  /** ?auteur=… ou ?matiere=…, repris dans les liens du fil. */
+  requete: string;
+  retour: string;
+  /** Vidéos du membre en cours de montage sur le serveur. */
+  enMontage: number;
 }) {
-  const router = useRouter();
   const [videos, setVideos] = useState(initiales);
   const [etats, setEtats] = useState<Record<number, Etat>>(() =>
     Object.fromEntries(initiales.map((v) => [v.id, { likes: v.likes, aime: v.aime, commentaires: v.commentaires }])));
@@ -80,22 +88,20 @@ export function FilVideos({ videos: initiales, moi, admin, pseudo }: {
     if (!confirm(`Supprimer « ${v.titre} » ? C’est définitif.`)) return;
     const r = await supprimerVideo(v.id);
     if (!r.ok) { setToast(r.erreur); return; }
-    const reste = videos.filter((x) => x.id !== v.id);
-    if (reste.length === 0) { router.push("/divertissement/videos"); return; }
-    setVideos(reste);
+    setVideos((l) => l.filter((x) => x.id !== v.id));
     setToast("Vidéo supprimée");
   }
 
   const videoOuverte = videos.find((v) => v.id === ouvert);
 
   return (
-    <div className="reels">
+    <div className="reels videos">
       <header className="reels__haut">
-        <Link href="/divertissement/videos" aria-label="Retour aux vidéos" className="reels__retour">
+        <Link href={retour} aria-label="Retour" className="reels__retour">
           <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2"
                strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6" /></svg>
         </Link>
-        <h1 className="flex-1 text-[20px] font-bold tracking-tight">Vidéos</h1>
+        <h1 className="min-w-0 flex-1 truncate text-[20px] font-bold tracking-tight">{contexte ?? "Vidéos"}</h1>
         <button type="button" className="reels__retour" onClick={() => setSon((s) => !s)}
                 aria-label={son ? "Couper le son" : "Activer le son"} aria-pressed={!son}>
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.9"
@@ -104,13 +110,28 @@ export function FilVideos({ videos: initiales, moi, admin, pseudo }: {
             {son ? <path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" /> : <path d="m17 9 5 6m0-6-5 6" />}
           </svg>
         </button>
-        <Link href="/divertissement/videos/nouvelle" aria-label="Enregistrer une vidéo" className="reels__retour">
-          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2"
-               strokeLinecap="round" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="5" /><path d="M12 8v8M8 12h8" /></svg>
-        </Link>
       </header>
 
+      {enMontage > 0 && (
+        <Link href={PROFIL("moi")} className="videos__montage">
+          <span className="videos__roue videos__roue--clair" aria-hidden="true" />
+          {enMontage > 1 ? `${enMontage} vidéos en montage…` : "Votre vidéo est en montage…"}
+        </Link>
+      )}
+
       <div ref={fil} className="reels__fil" tabIndex={0} aria-label="Fil de vidéos">
+        {videos.length === 0 && (
+          <section className="reels__ecran videos__vide">
+            <svg viewBox="0 0 24 24" width="56" height="56" fill="none" stroke="currentColor" strokeWidth="1.4"
+                 strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <rect x="2.5" y="6" width="13" height="12" rx="3" /><path d="m15.5 10.5 6-3.5v10l-6-3.5" />
+            </svg>
+            <p className="mt-4 text-[18px] font-semibold">{contexte ? "Aucune vidéo ici pour l’instant" : "Aucune vidéo pour l’instant"}</p>
+            <p className="mt-2 max-w-[280px] text-[14px] leading-snug opacity-80">
+              Une démo, une méthode, un exercice corrigé : touchez + pour filmer la première.
+            </p>
+          </section>
+        )}
         {videos.map((v, i) => (
           <EcranVideo key={v.id} video={v} index={i} actif={i === actif} proche={Math.abs(i - actif) <= 1}
                       son={son} onSonBloque={sonBloque} etat={etats[v.id]}
@@ -119,6 +140,23 @@ export function FilVideos({ videos: initiales, moi, admin, pseudo }: {
                       onPartager={() => partager(v)} onSupprimer={() => supprimer(v)} />
         ))}
       </div>
+
+      <nav className="videos__barre" aria-label="Vidéos">
+        <Link href="/divertissement/videos" aria-current={!requete ? "page" : undefined} className="videos__onglet">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.9"
+               strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="5" y="2.5" width="14" height="19" rx="3" /><path d="m10.5 9.5 4 2.5-4 2.5z" /></svg>
+          Fil
+        </Link>
+        <Link href="/divertissement/videos/nouvelle" aria-label="Créer une vidéo" className="videos__plus">
+          <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="2.6"
+               strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+        </Link>
+        <Link href={PROFIL("moi")} className="videos__onglet">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.9"
+               strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="8.5" r="4" /><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0" /></svg>
+          Profil
+        </Link>
+      </nav>
 
       {videoOuverte && (
         <FeuilleCommentaires video={videoOuverte} moi={moi} admin={admin} pseudo={pseudo}
@@ -220,8 +258,10 @@ function EcranVideo({ video, index, actif, proche, son, onSonBloque, etat, peutS
 
       <div className="reels__bas">
         <div className="flex items-center gap-2.5">
-          <span className="reels__avatar" aria-hidden="true">{video.auteur[0]?.toUpperCase()}</span>
-          <span className="min-w-0 truncate text-[15px] font-semibold">{video.auteur}</span>
+          <Link href={PROFIL(video.auteur_id)} className="videos__auteur" aria-label={`Profil de ${video.auteur}`}>
+            <span className="reels__avatar" aria-hidden="true">{video.auteur[0]?.toUpperCase()}</span>
+            <span className="min-w-0 truncate text-[15px] font-semibold">{video.auteur}</span>
+          </Link>
           <span className="shrink-0 text-[12px] opacity-80">· {ilYa(video.created_at)}</span>
         </div>
         <p className="mt-2 text-[16px] font-semibold leading-snug">{video.titre}</p>
@@ -232,7 +272,9 @@ function EcranVideo({ video, index, actif, proche, son, onSonBloque, etat, peutS
           </button>
         )}
         <p className="mt-2 flex flex-wrap items-center gap-2 text-[12px] opacity-90">
-          {video.matiere && <span className="videos__etiquette">{video.matiere}</span>}
+          {video.matiere && video.matiere_id !== null && (
+            <Link href={`/divertissement/videos?matiere=${video.matiere_id}`} className="videos__etiquette">{video.matiere}</Link>
+          )}
           <span className="tabular">{formatCompte(video.vues)} vue{video.vues > 1 ? "s" : ""}</span>
         </p>
       </div>
@@ -280,7 +322,8 @@ function FeuilleCommentaires({ video, moi, admin, pseudo, onFermer, onNombre }: 
     if (r.ok) { setListe(r.data); onNombre(r.data.length); setErreur(null); } else setErreur(r.erreur);
   }
 
-  return (
+  // Portail vers <body> : la feuille doit passer au-dessus de la navigation basse.
+  return createPortal(
     <div className="reels__voile" onClick={(e) => { if (e.target === e.currentTarget) onFermer(); }}>
       <div role="dialog" aria-modal="true" aria-labelledby="videos-commentaires" className="reels__feuille">
         <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-[var(--border)]" aria-hidden="true" />
@@ -296,9 +339,11 @@ function FeuilleCommentaires({ video, moi, admin, pseudo, onFermer, onNombre }: 
           )}
           {liste?.map((c) => (
             <li key={c.id} className="flex gap-3">
-              <span className="reels__avatar reels__avatar--petit" aria-hidden="true">{c.auteur[0]?.toUpperCase()}</span>
+              <Link href={PROFIL(c.auteur_id)} className="reels__avatar reels__avatar--petit" aria-label={`Profil de ${c.auteur}`}>
+                {c.auteur[0]?.toUpperCase()}
+              </Link>
               <div className="min-w-0 flex-1">
-                <p className="text-[13px]"><span className="font-semibold">{c.auteur}</span>
+                <p className="text-[13px]"><Link href={PROFIL(c.auteur_id)} className="font-semibold text-[var(--foreground)] hover:underline">{c.auteur}</Link>
                   <span className="ml-2 text-[var(--muted-foreground)]">{ilYa(c.created_at)}</span></p>
                 <p className="whitespace-pre-line text-[14px] leading-snug [overflow-wrap:anywhere]">{c.texte}</p>
               </div>
@@ -331,6 +376,7 @@ function FeuilleCommentaires({ video, moi, admin, pseudo, onFermer, onNombre }: 
           <button type="submit" disabled={!texte.trim() || envoi} className="lien-discret px-2 disabled:opacity-40">Publier</button>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

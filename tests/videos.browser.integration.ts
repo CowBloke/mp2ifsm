@@ -107,10 +107,11 @@ try {
   await envoyer("Page.navigate", { url: `${base}/divertissement` });
   await jusqua(`!!document.querySelector('a[href="/divertissement/videos"]')`);
   await envoyer("Page.navigate", { url: `${base}/divertissement/videos` });
-  await jusqua(`document.body.innerText.includes("Aucune vidéo")`);
-  await capture("galerie-vide");
-
-  await envoyer("Page.navigate", { url: `${base}/divertissement/videos/nouvelle` });
+  // L'onglet ouvre directement le fil ; + en bas mène au studio.
+  await jusqua(`document.body.innerText.includes("Aucune vidéo pour l’instant") && !!document.querySelector(".videos__plus")`);
+  await capture("fil-vide");
+  await cliquer(`document.querySelector(".videos__plus")`);
+  await jusqua(`location.pathname === "/divertissement/videos/nouvelle"`);
   await jusqua(`!!document.querySelector(".studio__rec:not(:disabled)")`);
   await jusqua(`document.querySelector(".studio__camera").videoWidth > 0`);
   // Clip 1 : 3 s ; clip 2 : 2 s.
@@ -150,7 +151,7 @@ try {
   await saisir(`document.querySelector("textarea")`, "Test automatique.");
   await capture("publier");
   await cliquer(bouton("Publier pour la classe"));
-  await jusqua(`location.pathname === "/divertissement/videos"`, 300);
+  await jusqua(`location.pathname === "/divertissement/videos/profil/moi"`, 300);
 
   let statut = "";
   for (let i = 0; i < 180 && statut !== "pret"; i++) {
@@ -167,19 +168,37 @@ try {
   assert.equal(v.montage.textes[0].texte, "Dérivée : f'(x) ⇒ pente");
   console.log("PASS rendu", v.duree_ms, "ms");
 
+  // Le profil se rafraîchit seul pendant le montage, puis montre la vignette.
   await jusqua(`!!document.querySelector(".videos__vignette")`, 200);
-  await capture("galerie");
+  assert.ok(await evaluer(`document.body.innerText.includes("Test Alice") && document.body.innerText.includes("Nouvelle vidéo")`), "profil personnel");
+  await capture("profil");
   await cliquer(`document.querySelector(".videos__vignette")`);
-  await jusqua(`!!document.querySelector(".videos__lecteur")`);
+  await jusqua(`location.search.startsWith("?auteur=") && document.querySelector("h1")?.textContent === "Vidéos de Test Alice"`);
+  await jusqua(`document.querySelector(".videos__lecteur")?.currentTime > 0.3`, 100);
+  // Retour au fil de la classe par la barre basse.
+  await cliquer(`[...document.querySelectorAll(".videos__onglet")].find(a => a.textContent.trim() === "Fil")`);
+  await jusqua(`location.pathname === "/divertissement/videos" && !location.search && !!document.querySelector(".videos__lecteur")`);
   await jusqua(`document.querySelector(".videos__lecteur").currentTime > 0.5`, 100);
   await capture("fil");
   await cliquer(bouton("J’aime (0)"));
   await jusqua(`!!${bouton("Je n’aime plus (1)")}`);
   await cliquer(bouton("Commentaires (0)"));
   await jusqua(`document.body.innerText.includes("Pas encore de commentaire")`);
+  // Le champ doit être au premier plan (la feuille glisse en 220 ms).
+  await jusqua(`(() => { const i = document.querySelector(".reels__feuille input"); const b = i.getBoundingClientRect();
+    return document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2) === i; })()`, 30).catch(async (e) => {
+    throw new Error(`champ de commentaire masqué par ${await evaluer(`(() => { const b = document.querySelector(".reels__feuille input").getBoundingClientRect();
+      const el = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2); return el ? el.outerHTML.slice(0, 200) + " @" + Math.round(b.top) : "rien @" + Math.round(b.top); })()`)} ; ${e}`);
+  });
   await saisir(`document.querySelector(".reels__feuille input")`, "Super clair, merci !");
   await cliquer(bouton("Publier"));
   await jusqua(`document.body.innerText.includes("Super clair, merci !")`);
+  await capture("commentaires");
+  // Cliquer sur un auteur (ici dans les commentaires) ouvre son profil.
+  await cliquer(`document.querySelector('.reels__feuille a[href^="/divertissement/videos/profil/"]:not(.reels__avatar)')`);
+  await jusqua(`location.pathname === "/divertissement/videos/profil/${alice.id}" && !!document.querySelector(".videos__vignette")`);
+  assert.deepEqual(await evaluer(`[...document.querySelectorAll("dl dd")].map(d => d.textContent)`), ["1", "1", "1"],
+    "compteurs du profil (vidéos, j’aime, vues)");
   assert.equal((await query("select 1 from video_like")).length, 1);
   assert.equal((await query("select 1 from video_commentaire")).length, 1);
   assert.equal((await query("select 1 from video_vue")).length, 1);

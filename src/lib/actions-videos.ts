@@ -92,7 +92,7 @@ export async function supprimerVideo(videoId: number): Promise<Reponse> {
     for (const n of [...r.sources, r.storage_name, r.poster_name]) {
       if (n) await unlink(cheminVideo(n)).catch(() => {});
     }
-    revalidatePath("/divertissement/videos");
+    revalidatePath("/divertissement/videos", "layout");
     return { ok: true };
   } catch (err) { return echec(err); }
 }

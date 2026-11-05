@@ -526,7 +526,7 @@ function Publication({ clips, segments, reglages, total, W, H, matieres, onRetou
       try { r = JSON.parse(xhr.responseText); } catch { /* réponse non JSON (nginx) */ }
       if (xhr.status === 200 && r.ok) {
         window.onbeforeunload = null;
-        router.replace("/divertissement/videos");
+        router.replace("/divertissement/videos/profil/moi");
         router.refresh();
       } else {
         setProgression(null);
