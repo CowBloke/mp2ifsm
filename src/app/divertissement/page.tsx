@@ -9,7 +9,8 @@ export const dynamic = "force-dynamic";
 
 /*
  * Onglet Divertissement : une tuile par activité. Le marché garde ses
- * propres pages sous /marche ; les réels sont sous /divertissement/reels.
+ * propres pages sous /marche ; les réels et les vidéos éducatives sont
+ * sous /divertissement.
  */
 export default async function PageDivertissement() {
   const u = await utilisateurCourant();
@@ -26,6 +27,8 @@ export default async function PageDivertissement() {
                detail={<Suspense fallback="Paris de la classe"><Solde userId={u.id} /></Suspense>} />
         <Tuile href="/divertissement/reels" titre="Réels" icone={<IconeReels />}
                detail="Des nombres réels, en vertical" />
+        <Tuile href="/divertissement/videos" titre="Vidéos" icone={<IconeVideos />}
+               detail="Explications filmées par la classe" />
       </div>
     </main>
   );
@@ -59,6 +62,17 @@ const trait = {
   viewBox: "0 0 24 24", width: 24, height: 24, fill: "none", stroke: "currentColor",
   strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true,
 };
+
+/* Caméra et tableau : les vidéos éducatives. */
+function IconeVideos() {
+  return (
+    <svg {...trait}>
+      <rect x="2.5" y="6" width="13" height="12" rx="3" />
+      <path d="m15.5 10.5 6-3.5v10l-6-3.5" />
+      <path d="M6 10h6M6 13.5h4" />
+    </svg>
+  );
+}
 
 function IconeMarche() {
   return <svg {...trait}><path d="M5 20V14M12 20V6M19 20v-8" /></svg>;

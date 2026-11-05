@@ -198,3 +198,60 @@ create table if not exists notif_envoi (
 );
 
 commit;
+
+-- ---------------------------------------------------------------------
+-- Vidéos éducatives (bloc du 5 novembre 2026) : enregistrées dans l'app,
+-- montées dans le navigateur, rendues par ffmpeg sur le serveur.
+-- Fichiers dans STORAGE_ROOT/videos (noms aléatoires, 600).
+-- ---------------------------------------------------------------------
+begin;
+
+create table if not exists video (
+  id           bigserial primary key,
+  auteur       uuid not null references app_user(id) on delete cascade,
+  titre        text not null check (length(btrim(titre)) between 1 and 120),
+  description  text not null default '' check (length(description) <= 1000),
+  subject_id   smallint references subject(id) on delete set null,
+  statut       text not null default 'traitement' check (statut in ('traitement','pret','echec')),
+  -- Clips bruts en attente de rendu, supprimés ensuite.
+  sources      text[] not null default '{}',
+  montage      jsonb not null,
+  storage_name text check (storage_name ~ '^[a-f0-9]{32}$'),
+  poster_name  text check (poster_name ~ '^[a-f0-9]{32}$'),
+  duree_ms     integer,
+  -- Octets occupés (sources pendant le rendu, puis vidéo + couverture) : compte dans le quota.
+  taille       bigint not null default 0,
+  tentatives   smallint not null default 0,
+  erreur       text,
+  created_at   timestamptz not null default now(),
+  pret_at      timestamptz
+);
+create index if not exists video_fil_idx on video (created_at desc) where statut = 'pret';
+create index if not exists video_auteur_idx on video (auteur);
+
+create table if not exists video_like (
+  user_id    uuid   not null references app_user(id) on delete cascade,
+  video_id   bigint not null references video(id)    on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (user_id, video_id)
+);
+create index if not exists video_like_video_idx on video_like (video_id);
+
+create table if not exists video_vue (
+  user_id    uuid   not null references app_user(id) on delete cascade,
+  video_id   bigint not null references video(id)    on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (user_id, video_id)
+);
+create index if not exists video_vue_video_idx on video_vue (video_id);
+
+create table if not exists video_commentaire (
+  id         bigserial primary key,
+  video_id   bigint not null references video(id)    on delete cascade,
+  auteur     uuid   not null references app_user(id) on delete cascade,
+  texte      text   not null check (length(btrim(texte)) between 1 and 500),
+  created_at timestamptz not null default now()
+);
+create index if not exists video_commentaire_video_idx on video_commentaire (video_id, created_at);
+
+commit;

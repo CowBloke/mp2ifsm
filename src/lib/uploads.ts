@@ -4,14 +4,15 @@ import type { PoolClient } from "pg";
 import { ErreurMetier } from "./errors";
 import { RACINE, QUOTA_MEMBRE, PLAFOND_GLOBAL } from "./stockage";
 
-// Documents, pasted images and Anki media share one lock and one budget.
+// Documents, pasted images, Anki media and videos share one lock and one budget.
 export async function verifierQuota(c: PoolClient, userId: string, taille: number) {
   await c.query("select pg_advisory_xact_lock(4260, 1)");
   const r = await c.query<{ membre: number; total: number }>(
     `select coalesce(sum(taille) filter (where uploaded_by = $1::uuid), 0)::bigint as membre,
             coalesce(sum(taille), 0)::bigint as total
        from (select taille, uploaded_by from document union all
-             select taille, uploaded_by from card_image) fichiers`, [userId]);
+             select taille, uploaded_by from card_image union all
+             select taille, auteur from video) fichiers`, [userId]);
   if (![QUOTA_MEMBRE, PLAFOND_GLOBAL].every(n => Number.isSafeInteger(n) && n > 0)
       || r.rows[0].membre + taille > QUOTA_MEMBRE
       || r.rows[0].total + taille > PLAFOND_GLOBAL) throw new ErreurMetier("QUOTA_DEPASSE");

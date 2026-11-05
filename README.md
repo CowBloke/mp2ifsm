@@ -130,12 +130,62 @@ séparé et ne remplace pas le build `.next` du service en cours.
 ## Divertissement
 
 L’onglet **Divertissement** (`/divertissement`) regroupe le **Marché**
-(`/marche`, inchangé) et les **Réels** (`/divertissement/reels`) : une blague
+(`/marche`, inchangé), les **Vidéos** éducatives (ci-dessous) et les **Réels** (`/divertissement/reels`) : une blague
 façon reels d’Instagram où chaque « vidéo » est un nombre réel tiré au hasard
 (décimaux, √n, notation scientifique, π, e, φ…), avec des commentaires
 élogieux et des compteurs fictifs. Tout est généré dans le navigateur
 (`src/lib/reels.ts`) ; likes, abonnements et commentaires ajoutés ne sont
 pas enregistrés et disparaissent au rechargement.
+
+## Vidéos éducatives
+
+`/divertissement/videos` : les membres publient des vidéos où ils expliquent
+une notion à la classe, présentées comme sur un réseau social (galerie
+filtrable par matière, puis fil vertical plein écran avec lecture
+automatique, j’aime, commentaires, vues, partage du lien).
+
+**Tout se filme dans l’app** (`/divertissement/videos/nouvelle`, aucun
+import de fichier) : caméra avant/arrière, minuteur 3 s, plusieurs clips
+d’affilée, 3 minutes au total. L’**éditeur** intégré (`Editeur.tsx`) :
+couper le début/la fin d’un clip, le scinder à la tête de lecture, le
+déplacer, couper son son, le supprimer, refilmer ; textes à l’écran
+(position, taille, bandeau ou ombre, plage de temps) ; six filtres ; image
+de couverture. Aucun réencodage dans le navigateur : l’aperçu imite le
+résultat (filtre CSS, textes à l’échelle exacte de l’image finale) et la
+publication envoie les clips bruts (WebM ou MP4 de `MediaRecorder`,
+90 Mo au plus) avec la description du montage (`src/lib/videos-montage.ts`,
+validée par zod).
+
+Le **rendu** se fait sur le Pi (`src/lib/videos-rendu.ts`) : file en base
+(`video.statut = 'traitement'`), une vidéo à la fois, `nice ffmpeg` sur
+3 cœurs (≈ 0,7 × la durée), H.264/AAC 720×1280 (ou 1280×720 si le premier
+clip est en paysage), `+faststart`, couverture JPEG 360 px. Les filtres
+sont définis une fois comme fonctions CSS dont on dérive les matrices
+`colorchannelmixer` exactes ; les textes passent par `drawtext` avec la
+police `public/fonts/DejaVuSans-Bold.ttf` (symboles mathématiques ⇒ ∃ ∀…),
+la même que l’aperçu. Trois tentatives, puis « échec ». La file reprend
+au démarrage (`instrumentation.ts`, `MP2_VIDEOS=off` la coupe) et est
+relancée toutes les 2 minutes. Les clips bruts sont supprimés après rendu.
+
+Fichiers dans `STORAGE_ROOT/videos` (noms aléatoires, 600), servis par
+`/api/videos/[id]` (session obligatoire, plages d’octets ;
+`?couverture=1` pour la vignette). La taille (clips bruts pendant le
+rendu, puis vidéo + couverture) compte dans le quota commun. L’auteur ou
+un admin supprime la vidéo (fichiers effacés aussitôt) ; un commentaire se
+supprime par son auteur, l’auteur de la vidéo ou un admin. Tables
+`video`, `video_like`, `video_vue`, `video_commentaire` dans
+`db/schema-dossiers.sql` (bloc du 5 novembre 2026).
+
+nginx doit autoriser `Permissions-Policy: camera=(self), microphone=(self)`
+et `media-src 'self' blob:` (aperçu des clips en mémoire).
+
+```bash
+npm test                                  # tests/videos.test.ts (montage)
+# Rendu ffmpeg réel sur des clips synthétiques ($STORAGE_ROOT/videos/{a,b,c}×32) :
+STORAGE_ROOT=/chemin node --import tsx tests/videos-rendu.integration.ts
+# Bout en bout dans Chromium avec caméra simulée (port 4263, CDP 4264) :
+node --env-file=.env --conditions=react-server --import tsx tests/videos.browser.integration.ts
+```
 
 ## Marché
 
