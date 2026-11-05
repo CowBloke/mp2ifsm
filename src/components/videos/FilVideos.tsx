@@ -148,7 +148,7 @@ export function FilVideos({ videos: initiales, moi, admin, pseudo, contexte, req
           Fil
         </Link>
         <Link href="/divertissement/videos/nouvelle" aria-label="Créer une vidéo" className="videos__plus">
-          <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="2.6"
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2.2"
                strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
         </Link>
         <Link href={PROFIL("moi")} className="videos__onglet">

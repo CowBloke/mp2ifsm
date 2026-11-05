@@ -500,10 +500,10 @@ a.videos__etiquette:hover { color: #fff; background: rgb(255 255 255 / 0.32); }
 }
 .videos__onglet:hover, .videos__onglet[aria-current="page"] { color: #fff; }
 .videos__plus {
-  display: grid; place-items: center; width: 56px; height: 38px; border-radius: 12px;
-  background: #fff; color: #000; box-shadow: -3px 0 0 #25f4ee, 3px 0 0 #fe2c55;
+  display: grid; place-items: center; width: 44px; height: 44px; border-radius: 999px;
+  background: #fff; color: #000;
 }
-.videos__plus:hover { color: #000; transform: scale(1.04); }
+.videos__plus:hover { color: #000; background: rgb(255 255 255 / 0.85); }
 .videos__plus:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 .videos__auteur { display: flex; min-width: 0; align-items: center; gap: 10px; color: #fff; }
 .videos__auteur:hover { color: #fff; }
