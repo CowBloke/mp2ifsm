@@ -2,8 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { DUREE_MAX_S, CLIPS_MAX, formatDuree } from "@/lib/videos-montage";
+import { DUREE_MAX_S, CLIPS_MAX, FILTRES, filtreCss, formatDuree, vignetteCss } from "@/lib/videos-montage";
 import { Editeur, type Reglages, type Segment } from "./Editeur";
+import { FeuilleMusique, PastilleMusique, type MusiqueChoisie } from "./Musique";
 
 /*
  * Studio d'enregistrement : la caméra de l'appareil, filmée directement
@@ -11,7 +12,9 @@ import { Editeur, type Reglages, type Segment } from "./Editeur";
  * comme sur les réseaux sociaux, puis on passe au montage.
  */
 
-export type Clip = { id: string; blob: Blob; url: string; duree: number; largeur: number; hauteur: number };
+export type Clip = { id: string; blob: Blob; url: string; duree: number; largeur: number; hauteur: number; filtre: string };
+
+const CLES_FILTRES = Object.keys(FILTRES);
 
 function typeEnregistrement(): string {
   const candidats = [
@@ -29,7 +32,13 @@ export function Studio({ matieres }: { matieres: { id: number; nom: string }[] }
   const [phase, setPhase] = useState<"camera" | "montage">("camera");
   const [clips, setClips] = useState<Clip[]>([]);
   const [segments, setSegments] = useState<Segment[]>([]);
-  const [reglages, setReglages] = useState<Reglages>({ textes: [], filtre: "aucun", couverture: 0.5 });
+  const [reglages, setReglages] = useState<Reglages>({ textes: [], couverture: 0.5, musique: null });
+  const [filtre, setFiltre] = useState("aucun");
+
+  // Un fichier importé vit en mémoire (blob:) : libéré quand on en change.
+  const urlMusique = reglages.musique?.cle === "perso" ? reglages.musique.url : null;
+  useEffect(() => () => { if (urlMusique) URL.revokeObjectURL(urlMusique); }, [urlMusique]);
+  const choisirMusique = useCallback((m: MusiqueChoisie | null) => setReglages((r) => ({ ...r, musique: m })), []);
 
   // Les clips restent en mémoire : prévenir avant de quitter la page.
   useEffect(() => {
@@ -50,7 +59,7 @@ export function Studio({ matieres }: { matieres: { id: number; nom: string }[] }
 
   const ajouterClip = useCallback((c: Clip) => {
     setClips((l) => [...l, c]);
-    setSegments((s) => [...s, { cle: nouvelId(), clip: c.id, debut: 0, fin: c.duree, muet: false }]);
+    setSegments((s) => [...s, { cle: nouvelId(), clip: c.id, debut: 0, fin: c.duree, muet: false, filtre: c.filtre }]);
   }, []);
 
   function retirerDernier() {
@@ -69,12 +78,15 @@ export function Studio({ matieres }: { matieres: { id: number; nom: string }[] }
   }
   return <Camera reste={DUREE_MAX_S - dureeMontage} nbSegments={segments.length} dureeMontage={dureeMontage}
                  peutAjouter={clips.length < CLIPS_MAX}
+                 filtre={filtre} setFiltre={setFiltre} musique={reglages.musique} onMusique={choisirMusique}
                  onClip={ajouterClip} onAnnulerDernier={retirerDernier} onSuivant={() => setPhase("montage")}
                  onQuitter={quitter} />;
 }
 
-function Camera({ reste, nbSegments, dureeMontage, peutAjouter, onClip, onAnnulerDernier, onSuivant, onQuitter }: {
+function Camera({ reste, nbSegments, dureeMontage, peutAjouter, filtre, setFiltre, musique, onMusique, onClip, onAnnulerDernier, onSuivant, onQuitter }: {
   reste: number; nbSegments: number; dureeMontage: number; peutAjouter: boolean;
+  filtre: string; setFiltre: (f: string) => void;
+  musique: MusiqueChoisie | null; onMusique: (m: MusiqueChoisie | null) => void;
   onClip: (c: Clip) => void; onAnnulerDernier: () => void; onSuivant: () => void; onQuitter: () => void;
 }) {
   const apercu = useRef<HTMLVideoElement>(null);
@@ -88,7 +100,35 @@ function Camera({ reste, nbSegments, dureeMontage, peutAjouter, onClip, onAnnule
   const [minuteur, setMinuteur] = useState(false);
   const [decompte, setDecompte] = useState<number | null>(null);
   const [plusieursCameras, setPlusieursCameras] = useState(false);
+  const [feuilleSon, setFeuilleSon] = useState(false);
+  // Nom du filtre affiché en grand un instant après un changement (comme sur Snap).
+  const [annonce, setAnnonce] = useState<{ nom: string; k: number } | null>(null);
+  const glisse = useRef<{ x: number; y: number } | null>(null);
+  const bande = useRef<HTMLDivElement>(null);
+  const filtreEnregistre = useRef(filtre);
 
+  const changerFiltre = useCallback((cle: string) => {
+    setFiltre(cle);
+    setAnnonce({ nom: FILTRES[cle].libelle, k: Date.now() });
+  }, [setFiltre]);
+
+  function decaler(d: 1 | -1) {
+    const i = CLES_FILTRES.indexOf(filtre);
+    changerFiltre(CLES_FILTRES[(i + d + CLES_FILTRES.length) % CLES_FILTRES.length]);
+  }
+
+  useEffect(() => {
+    if (!annonce) return;
+    const t = setTimeout(() => setAnnonce(null), 900);
+    return () => clearTimeout(t);
+  }, [annonce]);
+
+  // Garde la pastille du filtre choisi au centre de la bande.
+  useEffect(() => {
+    const b = bande.current;
+    const el = b?.querySelector<HTMLElement>(`[data-filtre="${filtre}"]`);
+    if (b && el) b.scrollTo({ left: el.offsetLeft - b.clientWidth / 2 + el.clientWidth / 2, behavior: "smooth" });
+  }, [filtre]);
   // Ouvre la caméra (et la referme en quittant ou en changeant de côté).
   useEffect(() => {
     let annule = false;
@@ -141,6 +181,7 @@ function Camera({ reste, nbSegments, dureeMontage, peutAjouter, onClip, onAnnule
     }
     const morceaux: Blob[] = [];
     const largeur = el.videoWidth, hauteur = el.videoHeight;
+    filtreEnregistre.current = filtre;
     const t0 = performance.now();
     r.ondataavailable = (e) => { if (e.data.size) morceaux.push(e.data); };
     r.onstop = () => {
@@ -148,7 +189,8 @@ function Camera({ reste, nbSegments, dureeMontage, peutAjouter, onClip, onAnnule
       const duree = Math.min((performance.now() - t0) / 1000, reste);
       const blob = new Blob(morceaux, { type: r.mimeType || type || "video/webm" });
       if (duree < 0.5 || blob.size === 0) return;
-      onClip({ id: nouvelId(), blob, url: URL.createObjectURL(blob), duree: Math.floor(duree * 10) / 10, largeur, hauteur });
+      onClip({ id: nouvelId(), blob, url: URL.createObjectURL(blob), duree: Math.floor(duree * 10) / 10, largeur, hauteur,
+               filtre: filtreEnregistre.current });
     };
     enregistreur.current = r;
     r.start(1000);
@@ -185,9 +227,26 @@ function Camera({ reste, nbSegments, dureeMontage, peutAjouter, onClip, onAnnule
   const total = dureeMontage + (enCours ? ecoule : 0);
   const plein = reste < 1 || !peutAjouter;
 
+  const vignette = vignetteCss(filtre);
+
   return (
     <div className="studio">
-      <video ref={apercu} className="studio__camera" data-miroir={face === "user" || undefined} muted playsInline autoPlay />
+      {/* Glisser à gauche / à droite sur l'image change de filtre, en direct. */}
+      <div className="studio__image"
+           onPointerDown={(e) => { if (e.target === e.currentTarget || (e.target as HTMLElement).tagName === "VIDEO") glisse.current = { x: e.clientX, y: e.clientY }; }}
+           onPointerUp={(e) => {
+             const g = glisse.current;
+             glisse.current = null;
+             if (!g || enCours) return;
+             const dx = e.clientX - g.x, dy = e.clientY - g.y;
+             if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.4) decaler(dx < 0 ? 1 : -1);
+           }}
+           onPointerCancel={() => { glisse.current = null; }}>
+        <video ref={apercu} className="studio__camera" data-miroir={face === "user" || undefined} muted playsInline autoPlay
+               style={{ filter: filtreCss(filtre) }} />
+        {vignette && <span className="studio__vignette" style={{ backgroundImage: vignette }} aria-hidden="true" />}
+      </div>
+      {annonce && <span key={annonce.k} className="studio__annonce" aria-live="polite">{annonce.nom}</span>}
 
       <div className="studio__haut">
         <div className="studio__jauge" role="progressbar" aria-label="Durée enregistrée"
@@ -198,11 +257,20 @@ function Camera({ reste, nbSegments, dureeMontage, peutAjouter, onClip, onAnnule
           <button type="button" className="studio__icone" onClick={onQuitter} aria-label="Fermer le studio" disabled={enCours}>
             <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
           </button>
-          <span className={`studio__chrono tabular ${enCours ? "studio__chrono--rec" : ""}`}>
-            {formatDuree(total)} / {formatDuree(DUREE_MAX_S)}
-          </span>
+          {enCours || nbSegments > 0 ? (
+            <span className={`studio__chrono tabular ${enCours ? "studio__chrono--rec" : ""}`}>
+              {formatDuree(total)} / {formatDuree(DUREE_MAX_S)}
+            </span>
+          ) : (
+            <PastilleMusique musique={musique} onClick={() => setFeuilleSon(true)} />
+          )}
           <span className="w-11" />
         </div>
+        {(enCours || nbSegments > 0) && musique && (
+          <div className="mt-2 flex justify-center">
+            <PastilleMusique musique={musique} onClick={() => { if (!enCours) setFeuilleSon(true); }} />
+          </div>
+        )}
       </div>
 
       <div className="studio__cote">
@@ -223,12 +291,29 @@ function Camera({ reste, nbSegments, dureeMontage, peutAjouter, onClip, onAnnule
         </button>
       </div>
 
+      {!musique && nbSegments > 0 && !enCours && (
+        <div className="studio__son-libre">
+          <PastilleMusique musique={null} onClick={() => setFeuilleSon(true)} />
+        </div>
+      )}
       {decompte !== null && <span className="studio__decompte" aria-live="assertive">{decompte}</span>}
 
       {erreur && (
         <div className="studio__erreur" role="alert">
           <p>{erreur}</p>
           <button type="button" className="bouton-principal mt-4 h-11 px-5" onClick={onQuitter}>Retour</button>
+        </div>
+      )}
+
+      {!enCours && decompte === null && (
+        <div ref={bande} className="studio__filtres" role="radiogroup" aria-label="Filtre">
+          {CLES_FILTRES.map((k) => (
+            <button key={k} type="button" role="radio" aria-checked={filtre === k} data-filtre={k}
+                    className="studio__filtre" onClick={() => changerFiltre(k)}>
+              <span className="studio__filtre-rond" style={{ filter: filtreCss(k), backgroundImage: vignetteCss(k) ? `${vignetteCss(k)}, var(--echantillon)` : undefined }} aria-hidden="true" />
+              <span className="studio__filtre-nom">{FILTRES[k].libelle}</span>
+            </button>
+          ))}
         </div>
       )}
 
@@ -259,8 +344,9 @@ function Camera({ reste, nbSegments, dureeMontage, peutAjouter, onClip, onAnnule
         {plein ? "Durée maximale atteinte : passez au montage."
           : enCours ? "Touchez pour arrêter ce clip"
           : nbSegments > 0 ? `${nbSegments} clip${nbSegments > 1 ? "s" : ""} · touchez pour en ajouter un`
-          : "Touchez pour filmer · plusieurs clips possibles"}
+          : "Touchez pour filmer · glissez pour changer de filtre"}
       </p>
+      {feuilleSon && <FeuilleMusique choisie={musique} onChoisir={onMusique} onFermer={() => setFeuilleSon(false)} />}
     </div>
   );
 }

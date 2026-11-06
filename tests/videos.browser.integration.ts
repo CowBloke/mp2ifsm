@@ -140,8 +140,8 @@ try {
   await cliquer(bouton("+ Texte"));
   await saisir(`document.querySelector("textarea")`, "Dérivée : f'(x) ⇒ pente");
   await pause(200);
-  await cliquer(bouton("Filtre"));
-  await cliquer(bouton("Noir et blanc"));
+  await cliquer(bouton("Filtres"));
+  await cliquer(bouton("N&B"));
   await cliquer(bouton("Couverture"));
   await capture("montage");
   await cliquer(bouton("Suivant"));
@@ -164,7 +164,7 @@ try {
   assert.equal(v.statut, "pret", `rendu terminé (${v.erreur ?? ""})\n${logs.slice(-2000)}`);
   assert.ok(v.duree_ms > 4000 && v.duree_ms < 6000, `durée ${v.duree_ms} ms`);
   assert.equal(v.sources.length, 0, "clips bruts supprimés après rendu");
-  assert.equal(v.montage.filtre, "nb");
+  assert.equal(v.montage.clips[0].filtre, "nb");
   assert.equal(v.montage.textes[0].texte, "Dérivée : f'(x) ⇒ pente");
   console.log("PASS rendu", v.duree_ms, "ms");
 
