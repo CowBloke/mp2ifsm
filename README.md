@@ -141,9 +141,18 @@ pas enregistrés et disparaissent au rechargement.
 
 `/divertissement/videos` : les membres publient des vidéos où ils expliquent
 une notion à la classe, présentées comme sur un réseau social. L’onglet
-ouvre **directement le fil** vertical plein écran (lecture automatique,
-toucher = pause, double toucher = j’aime, commentaires, vues, partage du
-lien). Une barre basse propre au fil donne **Fil · + · Profil** : le **+**
+ouvre **directement le fil**, vraiment plein écran : la navigation
+principale est masquée, la vidéo (portrait) remplit l’écran, une vidéo en
+paysage est posée sur sa couverture floutée. Toucher = pause, double
+toucher = j’aime, barre de temps qu’on fait glisser, ↑/↓ (ou j/k) et m au
+clavier. **Lecture fluide** (`FilVideos.tsx`) : trois éléments `<video>`
+seulement, recyclés (écran *i* → lecteur *i* mod 3) et déplacés dans le
+DOM ; la précédente, la courante et la suivante sont toujours chargées
+(Safari ne précharge qu’après un `play()` muet, fait en avance), et la
+vidéo démarre dès qu’elle occupe la moitié de l’écran. Si le navigateur
+refuse le son (aucun geste encore), le premier toucher le rétablit sur
+les trois lecteurs à la fois (Safari l’accorde élément par élément). Une
+barre basse posée sur la vidéo donne **Fil · + · Profil** : le **+**
 ouvre le studio. Toucher un auteur (dans le fil ou les commentaires) ouvre
 son **profil** (`/divertissement/videos/profil/<id>`, `moi` pour soi) :
 compteurs, grille de ses vidéos, puis fil limité à ses vidéos
@@ -152,8 +161,46 @@ profil personnel montre les vidéos en montage ; on y arrive après la
 publication.
 
 **Tout se filme dans l’app** (`/divertissement/videos/nouvelle`, aucun
-import de fichier) : caméra avant/arrière, minuteur 3 s, plusieurs clips
-d’affilée, 3 minutes au total. L’**éditeur** intégré (`Editeur.tsx`) :
+import de vidéo) : caméra avant/arrière, minuteur 3 s, plusieurs clips
+d’affilée, 3 minutes au total. **Filtres façon Snap** : on glisse à
+gauche/à droite sur l’image (ou on touche la bande de pastilles) pour
+changer de filtre en direct ; chaque clip garde le sien (`clips[].filtre`
+du montage, modifiable ensuite dans l’onglet *Filtres*, « appliquer à
+tous »). Treize filtres (Vif, Vintage, Ciné, Pop, Rêve, Bleu nuit, Matrix,
+N&B, Tableau, Négatif…), définis par des fonctions CSS dont dérivent les
+matrices ffmpeg (`hue-rotate` et `invert` en plus) ; la vignette suit
+exactement le `vignette` de ffmpeg (1 − cos⁴(π/5·r)).
+
+**Lentilles** (onglet *Lentilles* de la caméra, à côté de *Filtres*) :
+effets sur le visage, suivis par MediaPipe Face Landmarker (478 points et
+expressions : bouche ouverte, sourcils, sourire), dessinés dans un
+`<canvas>` enregistré tel quel (`canvas.captureStream`, micro et
+bruitages mixés en Web Audio) : l'effet est dans le clip. Sortie toujours
+en portrait 9:16. Onze lentilles (`src/components/videos/lentilles/catalogue.ts`),
+dans l'esprit des formats viraux mais écrites pour la prépa : Arrêt sur
+image (narration), Zoom dramatique, Sourcils suspects (boom), Randomiseur
+prépa, Pensées intrusives, PNJ, Détecteur de mensonge, Yeux laser,
+Caricature, Double bouche, Mode boss. Images, sons et textes sont produits
+par le code, rien n'est repris d'ailleurs ; on déclenche d'une expression ou
+d'un toucher. Le modèle (`public/lentilles/face_landmarker.task`, Apache
+2.0) est versionné ; le moteur WebAssembly est copié depuis
+`@mediapipe/tasks-vision` vers `public/lentilles/wasm` par
+`scripts/copier-mediapipe.mjs` (`prebuild`/`predev`). nginx doit
+autoriser `'wasm-unsafe-eval'` dans `script-src` (déjà dans
+`deploy/nginx-mp2ifsm.conf`, à recharger).
+
+**Musique** : pastille « Ajouter un son » sur la caméra et onglet *Son*
+de l’éditeur. Bibliothèque de cinq boucles (`public/musique/*.m4a`)
+entièrement synthétisées par `scripts/generer-musiques.ts` (aucun droit
+tiers ; `node --experimental-strip-types scripts/generer-musiques.ts`
+les régénère, il faut ffmpeg), ou fichier audio du téléphone (MP3, M4A,
+WAV, OGG, FLAC ; 15 Mo au plus, envoyé avec les clips et rangé après eux
+dans `sources`). Réglages : volume de la musique, volume de la voix,
+point de départ. Au rendu, la musique est bouclée (`-stream_loop`),
+fondue sur la fin et mixée aux voix (`amix` + `alimiter`) ; un fichier
+illisible est ignoré. Le titre s’affiche dans le fil (« ♪ … », disque).
+Sur iPhone, l’aperçu ne peut pas baisser le volume de la voix (Safari
+ignore `volume`) ; le rendu, lui, l’applique. L’**éditeur** intégré (`Editeur.tsx`) :
 couper le début/la fin d’un clip, le scinder à la tête de lecture, le
 déplacer, couper son son, le supprimer, refilmer ; textes à l’écran
 (position, taille, bandeau ou ombre, plage de temps) ; six filtres ; image

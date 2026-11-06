@@ -651,8 +651,7 @@ a.videos__etiquette:hover { color: #fff; background: rgb(255 255 255 / 0.32); }
 .editeur__filtre { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px; border-radius: 12px; border: 2px solid transparent; background: rgb(255 255 255 / 0.05); color: #fff; }
 .editeur__filtre[aria-pressed="true"] { border-color: #fff; }
 .editeur__echantillon {
-  width: 100%; aspect-ratio: 1; border-radius: 8px;
-  background: linear-gradient(135deg, #f4b860 0%, #e76f51 35%, #2a9d8f 65%, #264653 100%);
+  width: 100%; aspect-ratio: 1; border-radius: 8px; background: var(--echantillon);
 }
 .studio .editeur__champ {
   min-height: 44px; padding: 10px 12px; border-radius: 10px; border: 1px solid rgb(255 255 255 / 0.2);
@@ -664,4 +663,187 @@ a.videos__etiquette:hover { color: #fff; background: rgb(255 255 255 / 0.32); }
 @media (prefers-reduced-motion: reduce) {
   .videos__roue { animation: none; }
   .studio__rec > span, .videos__vignette img { transition: none; }
+}
+
+/* ---------------------------------------------------------------------
+ * Fil vidéo plein écran (façon TikTok) : la vidéo occupe tout l'écran,
+ * navigation principale masquée, barre Fil · + · Profil par-dessus.
+ * ------------------------------------------------------------------- */
+html.fil-plein-ecran, html.fil-plein-ecran body { overflow: hidden; overscroll-behavior: none; }
+html.fil-plein-ecran .bottom-nav { display: none; }
+.videos {
+  --barre-videos: calc(56px + env(safe-area-inset-bottom, 0px));
+  z-index: 45; bottom: 0; height: 100dvh;
+}
+.videos .reels__fil { height: 100%; }
+.videos .reels__ecran { width: min(100%, max(420px, 100dvh * 0.5625)); background: #000; }
+/* Dégradés haut et bas pour la lisibilité des textes posés sur la vidéo. */
+.videos__ecran::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background:
+    linear-gradient(rgb(0 0 0 / 0.35), transparent 16%),
+    linear-gradient(transparent 58%, rgb(0 0 0 / 0.6));
+}
+.videos__hote { position: absolute; inset: 0; }
+.videos__hote > video, .videos .videos__lecteur {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: transparent;
+}
+.videos__hote[data-paysage] > video { object-fit: contain; }
+.videos__fond {
+  position: absolute; inset: -48px; background-size: cover; background-position: center;
+  filter: blur(28px) brightness(0.55); opacity: 0; transition: opacity 200ms;
+}
+.videos__fond[data-paysage] { opacity: 1; }
+.videos__affiche { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.videos__attente { position: absolute; z-index: 1; left: 50%; top: 50%; margin: -18px 0 0 -18px; }
+.videos .reels__actions { z-index: 2; bottom: calc(var(--barre-videos) + 22px); right: 6px; align-items: center; gap: 16px; }
+.videos .reels__bas {
+  z-index: 2; right: 80px; bottom: calc(var(--barre-videos) + 16px);
+  padding: 0 0 0 14px; background: none;
+}
+.videos .reels__actions, .videos .reels__bas { transition: opacity 150ms ease-out; }
+.videos [data-masque] { opacity: 0; pointer-events: none; }
+.videos__avatar-action { width: 46px; height: 46px; font-size: 18px; margin-bottom: 4px; box-shadow: 0 0 0 2px #fff; }
+.videos__avatar-action:hover { color: #fff; }
+.videos__disque {
+  width: 40px; height: 40px; margin-top: 6px;
+  background: radial-gradient(circle, #555 0 22%, #111 23% 60%, #2a2a2a 61% 64%, #111 65%);
+  box-shadow: 0 0 0 7px rgb(0 0 0 / 0.25);
+}
+/* Barre de temps : fine, s'épaissit quand on la fait glisser. */
+.videos__temps {
+  position: absolute; z-index: 3; inset-inline: 0; bottom: var(--barre-videos); height: 22px;
+  touch-action: none; cursor: pointer;
+}
+.videos__temps::before, .videos__temps > span {
+  content: ""; position: absolute; inset-inline: 0; bottom: 0; height: 2px; transition: height 120ms;
+}
+.videos__temps::before { background: rgb(255 255 255 / 0.22); }
+.videos__temps > span { background: #fff; transform-origin: 0 50%; transform: scaleX(0); }
+.videos__temps[data-glisse]::before, .videos__temps[data-glisse] > span, .videos__temps:hover::before, .videos__temps:hover > span { height: 5px; }
+.videos__chrono {
+  position: absolute; z-index: 3; left: 50%; bottom: calc(var(--barre-videos) + 60px); translate: -50% 0;
+  font-size: 28px; font-weight: 700; text-shadow: 0 2px 12px rgb(0 0 0 / 0.6);
+}
+.videos__debloquer {
+  position: absolute; z-index: 4; left: 50%; top: calc(max(10px, env(safe-area-inset-top)) + 54px); translate: -50% 0;
+  display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px; border: 0;
+  background: rgb(255 255 255 / 0.92); color: #000; font-size: 13px; font-weight: 700; white-space: nowrap;
+  box-shadow: 0 4px 18px rgb(0 0 0 / 0.3);
+}
+.videos .videos__barre {
+  position: absolute; z-index: 4; inset-inline: 0; bottom: 0;
+  height: var(--barre-videos); padding-bottom: env(safe-area-inset-bottom, 0px);
+  width: min(100%, max(420px, 100dvh * 0.5625));
+  border-top: 0; background: linear-gradient(transparent, rgb(0 0 0 / 0.55) 40%, rgb(0 0 0 / 0.75));
+}
+.videos .videos__onglet { color: rgb(255 255 255 / 0.7); text-shadow: 0 1px 4px rgb(0 0 0 / 0.5); }
+.videos .videos__onglet[aria-current="page"], .videos .videos__onglet:hover { color: #fff; }
+
+/* --- Musique : pastille, feuille de choix, disque ---------------------- */
+.musique__voile { z-index: 70; }
+.musique__feuille { background: #161618; color: #fff; color-scheme: dark; height: min(78dvh, 640px); }
+.musique__ligne { display: flex; align-items: center; gap: 12px; padding: 8px 6px; border-radius: 12px; }
+.musique__ligne[data-choisi] { background: rgb(255 255 255 / 0.08); }
+.musique__pochette {
+  position: relative; display: grid; flex-shrink: 0; place-items: center; width: 52px; height: 52px; border-radius: 10px; border: 0;
+  background: linear-gradient(135deg, oklch(0.62 0.17 var(--h)), oklch(0.4 0.17 calc(var(--h) + 70)));
+}
+.musique__onde { position: absolute; bottom: 5px; display: flex; gap: 2px; align-items: flex-end; height: 10px; }
+.musique__onde > i { width: 3px; height: 100%; border-radius: 2px; background: #fff; animation: musique-onde 0.7s ease-in-out infinite alternate; }
+.musique__onde > i:nth-child(2) { animation-delay: -0.25s; }
+.musique__onde > i:nth-child(3) { animation-delay: -0.5s; }
+@keyframes musique-onde { from { transform: scaleY(0.3); } to { transform: scaleY(1); } }
+.musique__coche {
+  display: grid; flex-shrink: 0; place-items: center; width: 30px; height: 30px; border-radius: 999px;
+  border: 1.5px solid rgb(255 255 255 / 0.35); font-size: 15px; font-weight: 700;
+}
+.musique__ligne[data-choisi] .musique__coche { border-color: #fe2c55; background: #fe2c55; }
+.musique__importer, .musique__retirer {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 46px; padding: 0 14px;
+  border-radius: 12px; border: 0; color: #fff; font-size: 14px; font-weight: 600;
+}
+.musique__importer { flex: 1; min-width: 0; background: rgb(255 255 255 / 0.12); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.musique__importer:disabled { opacity: 0.6; }
+.musique__retirer { background: none; color: #ff6b6b; }
+.musique__pastille {
+  display: inline-flex; align-items: center; gap: 6px; max-width: min(64vw, 240px); height: 34px; padding: 0 14px;
+  border-radius: 999px; border: 0; background: rgb(0 0 0 / 0.42); color: #fff; font-size: 13px; font-weight: 600;
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+}
+.musique__pastille-texte { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.musique__carte { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 14px; background: rgb(255 255 255 / 0.07); }
+.musique__disque {
+  display: grid; flex-shrink: 0; place-items: center; width: 44px; height: 44px; border-radius: 999px; color: #fff;
+  background: radial-gradient(circle, #444 0 24%, #111 25% 60%, #262626 61% 64%, #111 65%);
+}
+.musique__disque[data-tourne] { animation: reels-tourne 4s linear infinite; }
+.musique__ajouter {
+  display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; height: 56px;
+  border-radius: 14px; border: 1.5px dashed rgb(255 255 255 / 0.35); background: rgb(255 255 255 / 0.05);
+  color: #fff; font-size: 16px; font-weight: 700;
+}
+
+/* --- Caméra : filtres en direct à faire glisser ------------------------ */
+.studio { --echantillon: linear-gradient(135deg, #f4b860 0%, #e76f51 35%, #2a9d8f 65%, #264653 100%); }
+.studio__image { position: absolute; inset: 0; touch-action: none; }
+.studio__vignette { position: absolute; inset: 0; pointer-events: none; }
+.studio__annonce {
+  position: absolute; z-index: 3; left: 50%; top: 40%; translate: -50% -50%; pointer-events: none;
+  font-size: 34px; font-weight: 800; letter-spacing: -0.01em; text-shadow: 0 2px 16px rgb(0 0 0 / 0.55);
+  animation: studio-annonce 900ms ease-out forwards;
+}
+@keyframes studio-annonce {
+  0% { opacity: 0; transform: scale(0.85); }
+  15% { opacity: 1; transform: scale(1); }
+  70% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.studio__filtres {
+  position: absolute; z-index: 2; inset-inline: 0; bottom: calc(44px + 80px + 18px + env(safe-area-inset-bottom, 0px));
+  display: flex; gap: 6px; overflow-x: auto; padding: 4px 50%; scroll-snap-type: x mandatory; scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
+          mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
+}
+.studio__filtres::-webkit-scrollbar { display: none; }
+.studio__filtre {
+  display: flex; flex-shrink: 0; flex-direction: column; align-items: center; gap: 4px; width: 66px;
+  border: 0; background: none; color: #fff; scroll-snap-align: center;
+}
+.studio__filtre-rond {
+  width: 46px; height: 46px; border-radius: 999px; background: var(--echantillon); background-size: cover;
+  box-shadow: 0 0 0 2px rgb(255 255 255 / 0.35); transition: transform 150ms, box-shadow 150ms;
+}
+.studio__filtre[aria-checked="true"] .studio__filtre-rond { transform: scale(1.12); box-shadow: 0 0 0 3px #fff; }
+.studio__filtre-nom { max-width: 64px; overflow: hidden; text-overflow: ellipsis; font-size: 11px; font-weight: 600; text-shadow: 0 1px 4px rgb(0 0 0 / 0.7); white-space: nowrap; opacity: 0.8; }
+.studio__filtre[aria-checked="true"] .studio__filtre-nom { opacity: 1; }
+.studio__son-libre { position: absolute; z-index: 2; inset-inline: 0; top: calc(max(10px, env(safe-area-inset-top)) + 64px); display: flex; justify-content: center; }
+.editeur__onglets { overflow-x: auto; scrollbar-width: none; }
+.editeur__onglets > button { flex: 1 0 auto; padding: 0 8px; font-size: 13px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .musique__onde > i, .musique__disque[data-tourne], .studio__annonce { animation: none; }
+  .studio__annonce { opacity: 1; }
+}
+
+/* --- Lentilles (MediaPipe) : rendu canvas à la place de la caméra ------- */
+.studio__image > canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: var(--filtre-camera, none); }
+.studio__image[data-lentille] > video { visibility: hidden; }
+.studio__modes {
+  position: absolute; z-index: 2; left: 50%; translate: -50% 0;
+  bottom: calc(44px + 80px + 18px + 76px + env(safe-area-inset-bottom, 0px));
+  display: flex; gap: 4px; padding: 3px; border-radius: 999px; background: rgb(0 0 0 / 0.4);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+}
+.studio__modes > button { height: 30px; padding: 0 14px; border: 0; border-radius: 999px; background: none; color: #fff; font-size: 13px; font-weight: 700; opacity: 0.75; }
+.studio__modes > button[aria-selected="true"] { background: #fff; color: #000; opacity: 1; }
+.studio__lentille-rond { display: grid; place-items: center; font-size: 24px; background: rgb(0 0 0 / 0.45); }
+.studio__chargement {
+  position: absolute; z-index: 3; left: 50%; top: 45%; translate: -50% -50%;
+  display: flex; flex-direction: column; align-items: center; gap: 12px; font-size: 14px; font-weight: 600;
+  text-shadow: 0 1px 6px rgb(0 0 0 / 0.6);
+}
+.studio__aide-lentille {
+  position: absolute; z-index: 2; inset-inline: 16px; top: calc(max(10px, env(safe-area-inset-top)) + 64px);
+  text-align: center; font-size: 13px; font-weight: 600; text-shadow: 0 1px 6px rgb(0 0 0 / 0.7); pointer-events: none;
 }

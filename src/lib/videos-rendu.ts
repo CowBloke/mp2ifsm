@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 import { pool } from "./db";
 import {
-  INTERLIGNE, TAILLES_TEXTE, couperTexte, dureeTotale, filtreFfmpeg, hautDuBloc, type Montage,
+  INTERLIGNE, MUSIQUES, TAILLES_TEXTE, couperTexte, dureeTotale, filtreFfmpeg, hautDuBloc, type Montage,
 } from "./videos-montage";
 
 /*
@@ -51,6 +51,16 @@ function lancer(cmd: string, args: string[], delai = DELAI_MAX_MS): Promise<stri
   });
 }
 
+/** Le fichier contient-il une piste audio lisible ? */
+async function sonderAudio(chemin: string): Promise<boolean> {
+  try {
+    const json = JSON.parse(await lancer("ffprobe", [
+      "-v", "error", "-select_streams", "a", "-show_entries", "stream=codec_type", "-of", "json", chemin,
+    ], 60_000)) as { streams?: unknown[] };
+    return (json.streams?.length ?? 0) > 0;
+  } catch { return false; }
+}
+
 type Sonde = { largeur: number; hauteur: number; audio: boolean; duree: number };
 
 async function sonder(chemin: string): Promise<Sonde> {
@@ -69,23 +79,48 @@ async function sonder(chemin: string): Promise<Sonde> {
 
 const s3 = (x: number) => Number(x.toFixed(3)).toString();
 
+/** Fichier audio de la musique du montage (bibliothèque ou fichier envoyé). */
+export function cheminMusique(m: Montage, sources: string[]): string | null {
+  const mu = m.musique;
+  if (!mu) return null;
+  if (mu.cle === "perso") return mu.source !== undefined && sources[mu.source] ? cheminVideo(sources[mu.source]) : null;
+  if (!Object.hasOwn(MUSIQUES, mu.cle)) return null;
+  return join(process.cwd(), "public/musique", `${mu.cle}.m4a`);
+}
+
 /** Graphe de filtres complet ; exporté pour les tests. */
 export function grapheFiltres(
   m: Montage, audio: boolean[], W: number, H: number, fichierTexte: (i: number, j: number) => string, fonte: string,
+  musique = false,
 ): string {
   const parties: string[] = [];
   m.clips.forEach((c, k) => {
     const d = s3(c.fin - c.debut);
+    const filtre = filtreFfmpeg(c.filtre ?? "aucun").map((f) => `${f},`).join("");
     parties.push(
       `[${k}:v]setpts=PTS-STARTPTS,trim=start=${s3(c.debut)}:end=${s3(c.fin)},setpts=PTS-STARTPTS,` +
       `fps=30,scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:color=black,` +
-      `setsar=1,tpad=stop_mode=clone:stop_duration=3,trim=duration=${d},setpts=PTS-STARTPTS[v${k}]`);
+      `setsar=1,${filtre}format=yuv420p,tpad=stop_mode=clone:stop_duration=3,trim=duration=${d},setpts=PTS-STARTPTS[v${k}]`);
     const fmt = "aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo";
     parties.push(audio[k] && !c.muet
       ? `[${k}:a]asetpts=PTS-STARTPTS,atrim=start=${s3(c.debut)}:end=${s3(c.fin)},asetpts=PTS-STARTPTS,${fmt},apad,atrim=duration=${d}[a${k}]`
       : `anullsrc=r=48000:cl=stereo,atrim=duration=${d},${fmt}[a${k}]`);
   });
-  parties.push(`${m.clips.map((_, k) => `[v${k}][a${k}]`).join("")}concat=n=${m.clips.length}:v=1:a=1[vc][aout]`);
+  const sortieSon = musique && m.musique ? "avoix" : "aout";
+  parties.push(`${m.clips.map((_, k) => `[v${k}][a${k}]`).join("")}concat=n=${m.clips.length}:v=1:a=1[vc][${sortieSon}]`);
+  if (musique && m.musique) {
+    // Musique (entrée bouclée) : départ choisi, volume, fondu final, puis mixée aux voix.
+    // amix divise chaque entrée par 2 : on remonte de ×2, le limiteur évite la saturation.
+    const total = dureeTotale(m);
+    const fondu = Math.min(1.5, total / 3);
+    const mu = m.musique;
+    parties.push(
+      `[${m.clips.length}:a]atrim=start=${s3(mu.debut)},asetpts=PTS-STARTPTS,` +
+      `aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,apad,atrim=duration=${s3(total)},` +
+      `volume=${s3(mu.volume)},afade=t=out:st=${s3(Math.max(0, total - fondu))}:d=${s3(fondu)}[mus]`);
+    parties.push(`[avoix]volume=${s3(mu.voix)}[voix]`);
+    parties.push(`[voix][mus]amix=inputs=2:duration=first:dropout_transition=0,volume=2,alimiter=limit=0.95[aout]`);
+  }
 
   const chaine = [...filtreFfmpeg(m.filtre)];
   const cote = Math.min(W, H);
@@ -116,8 +151,16 @@ export async function rendre(v: Ligne): Promise<{ fichier: string; couverture: s
   const poster = randomBytes(16).toString("hex");
   try {
     const m = v.montage;
-    const sondes = await Promise.all(v.sources.map((s) => sonder(cheminVideo(s))));
-    const premier = sondes[m.clips[0].source];
+    const indexMusique = m.musique?.cle === "perso" ? m.musique.source : undefined;
+    const sondes = await Promise.all(v.sources.map((s, i) => (i === indexMusique ? null : sonder(cheminVideo(s)))));
+    // Musique illisible (fichier sans piste audio) : la vidéo sort sans elle.
+    let musique = cheminMusique(m, v.sources);
+    if (musique && !(await sonderAudio(musique))) {
+      console.error(`vidéo ${v.id} : musique illisible, ignorée`);
+      musique = null;
+    }
+    const sonde = (i: number) => { const x = sondes[i]; if (!x) throw new Error("source invalide"); return x; };
+    const premier = sonde(m.clips[0].source);
     const [W, H] = premier.largeur > premier.hauteur ? [1280, 720] : [720, 1280];
 
     for (const [i, t] of m.textes.entries()) {
@@ -125,10 +168,12 @@ export async function rendre(v: Ligne): Promise<{ fichier: string; couverture: s
       for (const [j, l] of lignes.entries()) await writeFile(join(dir, `t${i}_${j}.txt`), l);
     }
     const script = join(dir, "graphe.txt");
-    await writeFile(script, grapheFiltres(m, m.clips.map((c) => sondes[c.source].audio), W, H,
-      (i, j) => join(dir, `t${i}_${j}.txt`), police()));
+    await writeFile(script, grapheFiltres(m, m.clips.map((c) => sonde(c.source).audio), W, H,
+      (i, j) => join(dir, `t${i}_${j}.txt`), police(), !!musique));
 
     const entrees = m.clips.flatMap((c) => ["-i", cheminVideo(v.sources[c.source])]);
+    // Musique bouclée : elle couvre toute la vidéo même si le morceau est court.
+    if (musique) entrees.push("-stream_loop", "-1", "-i", musique);
     await lancer("ffmpeg", [
       "-hide_banner", "-nostdin", "-y", ...entrees,
       "-filter_complex_script", script, "-map", "[vout]", "-map", "[aout]",
