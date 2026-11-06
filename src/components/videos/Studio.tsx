@@ -5,6 +5,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { DUREE_MAX_S, CLIPS_MAX, FILTRES, filtreCss, formatDuree, vignetteCss } from "@/lib/videos-montage";
 import { Editeur, type Reglages, type Segment } from "./Editeur";
 import { FeuilleMusique, PastilleMusique, type MusiqueChoisie } from "./Musique";
+import { LENTILLES, parCle } from "./lentilles/catalogue";
+import { chargerDetecteur, Moteur } from "./lentilles/moteur";
 
 /*
  * Studio d'enregistrement : la caméra de l'appareil, filmée directement
@@ -15,6 +17,8 @@ import { FeuilleMusique, PastilleMusique, type MusiqueChoisie } from "./Musique"
 export type Clip = { id: string; blob: Blob; url: string; duree: number; largeur: number; hauteur: number; filtre: string };
 
 const CLES_FILTRES = Object.keys(FILTRES);
+const CLES_LENTILLES = ["aucune", ...LENTILLES.map((l) => l.cle)];
+const nomLentille = (k: string) => parCle(k)?.nom ?? "Sans lentille";
 
 function typeEnregistrement(): string {
   const candidats = [
@@ -106,13 +110,66 @@ function Camera({ reste, nbSegments, dureeMontage, peutAjouter, filtre, setFiltr
   const glisse = useRef<{ x: number; y: number } | null>(null);
   const bande = useRef<HTMLDivElement>(null);
   const filtreEnregistre = useRef(filtre);
+  const [mode, setMode] = useState<"filtres" | "lentilles">("filtres");
+  const [lentille, setLentille] = useState("aucune");
+  const [lentillePrete, setLentillePrete] = useState(false);
+  const [erreurLentille, setErreurLentille] = useState<string | null>(null);
+  const [visage, setVisage] = useState(true);
+  const moteur = useRef<Moteur | null>(null);
+  const scene = useRef<HTMLDivElement>(null);
+  const [fluxPret, setFluxPret] = useState(0);
+  const actifLentille = lentille !== "aucune";
+  // L'explication de la lentille s'affiche 4 s, puis laisse la place à l'effet.
+  const [aideVisible, setAideVisible] = useState(false);
+  useEffect(() => {
+    if (!actifLentille) return;
+    setAideVisible(true);
+    const t = setTimeout(() => setAideVisible(false), 4000);
+    return () => clearTimeout(t);
+  }, [lentille, actifLentille]);
 
+  // Moteur des lentilles : créé à la première lentille, refait si la caméra change.
+  useEffect(() => {
+    if (!actifLentille || !pret) return;
+    let annule = false;
+    setErreurLentille(null);
+    chargerDetecteur().then((det) => {
+      const el = apercu.current, s = flux.current, h = scene.current;
+      if (annule || !el || !s || !h) return;
+      const m = new Moteur(el, det, s, face === "user");
+      m.onVisage = setVisage;
+      m.choisir(parCle(lentille));
+      h.appendChild(m.canvas);
+      m.demarrer();
+      moteur.current = m;
+      setLentillePrete(true);
+    }).catch(() => { if (!annule) setErreurLentille("Les lentilles ne se chargent pas sur cet appareil."); });
+    return () => {
+      annule = true;
+      moteur.current?.detruire();
+      moteur.current = null;
+      setLentillePrete(false);
+    };
+  }, [actifLentille, pret, face, fluxPret]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => { moteur.current?.choisir(parCle(lentille)); }, [lentille, lentillePrete]);
   const changerFiltre = useCallback((cle: string) => {
     setFiltre(cle);
     setAnnonce({ nom: FILTRES[cle].libelle, k: Date.now() });
   }, [setFiltre]);
 
+  const changerLentille = useCallback((cle: string) => {
+    moteur.current?.reveiller();
+    setLentille(cle);
+    setAnnonce({ nom: nomLentille(cle), k: Date.now() });
+  }, []);
+
   function decaler(d: 1 | -1) {
+    if (mode === "lentilles") {
+      const i = CLES_LENTILLES.indexOf(lentille);
+      changerLentille(CLES_LENTILLES[(i + d + CLES_LENTILLES.length) % CLES_LENTILLES.length]);
+      return;
+    }
     const i = CLES_FILTRES.indexOf(filtre);
     changerFiltre(CLES_FILTRES[(i + d + CLES_FILTRES.length) % CLES_FILTRES.length]);
   }
@@ -126,9 +183,9 @@ function Camera({ reste, nbSegments, dureeMontage, peutAjouter, filtre, setFiltr
   // Garde la pastille du filtre choisi au centre de la bande.
   useEffect(() => {
     const b = bande.current;
-    const el = b?.querySelector<HTMLElement>(`[data-filtre="${filtre}"]`);
+    const el = b?.querySelector<HTMLElement>(`[data-filtre="${mode === "lentilles" ? lentille : filtre}"]`);
     if (b && el) b.scrollTo({ left: el.offsetLeft - b.clientWidth / 2 + el.clientWidth / 2, behavior: "smooth" });
-  }, [filtre]);
+  }, [filtre, lentille, mode]);
   // Ouvre la caméra (et la referme en quittant ou en changeant de côté).
   useEffect(() => {
     let annule = false;
@@ -144,6 +201,7 @@ function Camera({ reste, nbSegments, dureeMontage, peutAjouter, filtre, setFiltr
     }).then(async (s) => {
       if (annule) { s.getTracks().forEach((t) => t.stop()); return; }
       flux.current = s;
+      setFluxPret((n) => n + 1);
       const el = apercu.current;
       if (el) { el.srcObject = s; await el.play().catch(() => {}); }
       setPret(true);
@@ -169,8 +227,12 @@ function Camera({ reste, nbSegments, dureeMontage, peutAjouter, filtre, setFiltr
   }, []);
 
   function demarrer() {
-    const s = flux.current, el = apercu.current;
-    if (!s || !el) return;
+    const camera = flux.current, el = apercu.current;
+    if (!camera || !el) return;
+    // Avec une lentille, on enregistre le rendu (canvas + micro + bruitages).
+    const m = actifLentille && lentillePrete ? moteur.current : null;
+    m?.reveiller();
+    const s = m ? m.flux() : camera;
     const type = typeEnregistrement();
     let r: MediaRecorder;
     try {
@@ -180,7 +242,7 @@ function Camera({ reste, nbSegments, dureeMontage, peutAjouter, filtre, setFiltr
       return;
     }
     const morceaux: Blob[] = [];
-    const largeur = el.videoWidth, hauteur = el.videoHeight;
+    const largeur = m ? m.largeur : el.videoWidth, hauteur = m ? m.hauteur : el.videoHeight;
     filtreEnregistre.current = filtre;
     const t0 = performance.now();
     r.ondataavailable = (e) => { if (e.data.size) morceaux.push(e.data); };
@@ -221,6 +283,7 @@ function Camera({ reste, nbSegments, dureeMontage, peutAjouter, filtre, setFiltr
     if (enCours) { arreter(); return; }
     if (decompte !== null) { setDecompte(null); return; }
     if (!pret || reste < 1 || !peutAjouter) return;
+    if (actifLentille && !lentillePrete) return;
     if (minuteur) setDecompte(3); else demarrer();
   }
 
@@ -232,14 +295,16 @@ function Camera({ reste, nbSegments, dureeMontage, peutAjouter, filtre, setFiltr
   return (
     <div className="studio">
       {/* Glisser à gauche / à droite sur l'image change de filtre, en direct. */}
-      <div className="studio__image"
-           onPointerDown={(e) => { if (e.target === e.currentTarget || (e.target as HTMLElement).tagName === "VIDEO") glisse.current = { x: e.clientX, y: e.clientY }; }}
+      <div ref={scene} className="studio__image" data-lentille={(actifLentille && lentillePrete) || undefined}
+           style={{ "--filtre-camera": filtreCss(filtre) } as React.CSSProperties}
+           onPointerDown={(e) => { if (e.target === e.currentTarget || ["VIDEO", "CANVAS"].includes((e.target as HTMLElement).tagName)) glisse.current = { x: e.clientX, y: e.clientY }; }}
            onPointerUp={(e) => {
              const g = glisse.current;
              glisse.current = null;
-             if (!g || enCours) return;
+             if (!g) return;
              const dx = e.clientX - g.x, dy = e.clientY - g.y;
-             if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.4) decaler(dx < 0 ? 1 : -1);
+             if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.4) { if (!enCours) decaler(dx < 0 ? 1 : -1); }
+             else if (Math.abs(dx) < 12 && Math.abs(dy) < 12) moteur.current?.toucher();
            }}
            onPointerCancel={() => { glisse.current = null; }}>
         <video ref={apercu} className="studio__camera" data-miroir={face === "user" || undefined} muted playsInline autoPlay
@@ -247,6 +312,13 @@ function Camera({ reste, nbSegments, dureeMontage, peutAjouter, filtre, setFiltr
         {vignette && <span className="studio__vignette" style={{ backgroundImage: vignette }} aria-hidden="true" />}
       </div>
       {annonce && <span key={annonce.k} className="studio__annonce" aria-live="polite">{annonce.nom}</span>}
+      {actifLentille && !lentillePrete && !erreurLentille && pret && (
+        <span className="studio__chargement" aria-live="polite"><span className="reels__chargement" aria-hidden="true" />Chargement de la lentille…</span>
+      )}
+      {actifLentille && lentillePrete && !annonce && (aideVisible || !visage) && (
+        <p className="studio__aide-lentille">{visage ? parCle(lentille)?.aide : "Aucun visage détecté"}</p>
+      )}
+      {erreurLentille && <p className="studio__aide-lentille" role="alert">{erreurLentille}</p>}
 
       <div className="studio__haut">
         <div className="studio__jauge" role="progressbar" aria-label="Durée enregistrée"
@@ -306,15 +378,27 @@ function Camera({ reste, nbSegments, dureeMontage, peutAjouter, filtre, setFiltr
       )}
 
       {!enCours && decompte === null && (
-        <div ref={bande} className="studio__filtres" role="radiogroup" aria-label="Filtre">
-          {CLES_FILTRES.map((k) => (
-            <button key={k} type="button" role="radio" aria-checked={filtre === k} data-filtre={k}
-                    className="studio__filtre" onClick={() => changerFiltre(k)}>
-              <span className="studio__filtre-rond" style={{ filter: filtreCss(k), backgroundImage: vignetteCss(k) ? `${vignetteCss(k)}, var(--echantillon)` : undefined }} aria-hidden="true" />
-              <span className="studio__filtre-nom">{FILTRES[k].libelle}</span>
-            </button>
-          ))}
-        </div>
+        <>
+          <div className="studio__modes" role="tablist" aria-label="Effets">
+            <button type="button" role="tab" aria-selected={mode === "filtres"} onClick={() => setMode("filtres")}>Filtres</button>
+            <button type="button" role="tab" aria-selected={mode === "lentilles"} onClick={() => { setMode("lentilles"); moteur.current?.reveiller(); }}>Lentilles</button>
+          </div>
+          <div ref={bande} key={mode} className="studio__filtres" role="radiogroup" aria-label={mode === "filtres" ? "Filtre" : "Lentille"}>
+            {mode === "filtres" ? CLES_FILTRES.map((k) => (
+              <button key={k} type="button" role="radio" aria-checked={filtre === k} data-filtre={k}
+                      className="studio__filtre" onClick={() => changerFiltre(k)}>
+                <span className="studio__filtre-rond" style={{ filter: filtreCss(k), backgroundImage: vignetteCss(k) ? `${vignetteCss(k)}, var(--echantillon)` : undefined }} aria-hidden="true" />
+                <span className="studio__filtre-nom">{FILTRES[k].libelle}</span>
+              </button>
+            )) : CLES_LENTILLES.map((k) => (
+              <button key={k} type="button" role="radio" aria-checked={lentille === k} data-filtre={k}
+                      className="studio__filtre" onClick={() => changerLentille(k)}>
+                <span className="studio__filtre-rond studio__lentille-rond" aria-hidden="true">{parCle(k)?.icone ?? "∅"}</span>
+                <span className="studio__filtre-nom">{nomLentille(k)}</span>
+              </button>
+            ))}
+          </div>
+        </>
       )}
 
       <div className="studio__bas">
@@ -344,6 +428,7 @@ function Camera({ reste, nbSegments, dureeMontage, peutAjouter, filtre, setFiltr
         {plein ? "Durée maximale atteinte : passez au montage."
           : enCours ? "Touchez pour arrêter ce clip"
           : nbSegments > 0 ? `${nbSegments} clip${nbSegments > 1 ? "s" : ""} · touchez pour en ajouter un`
+          : mode === "lentilles" ? "Touchez pour filmer · glissez pour changer de lentille"
           : "Touchez pour filmer · glissez pour changer de filtre"}
       </p>
       {feuilleSon && <FeuilleMusique choisie={musique} onChoisir={onMusique} onFermer={() => setFeuilleSon(false)} />}

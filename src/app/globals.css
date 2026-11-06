@@ -807,7 +807,7 @@ html.fil-plein-ecran .bottom-nav { display: none; }
 }
 .studio__filtres::-webkit-scrollbar { display: none; }
 .studio__filtre {
-  display: flex; flex-shrink: 0; flex-direction: column; align-items: center; gap: 4px; width: 60px;
+  display: flex; flex-shrink: 0; flex-direction: column; align-items: center; gap: 4px; width: 66px;
   border: 0; background: none; color: #fff; scroll-snap-align: center;
 }
 .studio__filtre-rond {
@@ -815,7 +815,7 @@ html.fil-plein-ecran .bottom-nav { display: none; }
   box-shadow: 0 0 0 2px rgb(255 255 255 / 0.35); transition: transform 150ms, box-shadow 150ms;
 }
 .studio__filtre[aria-checked="true"] .studio__filtre-rond { transform: scale(1.12); box-shadow: 0 0 0 3px #fff; }
-.studio__filtre-nom { font-size: 11px; font-weight: 600; text-shadow: 0 1px 4px rgb(0 0 0 / 0.7); white-space: nowrap; opacity: 0.8; }
+.studio__filtre-nom { max-width: 64px; overflow: hidden; text-overflow: ellipsis; font-size: 11px; font-weight: 600; text-shadow: 0 1px 4px rgb(0 0 0 / 0.7); white-space: nowrap; opacity: 0.8; }
 .studio__filtre[aria-checked="true"] .studio__filtre-nom { opacity: 1; }
 .studio__son-libre { position: absolute; z-index: 2; inset-inline: 0; top: calc(max(10px, env(safe-area-inset-top)) + 64px); display: flex; justify-content: center; }
 .editeur__onglets { overflow-x: auto; scrollbar-width: none; }
@@ -824,4 +824,26 @@ html.fil-plein-ecran .bottom-nav { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .musique__onde > i, .musique__disque[data-tourne], .studio__annonce { animation: none; }
   .studio__annonce { opacity: 1; }
+}
+
+/* --- Lentilles (MediaPipe) : rendu canvas à la place de la caméra ------- */
+.studio__image > canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: var(--filtre-camera, none); }
+.studio__image[data-lentille] > video { visibility: hidden; }
+.studio__modes {
+  position: absolute; z-index: 2; left: 50%; translate: -50% 0;
+  bottom: calc(44px + 80px + 18px + 76px + env(safe-area-inset-bottom, 0px));
+  display: flex; gap: 4px; padding: 3px; border-radius: 999px; background: rgb(0 0 0 / 0.4);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+}
+.studio__modes > button { height: 30px; padding: 0 14px; border: 0; border-radius: 999px; background: none; color: #fff; font-size: 13px; font-weight: 700; opacity: 0.75; }
+.studio__modes > button[aria-selected="true"] { background: #fff; color: #000; opacity: 1; }
+.studio__lentille-rond { display: grid; place-items: center; font-size: 24px; background: rgb(0 0 0 / 0.45); }
+.studio__chargement {
+  position: absolute; z-index: 3; left: 50%; top: 45%; translate: -50% -50%;
+  display: flex; flex-direction: column; align-items: center; gap: 12px; font-size: 14px; font-weight: 600;
+  text-shadow: 0 1px 6px rgb(0 0 0 / 0.6);
+}
+.studio__aide-lentille {
+  position: absolute; z-index: 2; inset-inline: 16px; top: calc(max(10px, env(safe-area-inset-top)) + 64px);
+  text-align: center; font-size: 13px; font-weight: 600; text-shadow: 0 1px 6px rgb(0 0 0 / 0.7); pointer-events: none;
 }

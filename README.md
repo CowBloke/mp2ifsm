@@ -171,6 +171,24 @@ N&B, Tableau, Négatif…), définis par des fonctions CSS dont dérivent les
 matrices ffmpeg (`hue-rotate` et `invert` en plus) ; la vignette suit
 exactement le `vignette` de ffmpeg (1 − cos⁴(π/5·r)).
 
+**Lentilles** (onglet *Lentilles* de la caméra, à côté de *Filtres*) :
+effets sur le visage, suivis par MediaPipe Face Landmarker (478 points et
+expressions : bouche ouverte, sourcils, sourire), dessinés dans un
+`<canvas>` enregistré tel quel (`canvas.captureStream`, micro et
+bruitages mixés en Web Audio) : l'effet est dans le clip. Sortie toujours
+en portrait 9:16. Onze lentilles (`src/components/videos/lentilles/catalogue.ts`),
+dans l'esprit des formats viraux mais écrites pour la prépa : Arrêt sur
+image (narration), Zoom dramatique, Sourcils suspects (boom), Randomiseur
+prépa, Pensées intrusives, PNJ, Détecteur de mensonge, Yeux laser,
+Caricature, Double bouche, Mode boss. Images, sons et textes sont produits
+par le code, rien n'est repris d'ailleurs ; on déclenche d'une expression ou
+d'un toucher. Le modèle (`public/lentilles/face_landmarker.task`, Apache
+2.0) est versionné ; le moteur WebAssembly est copié depuis
+`@mediapipe/tasks-vision` vers `public/lentilles/wasm` par
+`scripts/copier-mediapipe.mjs` (`prebuild`/`predev`). nginx doit
+autoriser `'wasm-unsafe-eval'` dans `script-src` (déjà dans
+`deploy/nginx-mp2ifsm.conf`, à recharger).
+
 **Musique** : pastille « Ajouter un son » sur la caméra et onglet *Son*
 de l’éditeur. Bibliothèque de cinq boucles (`public/musique/*.m4a`)
 entièrement synthétisées par `scripts/generer-musiques.ts` (aucun droit
