@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "node scripts/copier-mediapipe.mjs",
     "dev": "next dev -p 4260 -H 127.0.0.1",
+    "prebuild": "node scripts/copier-mediapipe.mjs",
     "build": "next build",
     "start": "next start -p 4260 -H 127.0.0.1",
     "db:schema": "psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f db/schema.sql",
@@ -18,6 +20,7 @@
     "jeu:equilibrage": "tsx jeu/outils/equilibrage.ts"
   },
   "dependencies": {
+    "@mediapipe/tasks-vision": "1.1.1",
     "adm-zip": "^0.6.1",
     "better-sqlite3": "^13.0.3",
     "geist": "1.7.2",

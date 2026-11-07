@@ -4,8 +4,9 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CLIP_MIN_S, FILTRES, INTERLIGNE, TAILLES_TEXTE, TEXTES_MAX, TAILLE_MAX_VIDEO,
-  couperTexte, filtreCss, formatDuree, hautDuBloc, type Montage, type TexteMontage,
+  couperTexte, filtreCss, formatDuree, hautDuBloc, vignetteCss, type Montage, type TexteMontage,
 } from "@/lib/videos-montage";
+import { FeuilleMusique, IconeNote, type MusiqueChoisie } from "./Musique";
 import type { Clip } from "./Studio";
 
 /*
@@ -15,11 +16,11 @@ import type { Clip } from "./Studio";
  * Le serveur refait la même chose avec ffmpeg à la publication.
  */
 
-export type Segment = { cle: string; clip: string; debut: number; fin: number; muet: boolean };
+export type Segment = { cle: string; clip: string; debut: number; fin: number; muet: boolean; filtre: string };
 export type TexteEdite = TexteMontage & { cle: string };
-export type Reglages = { textes: TexteEdite[]; filtre: string; couverture: number };
+export type Reglages = { textes: TexteEdite[]; couverture: number; musique: MusiqueChoisie | null };
 
-type Onglet = "clips" | "texte" | "filtre" | "couverture";
+type Onglet = "clips" | "filtre" | "texte" | "son" | "couverture";
 
 const arrondi = (x: number) => Math.round(x * 10) / 10;
 let n = 0;
@@ -39,6 +40,7 @@ export function Editeur({ clips, segments, setSegments, reglages, setReglages, m
   const [onglet, setOnglet] = useState<Onglet>("clips");
   const [choisi, setChoisi] = useState(0);
   const [texteChoisi, setTexteChoisi] = useState<string | null>(null);
+  const [feuilleSon, setFeuilleSon] = useState(false);
   const parId = useMemo(() => new Map(clips.map((c) => [c.id, c])), [clips]);
 
   const debuts = useMemo(() => {
@@ -52,8 +54,12 @@ export function Editeur({ clips, segments, setSegments, reglages, setReglages, m
   const premier = parId.get(segments[0]?.clip);
   const [W, H] = premier && premier.largeur > premier.hauteur ? [1280, 720] : [720, 1280];
 
-  const lecteur = useLecteur(segments, debuts, total, parId);
+  const lecteur = useLecteur(segments, debuts, total, parId, reglages.musique);
   const { t, placer } = lecteur;
+  const iCourant = Math.max(0, debuts.findLastIndex((d) => d <= t));
+  const musique = reglages.musique;
+  const modifierMusique = (p: Partial<MusiqueChoisie>) =>
+    setReglages((r) => (r.musique ? { ...r, musique: { ...r.musique, ...p } } : r));
 
   useEffect(() => { if (choisi >= segments.length) setChoisi(Math.max(0, segments.length - 1)); }, [segments.length, choisi]);
 
@@ -117,7 +123,7 @@ export function Editeur({ clips, segments, setSegments, reglages, setReglages, m
         </button>
       </header>
 
-      <Scene W={W} H={H} filtre={reglages.filtre} textes={textesVisibles} t={t} videoRef={lecteur.ref}
+      <Scene W={W} H={H} filtre={segments[iCourant]?.filtre ?? "aucun"} textes={textesVisibles} t={t} videoRef={lecteur.ref}
              onToucher={lecteur.basculer} lecture={lecteur.lecture} />
 
       <div className="editeur__transport">
@@ -133,7 +139,7 @@ export function Editeur({ clips, segments, setSegments, reglages, setReglages, m
       </div>
 
       <nav className="editeur__onglets" aria-label="Outils de montage">
-        {([["clips", "Clips"], ["texte", "Texte"], ["filtre", "Filtre"], ["couverture", "Couverture"]] as const).map(([k, l]) => (
+        {([["clips", "Clips"], ["filtre", "Filtres"], ["texte", "Texte"], ["son", "Son"], ["couverture", "Couverture"]] as const).map(([k, l]) => (
           <button key={k} type="button" aria-pressed={onglet === k} onClick={() => setOnglet(k)}>{l}</button>
         ))}
       </nav>
@@ -227,15 +233,78 @@ export function Editeur({ clips, segments, setSegments, reglages, setReglages, m
           </div>
         )}
 
-        {onglet === "filtre" && (
-          <div className="grid grid-cols-3 gap-2">
-            {Object.entries(FILTRES).map(([k, f]) => (
-              <button key={k} type="button" aria-pressed={reglages.filtre === k} className="editeur__filtre"
-                      onClick={() => setReglages((r) => ({ ...r, filtre: k }))}>
-                <span className="editeur__echantillon" style={{ filter: filtreCss(k) }} aria-hidden="true" />
-                <span className="text-[13px]">{f.libelle}</span>
+        {onglet === "filtre" && seg && (
+          <div className="space-y-3">
+            {segments.length > 1 && (
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {segments.map((s, i) => (
+                  <button key={s.cle} type="button" aria-pressed={i === choisi}
+                          className="editeur__puce" onClick={() => { setChoisi(i); placer(debuts[i], false); }}>
+                    <span className="font-semibold">Clip {i + 1}</span>
+                    <span className="opacity-75">{FILTRES[s.filtre]?.libelle ?? "Normal"}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="grid grid-cols-4 gap-2">
+              {Object.entries(FILTRES).map(([k, f]) => (
+                <button key={k} type="button" aria-pressed={seg.filtre === k} className="editeur__filtre"
+                        onClick={() => {
+                          modifierSegment(choisi, (s) => ({ ...s, filtre: k }));
+                          // Montre le clip filtré si la tête de lecture est ailleurs.
+                          if (iCourant !== choisi) placer(debuts[choisi], false);
+                        }}>
+                  <span className="editeur__echantillon" aria-hidden="true"
+                        style={{ filter: filtreCss(k), backgroundImage: vignetteCss(k) ? `${vignetteCss(k)}, var(--echantillon)` : undefined }} />
+                  <span className="text-[12px]">{f.libelle}</span>
+                </button>
+              ))}
+            </div>
+            {segments.length > 1 && (
+              <button type="button" className="editeur__puce w-full justify-center"
+                      disabled={segments.every((s) => s.filtre === seg.filtre)}
+                      onClick={() => setSegments((l) => l.map((s) => ({ ...s, filtre: seg.filtre })))}>
+                Appliquer « {FILTRES[seg.filtre]?.libelle} » à tous les clips
               </button>
-            ))}
+            )}
+          </div>
+        )}
+
+        {onglet === "son" && (
+          <div className="space-y-4">
+            {musique ? (
+              <>
+                <div className="musique__carte">
+                  <span className="musique__disque" data-tourne={lecteur.lecture || undefined} aria-hidden="true"><IconeNote taille={18} /></span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[15px] font-semibold">{musique.titre}</p>
+                    <p className="text-[12px] opacity-70">{musique.cle === "perso" ? "Fichier importé" : "Bibliothèque"} · {formatDuree(musique.duree)}</p>
+                  </div>
+                  <button type="button" className="editeur__puce" onClick={() => setFeuilleSon(true)}>Changer</button>
+                </div>
+                <Curseur libelle="Volume de la musique" valeur={musique.volume} onChange={(v) => modifierMusique({ volume: v })} />
+                <Curseur libelle="Volume de votre voix" valeur={musique.voix} onChange={(v) => modifierMusique({ voix: v })} />
+                {musique.duree > 2 && (
+                  <label className="block text-[13px]">
+                    Commencer le morceau à {formatDuree(musique.debut)}
+                    <input type="range" className="editeur__curseur mt-2 w-full" min={0} max={Math.max(0, musique.duree - 1)} step={0.5}
+                           value={musique.debut} onChange={(e) => { modifierMusique({ debut: Number(e.target.value) }); placer(0, false); }} />
+                  </label>
+                )}
+                <button type="button" className="text-[14px] text-[#ff6b6b]"
+                        onClick={() => setReglages((r) => ({ ...r, musique: null }))}>Retirer la musique</button>
+              </>
+            ) : (
+              <>
+                <button type="button" className="musique__ajouter" onClick={() => setFeuilleSon(true)}>
+                  <IconeNote taille={22} />
+                  <span>Ajouter un son</span>
+                </button>
+                <p className="text-[13px] opacity-70">
+                  Une musique de fond sous votre explication : choisissez dans la bibliothèque ou importez un fichier. Elle tourne en boucle et s’efface à la fin.
+                </p>
+              </>
+            )}
           </div>
         )}
 
@@ -251,16 +320,35 @@ export function Editeur({ clips, segments, setSegments, reglages, setReglages, m
           </div>
         )}
       </div>
+      {feuilleSon && (
+        <FeuilleMusique choisie={musique} onFermer={() => setFeuilleSon(false)}
+                        onChoisir={(m) => setReglages((r) => ({ ...r, musique: m && r.musique && m.cle === r.musique.cle ? r.musique : m }))} />
+      )}
     </div>
+  );
+}
+
+function Curseur({ libelle, valeur, onChange }: { libelle: string; valeur: number; onChange: (v: number) => void }) {
+  return (
+    <label className="block text-[13px]">
+      <span className="flex justify-between"><span>{libelle}</span><span className="tabular opacity-75">{Math.round(valeur * 100)} %</span></span>
+      <input type="range" className="editeur__curseur mt-2 w-full" min={0} max={1} step={0.05} value={valeur}
+             onChange={(e) => onChange(Number(e.target.value))} />
+    </label>
   );
 }
 
 /* --- Lecteur : enchaîne les segments dans un seul élément <video> --- */
 
-function useLecteur(segments: Segment[], debuts: number[], total: number, parId: Map<string, Clip>) {
+function useLecteur(segments: Segment[], debuts: number[], total: number, parId: Map<string, Clip>, musique: MusiqueChoisie | null) {
   const ref = useRef<HTMLVideoElement>(null);
   const [t, setT] = useState(0);
   const [lecture, setLecture] = useState(false);
+  const tRef = useRef(0);
+  tRef.current = t;
+  const son = useRef<HTMLAudioElement | null>(null);
+  const musiqueRef = useRef(musique);
+  musiqueRef.current = musique;
   const courant = useRef(0);
   const jeton = useRef(0);
   const etat = useRef({ segments, debuts, total, parId });
@@ -289,6 +377,8 @@ function useLecteur(segments: Segment[], debuts: number[], total: number, parId:
       if (mon !== jeton.current) return;
     }
     el.muted = s.muet;
+    // Le volume des voix sous la musique (sans effet sur iPhone, qui l'ignore).
+    try { el.volume = musiqueRef.current ? musiqueRef.current.voix : 1; } catch { /* lecture seule */ }
     try { el.currentTime = s.debut + (pos - debuts[i]); } catch { /* métadonnées pas prêtes */ }
     if (jouer) await el.play().catch(() => setLecture(false));
     else el.pause();
@@ -316,6 +406,43 @@ function useLecteur(segments: Segment[], debuts: number[], total: number, parId:
     id = requestAnimationFrame(pas);
     return () => cancelAnimationFrame(id);
   }, [lecture, placer]);
+
+  // Musique de l'aperçu : suit la tête de lecture (boucle comme au rendu).
+  const urlSon = musique?.url;
+  useEffect(() => {
+    if (!urlSon) { son.current = null; return; }
+    const a = new Audio(urlSon);
+    a.preload = "auto";
+    son.current = a;
+    return () => { a.pause(); a.removeAttribute("src"); };
+  }, [urlSon]);
+
+  useEffect(() => {
+    const a = son.current;
+    if (!a) return;
+    if (musique) a.volume = musique.volume;
+    try { if (ref.current) ref.current.volume = musique ? musique.voix : 1; } catch { /* lecture seule */ }
+  }, [musique]);
+
+  useEffect(() => {
+    const a = son.current;
+    if (!a || !musique) return;
+    if (!lecture) { a.pause(); return; }
+    const caler = () => {
+      const m = musiqueRef.current;
+      if (!m) return;
+      const attendu = (m.debut + tRef.current) % Math.max(0.5, m.duree);
+      const fin = Math.min(1.5, etat.current.total / 3);
+      const reste = etat.current.total - tRef.current;
+      a.volume = m.volume * (reste < fin ? Math.max(0, reste / fin) : 1);
+      if (Math.abs(a.currentTime - attendu) > 0.25) { try { a.currentTime = attendu; } catch { /* pas prête */ } }
+      if (ref.current?.paused) a.pause();
+      else if (a.paused) a.play().catch(() => {});
+    };
+    caler();
+    const id = setInterval(caler, 200);
+    return () => { clearInterval(id); a.pause(); };
+  }, [lecture, urlSon, musique?.debut]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Premier affichage, et après toute modification de la liste.
   useEffect(() => { placer(Math.min(t, total), false); setLecture(false); }, [segments]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -351,6 +478,7 @@ function Scene({ W, H, filtre, textes, t, videoRef, onToucher, lecture }: {
       <div ref={boite} className="editeur__scene" onClick={onToucher}
            style={{ aspectRatio: `${W} / ${H}`, height: W > H ? "auto" : "100%", width: W > H ? "100%" : "auto" }}>
         <video ref={videoRef} playsInline preload="auto" style={{ filter: filtreCss(filtre) }} />
+        {vignetteCss(filtre) && <span className="studio__vignette" style={{ backgroundImage: vignetteCss(filtre) }} aria-hidden="true" />}
         <div className="editeur__calque" style={{ width: W, height: H, transform: `scale(${echelle})` }} aria-hidden="true">
           {textes.filter((x) => t >= x.debut && t <= x.fin).map((x) => <TexteRendu key={x.cle} texte={x} W={W} H={H} />)}
         </div>
@@ -484,15 +612,19 @@ export function montageAEnvoyer(clips: Clip[], segments: Segment[], reglages: Re
   }
   const montage: Montage = {
     clips: segments.filter((s) => index.has(s.clip))
-      .map((s) => ({ source: index.get(s.clip)!, debut: arrondi(s.debut), fin: arrondi(s.fin), muet: s.muet })),
-    filtre: reglages.filtre,
+      .map((s) => ({ source: index.get(s.clip)!, debut: arrondi(s.debut), fin: arrondi(s.fin), muet: s.muet, filtre: s.filtre })),
+    filtre: "aucun",
     textes: reglages.textes.filter((x) => x.texte.trim() && x.debut < total)
       .map(({ texte, debut, fin, position, taille, fond }) => ({
         texte: texte.trim(), debut, fin: Math.min(fin, total), position, taille, fond,
       })),
     couverture: Math.min(reglages.couverture, Math.max(0, total - 0.2)),
+    musique: reglages.musique ? {
+      cle: reglages.musique.cle, titre: reglages.musique.titre, debut: arrondi(reglages.musique.debut),
+      volume: reglages.musique.volume, voix: reglages.musique.voix,
+    } : null,
   };
-  return { utilises, montage };
+  return { utilises, montage, fichierMusique: reglages.musique?.cle === "perso" ? reglages.musique.fichier ?? null : null };
 }
 
 function Publication({ clips, segments, reglages, total, W, H, matieres, onRetour }: {
@@ -505,8 +637,8 @@ function Publication({ clips, segments, reglages, total, W, H, matieres, onRetou
   const [matiere, setMatiere] = useState("");
   const [progression, setProgression] = useState<number | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
-  const { utilises, montage } = useMemo(() => montageAEnvoyer(clips, segments, reglages, total), [clips, segments, reglages, total]);
-  const poids = utilises.reduce((s, c) => s + c.blob.size, 0);
+  const { utilises, montage, fichierMusique } = useMemo(() => montageAEnvoyer(clips, segments, reglages, total), [clips, segments, reglages, total]);
+  const poids = utilises.reduce((s, c) => s + c.blob.size, 0) + (fichierMusique?.size ?? 0);
   const tropLourd = poids > TAILLE_MAX_VIDEO;
 
   function publier(e: React.FormEvent) {
@@ -518,6 +650,7 @@ function Publication({ clips, segments, reglages, total, W, H, matieres, onRetou
     form.set("matiere", matiere);
     form.set("montage", JSON.stringify(montage));
     utilises.forEach((c, i) => form.append("clips", c.blob, `clip-${i}.${c.blob.type.includes("mp4") ? "mp4" : "webm"}`));
+    if (fichierMusique) form.append("musique", fichierMusique, "musique");
     const xhr = new XMLHttpRequest();
     xhr.open("POST", "/api/videos");
     xhr.upload.onprogress = (ev) => { if (ev.lengthComputable) setProgression(ev.loaded / ev.total); };
@@ -550,7 +683,8 @@ function Publication({ clips, segments, reglages, total, W, H, matieres, onRetou
       </header>
       <form onSubmit={publier} className="editeur__formulaire">
         <p className="text-[13px] opacity-75">
-          {formatDuree(total)} · {segments.length} clip{segments.length > 1 ? "s" : ""} · {W > H ? "paysage" : "portrait"} · {(poids / 1048576).toFixed(1).replace(".", ",")} Mo à envoyer
+          {formatDuree(total)} · {segments.length} clip{segments.length > 1 ? "s" : ""} · {W > H ? "paysage" : "portrait"}
+          {reglages.musique ? ` · ♪ ${reglages.musique.titre}` : ""} · {(poids / 1048576).toFixed(1).replace(".", ",")} Mo à envoyer
         </p>
         <label className="block">
           <span className="text-[14px] font-medium">Titre</span>

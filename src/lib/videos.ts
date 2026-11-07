@@ -16,6 +16,8 @@ export type VideoVue = {
   aime: boolean;
   vues: number;
   commentaires: number;
+  /** Titre de la musique ajoutée au montage, s'il y en a une. */
+  musique: string | null;
   created_at: string;
 };
 
@@ -36,6 +38,7 @@ export async function listerVideos(userId: string, filtre: FiltreVideos = {}): P
             exists (select 1 from video_like l where l.video_id = v.id and l.user_id = $1::uuid) as aime,
             (select count(*)::int from video_vue w where w.video_id = v.id) as vues,
             (select count(*)::int from video_commentaire c where c.video_id = v.id) as commentaires,
+            v.montage->'musique'->>'titre' as musique,
             v.created_at::text
        from video v
        join app_user u on u.id = v.auteur

@@ -9,3 +9,4 @@ next-env.d.ts
 .env.portal-check
 
 .next-release-*/
+/public/lentilles/wasm/
