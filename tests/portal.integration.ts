@@ -29,7 +29,7 @@ let assertions = 0;
 function ok(condition: unknown, message: string) { assert.ok(condition, message); assertions++; console.log(`PASS ${message}`); }
 try {
   await admin.query(`create schema ${schema}`);
-  for (const fichier of ["db/schema.sql", "db/functions.sql", "db/schema-portal.sql", "db/schema-proposals.sql", "db/schema-etudes.sql", "db/schema-dossiers.sql", "db/schema-kcmaths.sql"]) {
+  for (const fichier of ["db/schema.sql", "db/functions.sql", "db/schema-portal.sql", "db/schema-proposals.sql", "db/schema-etudes.sql", "db/schema-dossiers.sql", "db/schema-kcmaths.sql", "db/schema-toilet.sql"]) {
     await query(await readFile(fichier, "utf8"));
   }
   const membres = await query<{ id: string }>(`insert into app_user (email, display_name, password_hash, partage_stats)

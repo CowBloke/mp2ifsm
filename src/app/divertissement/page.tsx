@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { formatCentimes } from "@/lib/money";
 import { soldeCentimes } from "@/lib/queries";
 import { utilisateurCourant } from "@/lib/session";
+import { toiletVisible } from "@/lib/toilet";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,8 @@ export const dynamic = "force-dynamic";
 export default async function PageDivertissement() {
   const u = await utilisateurCourant();
   if (!u) redirect("/connexion");
+  // Rubrique cachée : la tuile n'existe que pour les membres passés par le lien secret.
+  const toilet = await toiletVisible(u.id);
 
   return (
     <main>
@@ -29,6 +32,10 @@ export default async function PageDivertissement() {
                detail="Des nombres réels, en vertical" />
         <Tuile href="/divertissement/videos" titre="Vidéos" icone={<IconeVideos />}
                detail="Explications filmées par la classe" />
+        {toilet && (
+          <Tuile href="/toilet" titre="Toilet!" icone={<span className="text-[24px]" aria-hidden="true">🚽</span>}
+                 detail="Le classement des toilettes du bas" />
+        )}
       </div>
     </main>
   );

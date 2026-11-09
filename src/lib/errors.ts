@@ -60,6 +60,8 @@ export const MESSAGES_FR: Record<string, string> = {
   PAS_ABONNE: "Abonnez-vous à ce paquet pour le réviser",
   GROUPE_INVALIDE: "Numéro de groupe de colles invalide",
   RETOUR_INVALIDE: "Message trop court (5 caractères minimum)",
+  TOILET_TROP_TOT: "Doucement ! Un passage toutes les 3 minutes au maximum",
+  TOILET_LIEN_INVALIDE: "Ce lien secret ne fonctionne pas",
   RETOURS_TROP_NOMBREUX: "Trop de retours envoyés aujourd’hui, réessayez demain",
 };
 
@@ -79,6 +81,9 @@ export class ErreurMetier extends Error {
  * PostgreSQL les enrobe ("ERROR: INSUFFICIENT_FUNDS").
  */
 export function messageFr(err: unknown): string {
+  // Code exact d'abord : « TYPE_NON_AUTORISE » contient « NON_AUTORISE »,
+  // la recherche par sous-chaîne ci-dessous le prendrait pour un refus d'accès.
+  if (err instanceof ErreurMetier && Object.hasOwn(MESSAGES_FR, err.code)) return MESSAGES_FR[err.code];
   const brut =
     err instanceof ErreurMetier
       ? err.code

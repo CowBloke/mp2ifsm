@@ -34,7 +34,7 @@ const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 try {
   await admin.query(`create schema ${schema}`);
   for (const f of ["db/schema.sql", "db/functions.sql", "db/schema-portal.sql", "db/schema-proposals.sql",
-                   "db/schema-etudes.sql", "db/schema-dossiers.sql", "db/schema-kcmaths.sql"]) {
+                   "db/schema-etudes.sql", "db/schema-dossiers.sql", "db/schema-kcmaths.sql", "db/schema-toilet.sql"]) {
     await query(await readFile(f, "utf8"));
   }
   const [alice] = await query<{ id: string }>(`insert into app_user (email, display_name, password_hash, groupe_colle)

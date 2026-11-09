@@ -137,6 +137,45 @@ façon reels d’Instagram où chaque « vidéo » est un nombre réel tiré au 
 (`src/lib/reels.ts`) ; likes, abonnements et commentaires ajoutés ne sont
 pas enregistrés et disparaissent au rechargement.
 
+## Toilet! (rubrique cachée)
+
+« Toilet factorielle » : classement des passages aux toilettes du bas, avec
+photo de preuve de propreté facultative et statuts à jeux de mots
+(`src/lib/toilet-statuts.ts`, de « Vessie de pierre » à « Divinité de la
+chasse d’eau »).
+
+La rubrique n’existe pour un membre qu’après ouverture du lien secret
+`/toilet/rejoindre/<code>` puis appui sur « Entrer dans le petit coin » (les
+aperçus de lien des messageries n’activent donc rien). Avant cela, `/toilet`
+et les photos répondent 404 et la tuile n’apparaît pas dans Divertissement.
+Les membres peuvent repartager le lien depuis le bas de la page. Le code
+(32 hex) est tiré au hasard par la migration et n’est jamais réécrit :
+
+```bash
+psql "$DATABASE_URL" -Atc "select 'https://mp2ifsm.com/toilet/rejoindre/' || code_invitation from toilet_config"
+```
+
+Pour changer le lien : `update toilet_config set code_invitation = replace(gen_random_uuid()::text,'-','');`
+(les membres déjà inscrits le restent).
+
+Un passage toutes les 3 minutes au plus par membre. La photo est réduite à
+1600 px en JPEG dans le navigateur, stockée dans `STORAGE_ROOT/toilet-photos`
+(600, nom aléatoire), servie uniquement aux membres et comptée dans le quota
+commun. Le membre (ou un administrateur) peut supprimer un passage ; la photo
+part avec. Classement par semaine (lundi, heure de Paris), mois ou depuis
+toujours ; le statut dépend toujours du total.
+
+Migration : `db/schema-toilet.sql` (additive, rejouable). **À appliquer avant
+de déployer le code** : le calcul du quota lit `toilet_passage`, donc sans la
+table tous les envois de fichiers échoueraient. Le script de construction
+installé (`/usr/local/libexec/mp2ifsm-build-release`) est une copie figée qui
+ne l’applique pas. Test de bout en bout (schéma et stockage jetables) :
+
+```bash
+NEXT_BUILD_DIR=.next-portal-check npm run build
+node --env-file=.env --conditions=react-server --import tsx tests/toilet.integration.ts
+```
+
 ## Vidéos éducatives
 
 `/divertissement/videos` : les membres publient des vidéos où ils expliquent
