@@ -118,9 +118,27 @@ try {
   ok(page.includes("Premier jet") && page.includes("propreté prouvée") && page.includes("Test Alice"),
      "page : statut, fil et classement");
 
+  ok(page.includes("À prouver") && page.includes("Ajouter la photo"), "section « À prouver » pour le passage sans photo");
+
+  // Photo ajoutée après coup (wifi faible).
+  async function photoPlusTard(id: number, cookie: string, photo = PNG) {
+    const fd = new FormData();
+    fd.set("photo", new Blob([new Uint8Array(photo)], { type: "image/png" }), "p.png");
+    const res = await fetch(`${base}/api/toilet/passage/${id}/photo`, { method: "POST", body: fd, headers: { cookie, origin: base } });
+    return { status: res.status, body: await res.json() };
+  }
+  ok((await photoPlusTard(p1.body.id, bob)).status === 404, "Bob n’ajoute rien au passage d’Alice");
+  ok((await photoPlusTard(p1.body.id, alice, Buffer.from("texte"))).status === 400, "photo plus tard : type vérifié");
+  ok((await photoPlusTard(p1.body.id, alice)).status === 200, "Alice ajoute la photo plus tard");
+  const deja = await photoPlusTard(p1.body.id, alice);
+  ok(deja.status === 400 && deja.body.erreur.includes("déjà"), "pas de deuxième photo sur le même passage");
+  ok((await get(`/api/toilet/photo/${p1.body.id}`)).status === 200, "photo ajoutée servie");
+  ok(!(await (await get("/toilet")).text()).includes("À prouver"), "plus rien à prouver");
+  ok((await readdir(`${stockage}/toilet-photos`)).length === 2, "deux fichiers sur disque");
+
   ok((await action("supprimerPassage", [p3.body.id], bob)).ok === false, "Bob ne supprime rien");
   ok((await action("supprimerPassage", [p3.body.id])).ok === true, "Alice supprime son passage");
-  ok((await readdir(`${stockage}/toilet-photos`)).length === 0, "la photo part avec le passage");
+  ok((await readdir(`${stockage}/toilet-photos`)).length === 1, "la photo part avec le passage");
   console.log(`\n${n} vérifications Toilet! réussies`);
 } finally {
   serveur?.kill();

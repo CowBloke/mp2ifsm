@@ -158,6 +158,12 @@ psql "$DATABASE_URL" -Atc "select 'https://mp2ifsm.com/toilet/rejoindre/' || cod
 Pour changer le lien : `update toilet_config set code_invitation = replace(gen_random_uuid()::text,'-','');`
 (les membres déjà inscrits le restent).
 
+Le wifi passe mal aux toilettes du bas : la fenêtre propose l’appareil photo
+ou la pellicule, et on peut valider sans photo puis l’ajouter plus tard
+depuis la section « À prouver » (passages sans photo des 14 derniers jours,
+`POST /api/toilet/passage/<id>/photo`, auteur seulement, une photo par
+passage, l’heure du passage ne change pas).
+
 Un passage toutes les 3 minutes au plus par membre. La photo est réduite à
 1600 px en JPEG dans le navigateur, stockée dans `STORAGE_ROOT/toilet-photos`
 (600, nom aléatoire), servie uniquement aux membres et comptée dans le quota

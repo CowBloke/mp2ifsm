@@ -88,6 +88,14 @@ export async function derniersPassages(limite = 12): Promise<PassageVue[]> {
       order by p.cree_le desc limit $1`, [limite]);
 }
 
+/** Mes passages sans photo des 14 derniers jours : la preuve peut suivre. */
+export async function aProuver(userId: string): Promise<{ id: number; cree_le: string }[]> {
+  return query(
+    `select id, cree_le from toilet_passage
+      where user_id = $1::uuid and storage_name is null and cree_le > now() - interval '14 days'
+      order by cree_le desc limit 10`, [userId]);
+}
+
 export type MesStats = { total: number; aujourdhui: number; dernier: string | null };
 
 export async function mesStats(userId: string): Promise<MesStats> {

@@ -4,37 +4,20 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Dialogue } from "@/components/Dialogue";
 import { statutPour, type Statut } from "@/lib/toilet-statuts";
+import { ECHEC_RESEAU, reduirePhoto, type Photo } from "./photo";
 
 /*
  * Le gros bouton. Un appui ouvre la fenêtre qui propose la photo de
- * preuve de propreté ; on peut aussi valider sans photo.
- *
- * La photo est réduite dans le navigateur (1600 px, JPEG) : moins de
- * données mobiles, moins de stockage, et les formats exotiques du
- * téléphone (HEIC…) ressortent en JPEG. L'aperçu est une URL data:,
- * seule forme d'image locale que la CSP autorise.
+ * preuve de propreté : appareil photo ou pellicule. On peut aussi
+ * valider sans photo et l'ajouter plus tard (section « À prouver »),
+ * le wifi des toilettes du bas étant capricieux.
  */
-const COTE_MAX = 1600;
-
-type Photo = { blob: Blob; apercu: string };
 type Resultat = { total: number; nouveau: Statut | null };
-
-async function reduire(fichier: File): Promise<Photo> {
-  const bitmap = await createImageBitmap(fichier);
-  const echelle = Math.min(1, COTE_MAX / Math.max(bitmap.width, bitmap.height));
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.round(bitmap.width * echelle);
-  canvas.height = Math.round(bitmap.height * echelle);
-  canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  bitmap.close();
-  const blob = await new Promise<Blob>((ok, ko) =>
-    canvas.toBlob(b => (b ? ok(b) : ko(new Error("toBlob"))), "image/jpeg", 0.82));
-  return { blob, apercu: canvas.toDataURL("image/jpeg", 0.5) };
-}
 
 export function BoutonPassage() {
   const router = useRouter();
-  const entree = useRef<HTMLInputElement>(null);
+  const camera = useRef<HTMLInputElement>(null);
+  const galerie = useRef<HTMLInputElement>(null);
   const [ouvert, setOuvert] = useState(false);
   const [photo, setPhoto] = useState<Photo | null>(null);
   const [enCours, setEnCours] = useState(false);
@@ -50,7 +33,7 @@ export function BoutonPassage() {
     e.target.value = "";
     if (!f) return;
     setErreur(null);
-    try { setPhoto(await reduire(f)); }
+    try { setPhoto(await reduirePhoto(f)); }
     catch { setErreur("Photo illisible — essayez-en une autre"); }
   }
 
@@ -68,11 +51,14 @@ export function BoutonPassage() {
       setPhoto(null);
       router.refresh();
     } catch {
-      setErreur("Enregistrement impossible — réessayez");
+      setErreur(avecPhoto ? ECHEC_RESEAU : "Connexion perdue — réessayez");
     } finally {
       setEnCours(false);
     }
   }
+
+  const sourcePhoto = "flex h-28 flex-1 flex-col items-center justify-center gap-1 rounded-[var(--radius-lg)] "
+    + "border border-dashed border-[var(--border)] text-[14px] font-medium hover:bg-[var(--muted)]";
 
   return (
     <>
@@ -104,10 +90,12 @@ export function BoutonPassage() {
             <div className="flex flex-col gap-3">
               <p className="text-[15px] text-[var(--muted-foreground)]">
                 Une photo des toilettes du bas pour prouver que vous les laissez nickel ?
-                Elle n’est visible que par les membres de Toilet!.
+                Pas de réseau ? Validez sans photo et ajoutez-la plus tard depuis votre pellicule.
               </p>
 
-              <input ref={entree} type="file" accept="image/*" capture="environment"
+              <input ref={camera} type="file" accept="image/*" capture="environment"
+                     onChange={choisir} className="sr-only" tabIndex={-1} aria-hidden="true" />
+              <input ref={galerie} type="file" accept="image/*"
                      onChange={choisir} className="sr-only" tabIndex={-1} aria-hidden="true" />
 
               {photo ? (
@@ -115,17 +103,20 @@ export function BoutonPassage() {
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={photo.apercu} alt="Aperçu de la photo de preuve"
                        className="max-h-[45vh] w-full rounded-[var(--radius-lg)] object-cover" />
-                  <button type="button" onClick={() => entree.current?.click()}
-                          className="puce absolute bottom-3 right-3 bg-[var(--card)]">Reprendre</button>
+                  <button type="button" onClick={() => setPhoto(null)}
+                          className="puce absolute bottom-3 right-3 bg-[var(--card)]">Changer</button>
                 </div>
               ) : (
-                <button type="button" onClick={() => entree.current?.click()}
-                        className="flex h-32 flex-col items-center justify-center gap-1 rounded-[var(--radius-lg)]
-                                   border border-dashed border-[var(--border)] text-[15px] font-medium
-                                   hover:bg-[var(--muted)]">
-                  <span className="text-[28px]" aria-hidden="true">📸</span>
-                  Prendre une photo
-                </button>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => camera.current?.click()} className={sourcePhoto}>
+                    <span className="text-[26px]" aria-hidden="true">📸</span>
+                    Prendre une photo
+                  </button>
+                  <button type="button" onClick={() => galerie.current?.click()} className={sourcePhoto}>
+                    <span className="text-[26px]" aria-hidden="true">🖼️</span>
+                    Choisir dans la galerie
+                  </button>
+                </div>
               )}
 
               {erreur && <p role="alert" className="text-[13px] font-medium text-[var(--destructive)]">{erreur}</p>}

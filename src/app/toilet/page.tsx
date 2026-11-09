@@ -3,9 +3,10 @@ import { notFound, redirect } from "next/navigation";
 import { LienRetour } from "@/components/LienRetour";
 import { BoutonPassage } from "@/components/toilet/BoutonPassage";
 import { PartagerLien, SupprimerPassage } from "@/components/toilet/Outils";
+import { AjouterPhoto } from "@/components/toilet/AjouterPhoto";
 import { utilisateurCourant } from "@/lib/session";
 import {
-  classementToilet, codeInvitation, derniersPassages, ilYa, mesStats, toiletVisible,
+  aProuver, classementToilet, codeInvitation, derniersPassages, ilYa, mesStats, toiletVisible,
 } from "@/lib/toilet";
 import {
   PERIODES, lirePeriode, passages, prochainStatut, statutPour, type Periode,
@@ -27,8 +28,8 @@ export default async function PageToilet({ searchParams }: {
   if (!(await toiletVisible(u.id))) notFound();
 
   const periode = lirePeriode((await searchParams).periode);
-  const [stats, lignes, fil, code] = await Promise.all([
-    mesStats(u.id), classementToilet(periode), derniersPassages(), codeInvitation(),
+  const [stats, lignes, fil, code, sansPhoto] = await Promise.all([
+    mesStats(u.id), classementToilet(periode), derniersPassages(), codeInvitation(), aProuver(u.id),
   ]);
   const statut = statutPour(stats.total);
   const prochain = prochainStatut(stats.total);
@@ -72,6 +73,23 @@ export default async function PageToilet({ searchParams }: {
       </section>
 
       <BoutonPassage />
+
+      {sansPhoto.length > 0 && (
+        <section aria-labelledby="titre-a-prouver" className="mt-8">
+          <h2 id="titre-a-prouver" className="text-[20px] font-semibold">À prouver</h2>
+          <p className="mb-2 mt-1 text-[13px] text-[var(--muted-foreground)]">
+            Vos passages sans photo : ajoutez la preuve depuis votre pellicule une fois le wifi retrouvé.
+          </p>
+          <ul>
+            {sansPhoto.map(p => (
+              <li key={p.id} className="ligne">
+                <span className="ligne__titre flex-1">{ilYa(p.cree_le)}</span>
+                <AjouterPhoto passageId={p.id} />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section aria-labelledby="titre-classement" className="mt-10">
         <h2 id="titre-classement" className="mb-3 text-[20px] font-semibold">Classement</h2>

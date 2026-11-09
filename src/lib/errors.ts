@@ -61,6 +61,7 @@ export const MESSAGES_FR: Record<string, string> = {
   GROUPE_INVALIDE: "Numéro de groupe de colles invalide",
   RETOUR_INVALIDE: "Message trop court (5 caractères minimum)",
   TOILET_TROP_TOT: "Doucement ! Un passage toutes les 3 minutes au maximum",
+  TOILET_DEJA_PROUVE: "Ce passage a déjà sa photo",
   TOILET_LIEN_INVALIDE: "Ce lien secret ne fonctionne pas",
   RETOURS_TROP_NOMBREUX: "Trop de retours envoyés aujourd’hui, réessayez demain",
 };
