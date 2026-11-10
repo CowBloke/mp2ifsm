@@ -1,10 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { query } from "./db";
 import { ErreurMetier, messageFr } from "./errors";
 import { exigerUtilisateur, reporterDemandeGroupe } from "./session";
-import { groupeValide } from "./colloscope";
+import { enregistrerGroupe } from "./colles";
 import type { Reponse } from "./actions";
 
 function echec(err: unknown): { ok: false; erreur: string } {
@@ -15,9 +14,7 @@ function echec(err: unknown): { ok: false; erreur: string } {
 /** Enregistre (ou retire, avec null) le groupe de colles du membre. */
 export async function definirGroupe(groupe: number | null): Promise<Reponse<{ groupe: number | null }>> {
   try {
-    const u = await exigerUtilisateur();
-    if (groupe !== null && !groupeValide(groupe)) throw new ErreurMetier("GROUPE_INVALIDE");
-    await query(`update app_user set groupe_colle = $2 where id = $1::uuid`, [u.id, groupe]);
+    await enregistrerGroupe(await exigerUtilisateur(), groupe);
     revalidatePath("/", "layout");
     return { ok: true, data: { groupe } };
   } catch (err) {

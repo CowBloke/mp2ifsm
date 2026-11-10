@@ -12,6 +12,92 @@ corriger une en touchant sa ligne. Les colles viennent du colloscope et ne se
 modifient pas ici. La colonne `echeance.kind` reste en base (défaut `Autre`)
 mais n’est plus lue.
 
+## App iOS et API de l’app
+
+L’app native (SwiftUI, `ios/`) se construit sous Linux avec xtool :
+`cd ios && xtool dev build` (ou `xtool dev run`, iPhone branché). Elle
+parle à `/api/app/*` avec un jeton porteur (`Authorization: Bearer`)
+obtenu par `POST /api/app/connexion` ; `utilisateurCourant()` accepte ce
+jeton comme le cookie du site, donc les routes de fichiers existantes
+(`/api/documents/*`, `/api/videos/*`, `/api/fiches/image/*`) servent l’app
+telles quelles.
+
+Les routes de l’app appellent les fonctions de `src/lib` (échéances,
+colles, documents, `revision.ts`, `cartes.ts`, `videos.ts`, `cours.ts`,
+`profil.ts`, `toilet.ts`, `inscrireMembre` de `session.ts`), les mêmes que
+les actions serveur du site : mêmes validations et mêmes droits. **Une
+route API n’importe jamais un module `"use server"`** : Next.js lui
+transférerait les appels d’action venus des pages (`tests/routes-api.test.ts`
+le vérifie).
+
+```bash
+NEXT_BUILD_DIR=.next-portal-check npm run build
+node --env-file=.env --conditions=react-server --import tsx tests/app-api.integration.ts   # port 4265
+```
+
+L’app ne renvoie plus vers le site : inscription (code d’invitation),
+édition des fiches (paquets, cartes, aperçu composé par `/api/app/apercu`,
+historique, signalements), profil (portefeuille et transferts kcmaths,
+paris, relevé, partage des révisions, retours, propositions de paris),
+Réels (générés sur le téléphone, comme `src/lib/reels.ts`) et Toilet!.
+Toilet! reste cachée : l’accueil renvoie `utilisateur.toilet`, et
+`/api/app/toilet` répond 404 hors membres ; on y entre toujours par le
+lien secret du site.
+
+**Notifications de l’app** : un iPhone est un appareil du membre au même
+titre qu’un abonnement Web Push (table `apns_appareil`, bloc du 10 novembre
+2026 de `db/schema-dossiers.sql`, à appliquer avant le code : la liste des
+destinataires la lit). Mêmes réglages, mêmes envois uniques (`notif_envoi`).
+L’envoi APNs (`src/lib/apns.ts`, HTTP/2 + JWT ES256, sans dépendance) demande
+`APNS_KEY_ID`, `APNS_TEAM_ID` et `APNS_KEY_PATH` ; sans eux, rien ne part
+vers les iPhone. Un jeton refusé par Apple (410, `BadDeviceToken`…) est
+supprimé. L’app signée par `xtool dev run` utilise les serveurs de test
+d’Apple (`sandbox`) ; une build TestFlight ou App Store, la production, et
+son profil de distribution demande `aps-environment` = `production` dans
+`ios/MP2.entitlements`. `tests/apns.test.ts` vérifie l’envoi contre un faux
+serveur APNs local.
+
+**Studio vidéo de l’app** : la caméra écrit elle-même des MP4 H.264
+720×1280 à 2,5 Mbit/s (3 minutes ≈ 60 Mo, sous la limite de 90 Mo de
+`/api/videos`) ; la caméra avant filme en miroir, telle qu’on se voit.
+Comme sur le site, le filtre de chaque clip va dans le montage et le Pi
+l’applique au rendu (l’app ne s’en sert que pour l’aperçu, avec les mêmes
+fonctions CSS). Les lentilles natives (Zoom dramatique, Sourcils suspects,
+Yeux laser, Randomiseur prépa, Pensées intrusives, PNJ) suivent le visage
+avec Vision et sont dessinées dans le clip.
+
+**Marché dans l’app** : mêmes lectures (`queries.ts`) et même mise
+(`src/lib/paris.ts`, partagée avec l’action du site) ; tout l’argent passe
+par `place_bet`. L’app n’affiche qu’une estimation pendant la saisie et une
+clé d’idempotence tirée à l’ouverture de la feuille empêche toute mise en
+double. Les transferts KC coins restent sur le site.
+
+## Cours
+
+Onglet Cours de l’app : chapitres par matière, PDF du cours, paquets de
+fiches proposés (suivis et révisés dans l’app), corrigés et DM rattachés au
+chapitre, et un assistant qui cherche dans le texte de toutes les pages
+(plein texte français, extrait surligné, ouverture à la page exacte).
+
+Le contenu est publié par une source externe munie de `COURS_TOKEN`
+(`/api/cours/publier`, détail dans la route). Ce jeton ne touche qu’aux
+tables `cours_*`, jamais aux comptes ni aux contenus des membres. PDF dans
+`STORAGE_ROOT/cours` (600, nom aléatoire), servis par
+`/api/cours/fichier/<id>` aux membres connectés, plafond propre
+`QUOTA_COURS` (5 Gio par défaut, hors quota des membres). Le texte de
+chaque page est envoyé par la source (le serveur n’extrait rien).
+
+Migration : `db/schema-cours.sql` (additive, rejouable). Seules les routes
+Cours en dépendent. Publier depuis un PC (poppler-utils pour le texte) :
+
+```bash
+export COURS_TOKEN=...
+node --experimental-strip-types scripts/publier-cours.ts chapitre --cle maths-ch6 --titre "Complexes" --matiere Maths --numero 6
+node --experimental-strip-types scripts/publier-cours.ts fichier --chapitre maths-ch6 --cle cours --titre "Cours" "MP2I - chapitre 6.pdf"
+node --experimental-strip-types scripts/publier-cours.ts paquets --chapitre maths-ch6 complexes
+node --experimental-strip-types scripts/publier-cours.ts liste
+```
+
 ## Fiches
 
 Page Fiches : **Récemment ajoutés**, **Suivis**, puis tous les paquets **par

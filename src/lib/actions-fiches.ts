@@ -1,15 +1,21 @@
 "use server";
 
-import { verifierRevision } from "./revision-token";
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
-import { query, queryOne, tx } from "./db";
+import { query } from "./db";
+import { partagerStatsPour } from "./profil";
 import { ErreurMetier, messageFr } from "./errors";
 import { exigerAdmin, exigerUtilisateur } from "./session";
-import { noteDepuisCle, noterProjection, versDb, formatIntervalle, type EtatDb } from "./fsrs";
-import { matiereDuFormulaire } from "./matieres";
-import { dossierDuFormulaire } from "./dossiers-formulaire";
+import {
+  abonnerPaquet, aimerPaquetPour, carteRendue, enregistrerRevision,
+  type CarteRendue, type ResultatRevision,
+} from "./revision";
+import {
+  ajouterCartePour, changerMatierePaquetPour, creerPaquetPour, modifierCartePour,
+  modifierPaquetPour, signalerCartePour, supprimerCartePour,
+} from "./cartes";
 import type { Reponse } from "./actions";
+
+export type { CarteRendue, ResultatRevision };
 
 function echec(err: unknown): { ok: false; erreur: string } {
   if (!(err instanceof ErreurMetier)) console.error(err);
@@ -20,12 +26,6 @@ function echec(err: unknown): { ok: false; erreur: string } {
 /* Révision                                                            */
 /* ------------------------------------------------------------------ */
 
-export type ResultatRevision = {
-  cardId: number;
-  etat: string;
-  due: string;
-  intervalle: string;
-};
 
 /**
  * Enregistre une révision.
@@ -42,76 +42,8 @@ export async function reviserCarte(
   dureeMs?: number,
 ): Promise<Reponse<ResultatRevision>> {
   try {
-    const u = await exigerUtilisateur();
-
-    const note = noteDepuisCle(cleNote);
-    if (note === null) throw new ErreurMetier("NOTE_INVALIDE");
-    if (!Number.isSafeInteger(cardId) || cardId <= 0) throw new ErreurMetier("CARTE_INTROUVABLE");
-
-    const projection = verifierRevision(jeton, u.id, cardId);
-    const resultat = await tx(async (c) => {
-      await c.query("select pg_advisory_xact_lock(hashtextextended($1, 0))", [`${u.id}:${cardId}`]);
-      const existe = await c.query<{ abonne: boolean }>(
-        `select exists (select 1 from deck_subscription ab
-                         where ab.deck_id = k.deck_id and ab.user_id = $2::uuid) as abonne
-           from card k where k.id = $1 and k.deleted_at is null`, [cardId, u.id]);
-      if (existe.rowCount === 0) throw new ErreurMetier("CARTE_INTROUVABLE");
-      if (!existe.rows[0].abonne) throw new ErreurMetier("PAS_ABONNE");
-
-      // Verrou sur l'état de CE membre pour CETTE carte.
-      const actuel = await c.query<EtatDb>(
-        `select state::text as state, due, stability, difficulty, elapsed_days,
-                scheduled_days, learning_steps, reps, lapses, last_review
-           from card_state where user_id = $1::uuid and card_id = $2 for update`,
-        [u.id, cardId],
-      );
-      const etat = actuel.rows[0] ?? null;
-
-      if ((etat?.reps ?? 0) !== projection.reps) throw new ErreurMetier("REVISION_EXPIREE");
-      const maintenant = new Date();
-      const { card: suivante, log } = noterProjection(etat, note, projection.now, maintenant);
-      const d = versDb(suivante);
-
-      await c.query(
-        `insert into card_state (user_id, card_id, state, due, stability, difficulty,
-                                 elapsed_days, scheduled_days, learning_steps,
-                                 reps, lapses, last_review)
-         values ($1::uuid,$2,$3::fsrs_state,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-         on conflict (user_id, card_id) do update set
-           state = excluded.state, due = excluded.due,
-           stability = excluded.stability, difficulty = excluded.difficulty,
-           elapsed_days = excluded.elapsed_days, scheduled_days = excluded.scheduled_days,
-           learning_steps = excluded.learning_steps,
-           reps = excluded.reps, lapses = excluded.lapses,
-           last_review = excluded.last_review`,
-        [u.id, cardId, d.state, d.due, d.stability, d.difficulty, d.elapsed_days,
-         d.scheduled_days, d.learning_steps, d.reps, d.lapses, d.last_review],
-      );
-
-      await c.query(
-        `insert into review_log (user_id, card_id, rating, state, due, stability,
-                                 difficulty, elapsed_days, last_elapsed_days,
-                                 scheduled_days, reviewed_at, duree_ms)
-         values ($1::uuid,$2,$3,$4::fsrs_state,$5,$6,$7,$8,$9,$10,$11,$12)`,
-        [u.id, cardId, note, (["New","Learning","Review","Relearning"])[log.state],
-         log.due, log.stability, log.difficulty,
-         Math.max(0, Math.round(log.elapsed_days)),
-         Math.max(0, Math.round(log.last_elapsed_days)),
-         Math.max(0, Math.round(log.scheduled_days)), maintenant,
-         Number.isSafeInteger(dureeMs) && dureeMs! >= 0 && dureeMs! <= 2147483647 ? dureeMs : null],
-      );
-
-      return {
-        cardId,
-        etat: d.state,
-        due: new Date(d.due).toISOString(),
-        // Dérivé de la date RÉELLEMENT planifiée, pas d'une reprojection :
-        // le fuzz FSRS ferait diverger les deux.
-        intervalle: formatIntervalle(new Date(d.due), maintenant),
-      };
-    });
-
-    return { ok: true, data: resultat };
+    const data = await enregistrerRevision(await exigerUtilisateur(), cardId, cleNote, jeton, dureeMs);
+    return { ok: true, data };
   } catch (err) {
     return echec(err);
   }
@@ -121,48 +53,12 @@ export async function reviserCarte(
 /* Paquets                                                             */
 /* ------------------------------------------------------------------ */
 
-const SchemaPaquet = z.object({
-  titre: z.string().trim().min(2).max(120),
-  description: z.string().trim().max(1000).optional(),
-});
-
 export async function creerPaquet(formData: FormData): Promise<Reponse<{ slug: string }>> {
   try {
-    const u = await exigerUtilisateur();
-    const p = SchemaPaquet.safeParse({
-      titre: formData.get("titre"),
-      description: formData.get("description") || undefined,
+    const { slug } = await creerPaquetPour(await exigerUtilisateur(), {
+      titre: formData.get("titre"), description: formData.get("description"),
+      matiere: formData.get("matiere"), dossier: formData.get("dossier"),
     });
-    if (!p.success) return { ok: false, erreur: "Formulaire invalide" };
-
-    const slug = await tx(async (c) => {
-      // Un paquet créé dans un dossier prend la matière de ce dossier.
-      const dossier = await dossierDuFormulaire(formData.get("dossier"), "deck", c);
-      const matiere = dossier ? dossier.subject_id : await matiereDuFormulaire(formData.get("matiere"), c);
-      const nom = matiere === null ? "" : (await c.query<{ nom: string }>(
-        `select nom from subject where id = $1`, [matiere])).rows[0].nom;
-      const base = slugifier(`${nom}-${p.data.titre}`);
-      let candidat = base;
-      for (let n = 2; ; n++) {
-        const pris = await c.query(`select 1 from deck where slug = $1`, [candidat]);
-        if (pris.rowCount === 0) break;
-        candidat = `${base.slice(0, 58)}-${n}`;
-      }
-      const d = await c.query<{ id: number }>(
-        `insert into deck (slug, titre, subject_id, folder_id, chapitre, description, created_by)
-         values ($1,$2,$3,$4,$5,$6,$7::uuid) returning id`,
-        // La colonne chapitre (historique, non nulle) reprend le titre.
-        [candidat, p.data.titre, matiere, dossier?.id ?? null, p.data.titre,
-         p.data.description ?? null, u.id],
-      );
-      // Qui crée un paquet le suit : c'est lui qui va le remplir.
-      await c.query(
-        `insert into deck_subscription (user_id, deck_id) values ($1::uuid, $2)`,
-        [u.id, d.rows[0].id],
-      );
-      return candidat;
-    });
-
     revalidatePath("/fiches");
     return { ok: true, data: { slug } };
   } catch (err) {
@@ -180,26 +76,7 @@ export async function suivrePaquet(
   suivre: boolean,
 ): Promise<Reponse<{ abonne: boolean }>> {
   try {
-    const u = await exigerUtilisateur();
-    if (!Number.isSafeInteger(deckId) || deckId <= 0 || typeof suivre !== "boolean") {
-      throw new ErreurMetier("PAQUET_INTROUVABLE");
-    }
-    if (suivre) {
-      const r = await query(
-        `insert into deck_subscription (user_id, deck_id)
-         select $1::uuid, id from deck where id = $2 and archived_at is null
-         on conflict do nothing returning deck_id`,
-        [u.id, deckId],
-      );
-      if (r.length === 0) {
-        const existe = await queryOne(`select 1 from deck_subscription
-          where user_id = $1::uuid and deck_id = $2`, [u.id, deckId]);
-        if (!existe) throw new ErreurMetier("PAQUET_INTROUVABLE");
-      }
-    } else {
-      await query(`delete from deck_subscription where user_id = $1::uuid and deck_id = $2`,
-        [u.id, deckId]);
-    }
+    await abonnerPaquet(await exigerUtilisateur(), deckId, suivre);
     revalidatePath("/fiches");
     revalidatePath("/");
     return { ok: true, data: { abonne: suivre } };
@@ -214,19 +91,7 @@ export async function changerMatierePaquet(
   matiere: string,
 ): Promise<Reponse<undefined>> {
   try {
-    const u = await exigerUtilisateur();
-    const id = await matiereDuFormulaire(matiere);
-    // Le paquet quitte son dossier si celui-ci est dans une autre matière.
-    const r = await query(
-      `update deck set subject_id = $2,
-              folder_id = case when folder_id is not null and not exists (
-                  select 1 from dossier f where f.id = deck.folder_id
-                     and f.subject_id is not distinct from $2::smallint)
-                then null else folder_id end
-        where id = $1 and ($4::boolean or created_by = $3::uuid) returning id`,
-      [deckId, id, u.id, u.role === "admin"],
-    );
-    if (r.length === 0) throw new ErreurMetier("NON_AUTORISE");
+    await changerMatierePaquetPour(await exigerUtilisateur(), deckId, matiere);
     revalidatePath("/fiches");
     revalidatePath("/");
     return { ok: true };
@@ -235,45 +100,16 @@ export async function changerMatierePaquet(
   }
 }
 
-/**
- * Modifie titre, description et matière d'un paquet : son créateur ou
- * un administrateur. Le slug ne change pas, les liens restent valides.
- */
+/** Modifie titre, description et matière d'un paquet : son créateur ou un administrateur. */
 export async function modifierPaquet(
   deckId: number,
   formData: FormData,
 ): Promise<Reponse<undefined>> {
   try {
-    const u = await exigerUtilisateur();
-    if (!Number.isSafeInteger(deckId) || deckId <= 0) throw new ErreurMetier("PAQUET_INTROUVABLE");
-    const p = SchemaPaquet.safeParse({
-      titre: formData.get("titre"),
-      description: formData.get("description") ?? "",
+    await modifierPaquetPour(await exigerUtilisateur(), deckId, {
+      titre: formData.get("titre"), description: formData.get("description") ?? "",
+      matiere: formData.get("matiere"),
     });
-    if (!p.success) return { ok: false, erreur: "Titre : 2 à 120 caractères" };
-
-    await tx(async (c) => {
-      const d = await c.query<{ subject_id: number | null }>(
-        `select subject_id from deck where id = $1 and archived_at is null
-            and ($3::boolean or created_by = $2::uuid) for update`,
-        [deckId, u.id, u.role === "admin"],
-      );
-      if (d.rowCount === 0) throw new ErreurMetier("NON_AUTORISE");
-      // Une matière archivée reste acceptée si c'est déjà celle du paquet.
-      const brut = String(formData.get("matiere") ?? "").trim();
-      const matiere = brut !== "" && Number(brut) === d.rows[0].subject_id
-        ? d.rows[0].subject_id : await matiereDuFormulaire(brut, c);
-      await c.query(
-        `update deck set titre = $2, description = $3, subject_id = $4,
-                folder_id = case when folder_id is not null and not exists (
-                    select 1 from dossier f where f.id = deck.folder_id
-                       and f.subject_id is not distinct from $4::smallint)
-                  then null else folder_id end
-          where id = $1`,
-        [deckId, p.data.titre, p.data.description || null, matiere],
-      );
-    });
-
     revalidatePath("/fiches");
     revalidatePath("/");
     return { ok: true };
@@ -288,41 +124,17 @@ export async function aimerPaquet(
   aime: boolean,
 ): Promise<Reponse<{ likes: number; aime: boolean }>> {
   try {
-    const u = await exigerUtilisateur();
-    if (!Number.isSafeInteger(deckId) || deckId <= 0 || typeof aime !== "boolean") {
-      throw new ErreurMetier("PAQUET_INTROUVABLE");
-    }
-    if (aime) {
-      await query(
-        `insert into deck_like (user_id, deck_id)
-         select $1::uuid, id from deck where id = $2 and archived_at is null
-         on conflict do nothing`, [u.id, deckId]);
-    } else {
-      await query(`delete from deck_like where user_id = $1::uuid and deck_id = $2`, [u.id, deckId]);
-    }
-    const r = await queryOne<{ likes: number; aime: boolean }>(
-      `select count(*)::int as likes, bool_or(user_id = $2::uuid) as aime
-         from deck_like where deck_id = $1`, [deckId, u.id]);
+    const data = await aimerPaquetPour(await exigerUtilisateur(), deckId, aime);
     revalidatePath("/fiches");
-    return { ok: true, data: { likes: r?.likes ?? 0, aime: r?.aime ?? false } };
+    return { ok: true, data };
   } catch (err) {
     return echec(err);
   }
 }
 
-function slugifier(s: string): string {
-  return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "paquet";
-}
-
 /* ------------------------------------------------------------------ */
 /* Cartes — n'importe qui peut en ajouter, tout est tracé              */
 /* ------------------------------------------------------------------ */
-
-const SchemaCarte = z.object({
-  recto: z.string().trim().min(1).max(8000),
-  verso: z.string().trim().min(1).max(8000),
-});
 
 export async function ajouterCarte(
   deckId: number,
@@ -330,28 +142,15 @@ export async function ajouterCarte(
   verso: string,
 ): Promise<Reponse<{ cardId: number }>> {
   try {
-    const u = await exigerUtilisateur();
-    const p = SchemaCarte.safeParse({ recto, verso });
-    if (!p.success) throw new ErreurMetier("CARTE_VIDE");
-
-    const r = await queryOne<{ id: number }>(
-      `insert into card (deck_id, recto, verso, author_id) values ($1,$2,$3,$4::uuid)
-       returning id`,
-      [deckId, p.data.recto, p.data.verso, u.id],
-    );
-
+    const data = await ajouterCartePour(await exigerUtilisateur(), deckId, recto, verso);
     revalidatePath("/fiches");
-    return { ok: true, data: { cardId: r!.id } };
+    return { ok: true, data };
   } catch (err) {
     return echec(err);
   }
 }
 
-/**
- * Modifie une carte. La révision précédente est conservée par le
- * trigger `card_revision_auto`, donc une correction est toujours
- * réversible et attribuable.
- */
+/** Modifie une carte ; la version précédente reste dans l'historique. */
 export async function modifierCarte(
   cardId: number,
   recto: string,
@@ -359,33 +158,7 @@ export async function modifierCarte(
   motif: string,
 ): Promise<Reponse<undefined>> {
   try {
-    const u = await exigerUtilisateur();
-    const p = SchemaCarte.safeParse({ recto, verso });
-    if (!p.success) throw new ErreurMetier("CARTE_VIDE");
-
-    await tx(async (c) => {
-      const avant = await c.query<{ recto: string; verso: string }>(
-        `select recto, verso from card where id = $1 and deleted_at is null for update`,
-        [cardId],
-      );
-      if (avant.rowCount === 0) throw new ErreurMetier("CARTE_INTROUVABLE");
-      if (avant.rows[0].recto === p.data.recto && avant.rows[0].verso === p.data.verso) {
-        return;
-      }
-
-      await c.query(
-        `update card set recto = $2, verso = $3, updated_at = now() where id = $1`,
-        [cardId, p.data.recto, p.data.verso],
-      );
-      // Révision explicite : elle porte l'auteur de la MODIFICATION,
-      // là où le trigger d'insertion porte l'auteur d'origine.
-      await c.query(
-        `insert into card_revision (card_id, recto, verso, edited_by, motif)
-         values ($1,$2,$3,$4::uuid,$5)`,
-        [cardId, p.data.recto, p.data.verso, u.id, motif.trim() || null],
-      );
-    });
-
+    await modifierCartePour(await exigerUtilisateur(), cardId, recto, verso, motif);
     revalidatePath("/fiches");
     return { ok: true };
   } catch (err) {
@@ -395,15 +168,7 @@ export async function modifierCarte(
 
 export async function signalerCarte(cardId: number, motif: string): Promise<Reponse<undefined>> {
   try {
-    const u = await exigerUtilisateur();
-    if (motif.trim().length < 3) throw new ErreurMetier("MOTIF_TROP_COURT");
-
-    await query(
-      `insert into card_report (card_id, reported_by, motif) values ($1,$2::uuid,$3)
-       on conflict do nothing`,
-      [cardId, u.id, motif.trim()],
-    );
-
+    await signalerCartePour(await exigerUtilisateur(), cardId, motif);
     revalidatePath("/fiches");
     return { ok: true };
   } catch (err) {
@@ -429,15 +194,7 @@ export async function resoudreSignalement(reportId: number): Promise<Reponse<und
 /** Suppression douce : l'auteur ou un admin seulement. */
 export async function supprimerCarte(cardId: number): Promise<Reponse<undefined>> {
   try {
-    const u = await exigerUtilisateur();
-    const r = await query<{ id: number }>(
-      `update card set deleted_at = now(), deleted_by = $2::uuid
-        where id = $1 and deleted_at is null
-          and ($3::boolean or author_id = $2::uuid)
-        returning id`,
-      [cardId, u.id, u.role === "admin"],
-    );
-    if (r.length === 0) throw new ErreurMetier("NON_AUTORISE");
+    await supprimerCartePour(await exigerUtilisateur(), cardId);
     revalidatePath("/fiches");
     return { ok: true };
   } catch (err) {
@@ -448,8 +205,7 @@ export async function supprimerCarte(cardId: number): Promise<Reponse<undefined>
 /** Partage des statistiques dans la heatmap de classe (opt-in). */
 export async function basculerPartageStats(actif: boolean): Promise<Reponse<{ actif: boolean }>> {
   try {
-    const u = await exigerUtilisateur();
-    await query(`update app_user set partage_stats = $2 where id = $1::uuid`, [u.id, actif]);
+    await partagerStatsPour(await exigerUtilisateur(), actif);
     revalidatePath("/profil");
     revalidatePath("/fiches");
     return { ok: true, data: { actif } };
@@ -462,57 +218,13 @@ export async function basculerPartageStats(actif: boolean): Promise<Reponse<{ ac
 /* Session de révision                                                 */
 /* ------------------------------------------------------------------ */
 
-export type CarteRendue = {
-  jeton: string;
-  cardId: number;
-  rectoHtml: string;
-  rectoReveleHtml: string;
-  versoHtml: string;
-  trousHtml: string[];
-  auteur: string;
-  signalee: boolean;
-  apercu: Array<{ cle: string; label: string; touche: string; intervalle: string }>;
-  restant: { nouvelles: number; apprentissage: number; a_revoir: number };
-  nouvelle: boolean;
-  /** Titre du paquet de la carte (le flash mélange les paquets). */
-  paquet: string;
-};
-
-/**
- * Carte suivante de la session, déjà composée.
- *
- * Le HTML (KaTeX compris) est produit ici : le navigateur ne reçoit ni
- * la bibliothèque de rendu, ni les intervalles à calculer.
- */
+/** Carte suivante de la session, déjà composée (voir `carteRendue`). */
 export async function carteSuivante(
   deckId: number | null,
   exclure: number[] = [],
 ): Promise<Reponse<CarteRendue | null>> {
   try {
-    const u = await exigerUtilisateur();
-    const { prochaineCarte } = await import("./fiches");
-    const { composerCarte } = await import("./rendu");
-
-    if (deckId !== null && (!Number.isSafeInteger(deckId) || deckId <= 0)) throw new ErreurMetier("PAQUET_INTROUVABLE");
-    const vues = Array.isArray(exclure)
-      ? exclure.filter((n) => Number.isSafeInteger(n) && n > 0).slice(0, 50) : [];
-    const c = await prochaineCarte(u.id, deckId, vues);
-    if (!c) return { ok: true, data: null };
-
-    return {
-      ok: true,
-      data: {
-        jeton: c.jeton,
-        cardId: c.card_id,
-        ...composerCarte(c.recto, c.verso),
-        auteur: c.auteur,
-        signalee: c.signalee,
-        apercu: c.apercu,
-        restant: c.restant,
-        nouvelle: c.etat === null,
-        paquet: c.deck_titre,
-      },
-    };
+    return { ok: true, data: await carteRendue(await exigerUtilisateur(), deckId, exclure) };
   } catch (err) {
     return echec(err);
   }

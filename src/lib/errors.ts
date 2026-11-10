@@ -26,6 +26,7 @@ export const MESSAGES_FR: Record<string, string> = {
   IDENTIFIANTS_INVALIDES: "Email ou mot de passe incorrect",
   EMAIL_DEJA_UTILISE: "Cet email est déjà inscrit",
   PSEUDO_DEJA_UTILISE: "Ce pseudo est déjà pris",
+  PSEUDO_INVALIDE: "Pseudo : 2 à 40 caractères",
   CODE_INVITATION_INVALIDE: "Code d’invitation invalide ou épuisé",
   MOT_DE_PASSE_COURT: "Mot de passe : 8 caractères minimum",
   CHAMPS_MANQUANTS: "Merci de remplir tous les champs",
@@ -36,6 +37,7 @@ export const MESSAGES_FR: Record<string, string> = {
   CARTE_VIDE: "Le recto et le verso sont obligatoires",
   MOTIF_TROP_COURT: "Motif trop court",
   PAQUET_INTROUVABLE: "Paquet introuvable",
+  TITRE_PAQUET: "Titre : 2 à 120 caractères",
   DOCUMENT_INTROUVABLE: "Document introuvable",
   TYPE_NON_AUTORISE: "Type de fichier non autorisé",
   FICHIER_TROP_GROS: "Fichier trop volumineux",
@@ -63,7 +65,21 @@ export const MESSAGES_FR: Record<string, string> = {
   TOILET_TROP_TOT: "Doucement ! Un passage toutes les 3 minutes au maximum",
   TOILET_DEJA_PROUVE: "Ce passage a déjà sa photo",
   TOILET_LIEN_INVALIDE: "Ce lien secret ne fonctionne pas",
+  PROPOSITION_QUESTION: "Question trop courte (8 caractères minimum)",
+  PROPOSITION_DESCRIPTION: "Précisez comment le pari sera tranché",
+  PROPOSITION_DATE: "La fermeture doit être dans le futur",
+  PROPOSITION_ISSUES: "De 2 à 10 issues, toutes différentes",
+  PROPOSITIONS_TROP_NOMBREUSES: "Vous avez déjà 10 propositions en attente",
   RETOURS_TROP_NOMBREUX: "Trop de retours envoyés aujourd’hui, réessayez demain",
+  ECHEANCE_INVALIDE: "Formulaire invalide",
+  DATE_INVALIDE: "Date invalide",
+  ECHEANCE_INTROUVABLE: "Échéance introuvable",
+  COURS_CLE_INVALIDE: "Identifiant invalide (minuscules, chiffres et tirets)",
+  CHAPITRE_INTROUVABLE: "Chapitre introuvable",
+  APPAREIL_INVALIDE: "Appareil non reconnu pour les notifications",
+  // En dernier : la recherche par sous-chaîne doit d'abord trouver les
+  // codes précis (CARTE_INTROUVABLE, DOSSIER_INTROUVABLE…).
+  INTROUVABLE: "Élément introuvable",
 };
 
 const MESSAGE_GENERIQUE = "Une erreur est survenue, réessayez";
@@ -105,4 +121,15 @@ export function messageFr(err: unknown): string {
     return "Opération déjà enregistrée";
   }
   return MESSAGE_GENERIQUE;
+}
+
+/**
+ * Erreur attendue (saisie refusée, règle métier) plutôt que panne : une
+ * ErreurMetier, ou une erreur SQL portant un de nos codes
+ * (« ERROR: INSUFFICIENT_FUNDS » levé par place_bet…).
+ */
+export function estErreurAttendue(err: unknown): boolean {
+  if (err instanceof ErreurMetier) return true;
+  const brut = err instanceof Error ? err.message : String(err ?? "");
+  return Object.keys(MESSAGES_FR).some((code) => brut.includes(code));
 }

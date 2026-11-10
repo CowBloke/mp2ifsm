@@ -1,7 +1,9 @@
 import "server-only";
 import { query } from "./db";
+import { ErreurMetier } from "./errors";
+import type { Utilisateur } from "./session";
 import {
-  MATIERES_COLLES, collesDuGroupe, semaineDuGroupe,
+  MATIERES_COLLES, collesDuGroupe, groupeValide, semaineDuGroupe,
   type CodeMatiereColle, type ColleDatee, type SemaineColles,
 } from "./colloscope";
 
@@ -138,4 +140,10 @@ export function jourRelatif(iso: string, maintenant = new Date()): string {
     return new Date(iso).toLocaleDateString("fr-FR", { timeZone: TZ, weekday: "long" });
   }
   return new Date(iso).toLocaleDateString("fr-FR", { timeZone: TZ, weekday: "short", day: "numeric" });
+}
+
+/** Enregistre (ou retire, avec null) le groupe de colles du membre. */
+export async function enregistrerGroupe(u: Utilisateur, groupe: number | null): Promise<void> {
+  if (groupe !== null && !groupeValide(groupe)) throw new ErreurMetier("GROUPE_INVALIDE");
+  await query(`update app_user set groupe_colle = $2 where id = $1::uuid`, [u.id, groupe]);
 }

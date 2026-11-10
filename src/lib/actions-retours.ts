@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { query, tx } from "./db";
+import { query } from "./db";
+import { envoyerRetourPour } from "./profil";
 import { ErreurMetier, messageFr } from "./errors";
 import { exigerAdmin, exigerUtilisateur } from "./session";
 import type { Reponse } from "./actions";
@@ -12,36 +13,11 @@ function echec(err: unknown): { ok: false; erreur: string } {
   return { ok: false, erreur: messageFr(err) };
 }
 
-const Envoi = z.object({
-  categorie: z.enum(["idee", "bug", "autre"]),
-  message: z.string().trim().min(5).max(2000),
-  page: z.string().max(300).optional(),
-});
-
-/** Plafond anti-abus : un membre n'inonde pas la file des admins. */
-const RETOURS_PAR_JOUR = 20;
-
 export async function envoyerRetour(
   categorie: string, message: string, page?: string,
 ): Promise<Reponse<undefined>> {
   try {
-    const u = await exigerUtilisateur();
-    const p = Envoi.safeParse({ categorie, message, page: page || undefined });
-    if (!p.success) throw new ErreurMetier("RETOUR_INVALIDE");
-    // Seul un chemin interne est conservé, jamais une URL arbitraire.
-    const chemin = p.data.page?.startsWith("/") && !p.data.page.startsWith("//") ? p.data.page : null;
-
-    await tx(async (c) => {
-      await c.query(`select 1 from app_user where id = $1::uuid for update`, [u.id]);
-      const { rows } = await c.query<{ n: number }>(
-        `select count(*)::int as n from feedback
-          where user_id = $1::uuid and created_at > now() - interval '1 day'`, [u.id]);
-      if (rows[0].n >= RETOURS_PAR_JOUR) throw new ErreurMetier("RETOURS_TROP_NOMBREUX");
-      await c.query(
-        `insert into feedback (user_id, categorie, message, page) values ($1::uuid, $2, $3, $4)`,
-        [u.id, p.data.categorie, p.data.message, chemin],
-      );
-    });
+    await envoyerRetourPour(await exigerUtilisateur(), categorie, message, page);
     revalidatePath("/profil");
     return { ok: true };
   } catch (err) {
