@@ -32,6 +32,8 @@ export default async function PageDivertissement() {
                detail="Des nombres réels, en vertical" />
         <Tuile href="/divertissement/videos" titre="Vidéos" icone={<IconeVideos />}
                detail="Explications filmées par la classe" />
+        <Tuile href="/divertissement/curve-fight" titre="Curve Fight" icone={<IconeCourbes />}
+               detail="Duel de fonctions, sans aperçu" />
         {toilet && (
           <Tuile href="/toilet" titre="Toilet!" icone={<span className="text-[24px]" aria-hidden="true">🚽</span>}
                  detail="Le classement des toilettes du bas" />
@@ -83,6 +85,17 @@ function IconeVideos() {
 
 function IconeMarche() {
   return <svg {...trait}><path d="M5 20V14M12 20V6M19 20v-8" /></svg>;
+}
+
+/* Deux courbes qui se croisent dans un repère : Curve Fight. */
+function IconeCourbes() {
+  return (
+    <svg {...trait}>
+      <path d="M3 3v18h18" />
+      <path d="M5 16c3-9 5-9 7-4s4 5 8-6" />
+      <path d="M5 8c4 1 9 4 15 9" />
+    </svg>
+  );
 }
 
 /* Clap de cinéma barré d'un ℝ stylisé : réels/reels. */

@@ -847,3 +847,70 @@ html.fil-plein-ecran .bottom-nav { display: none; }
   position: absolute; z-index: 2; inset-inline: 16px; top: calc(max(10px, env(safe-area-inset-top)) + 64px);
   text-align: center; font-size: 13px; font-weight: 600; text-shadow: 0 1px 6px rgb(0 0 0 / 0.7); pointer-events: none;
 }
+
+/* --- Curve Fight (/divertissement/curve-fight) ---------------------------
+ * Le jeu a son ambiance propre : tableau noir, traits au néon. Les rayons
+ * restent ceux de la plateforme.
+ */
+.cf-cadre {
+  --cf-cyan: #4fd8ff;
+  --cf-rose: #ff5c7a;
+  --cf-or: #ffd23f;
+  background:
+    radial-gradient(ellipse at 15% -10%, rgba(79, 216, 255, 0.14), transparent 55%),
+    radial-gradient(ellipse at 100% 100%, rgba(255, 92, 122, 0.12), transparent 50%),
+    #05070e;
+  color-scheme: dark;
+}
+.cf-cadre .katex { font-size: 1.08em; }
+.cf-pastille {
+  display: inline-flex; align-items: center; gap: 6px; height: 34px; padding-inline: 14px;
+  border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.15); background: rgba(255, 255, 255, 0.05);
+  color: #fff; font-size: 13px; font-weight: 500; white-space: nowrap;
+}
+.cf-pastille:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
+.cf-carte {
+  border-radius: var(--radius-lg); border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04); padding: 16px;
+}
+.cf-titre-carte { margin: 0 0 10px; font-size: 11px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; color: rgba(255, 255, 255, 0.5); }
+.cf-bouton {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 48px; padding-inline: 20px; border: 0; border-radius: var(--radius-md);
+  background: linear-gradient(135deg, var(--cf-cyan), #6f8bff); color: #04101c;
+  font-size: 15px; font-weight: 800; box-shadow: 0 0 24px rgba(79, 216, 255, 0.25);
+}
+.cf-bouton:hover:not(:disabled) { filter: brightness(1.1); }
+.cf-bouton:disabled { opacity: 0.4; box-shadow: none; cursor: default; }
+.cf-bouton-discret {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 40px; padding-inline: 14px; border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.16); background: rgba(255, 255, 255, 0.05);
+  color: #fff; font-size: 13px; font-weight: 600;
+}
+.cf-bouton-discret:hover:not(:disabled) { background: rgba(255, 255, 255, 0.11); }
+.cf-bouton-discret:disabled { opacity: 0.4; cursor: default; }
+.cf-bouton-discret[aria-pressed="true"], .cf-bouton-discret[aria-checked="true"] {
+  border-color: var(--cf-cyan); background: rgba(79, 216, 255, 0.14); color: var(--cf-cyan);
+}
+.cf-cadre input.cf-champ {
+  width: 100%; min-height: 52px; padding: 0 14px; border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.16); background: rgba(0, 0, 0, 0.35); color: #fff;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 17px;
+}
+.cf-cadre input.cf-champ:focus { outline: none; border-color: var(--cf-cyan); box-shadow: 0 0 0 3px rgba(79, 216, 255, 0.18); }
+.cf-cadre input.cf-champ::placeholder { color: rgba(255, 255, 255, 0.3); }
+.cf-logo {
+  background: linear-gradient(100deg, var(--cf-cyan) 10%, #fff 50%, var(--cf-rose) 90%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  font-weight: 900; letter-spacing: -0.03em; line-height: 0.95;
+}
+@keyframes cf-apparition { from { opacity: 0; transform: translateY(10px) scale(0.97); } to { opacity: 1; transform: none; } }
+.cf-apparition { animation: cf-apparition 420ms cubic-bezier(0.2, 0.9, 0.3, 1.2) backwards; }
+@keyframes cf-decompte { from { opacity: 0; transform: scale(1.8); } 30% { opacity: 1; } to { opacity: 0.85; transform: scale(1); } }
+.cf-decompte { animation: cf-decompte 900ms ease-out; }
+@keyframes cf-pouls { 50% { opacity: 0.45; } }
+.cf-pouls { animation: cf-pouls 1.4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .cf-apparition, .cf-decompte, .cf-pouls { animation: none; }
+}

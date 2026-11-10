@@ -59,8 +59,8 @@ export function InvitationsNotifications({
 }) {
   const [appareil, setAppareil] = useState<Appareil | null>(null);
   const [fenetre, setFenetre] = useState<Fenetre>(null);
-  // Jamais pendant une révision (ni le flash lui-même).
-  const enRevision = /^\/flash|\/reviser$/.test(usePathname() ?? "");
+  // Jamais pendant une révision (ni le flash lui-même), ni en pleine partie de Curve Fight.
+  const enRevision = /^\/flash|\/reviser$|^\/divertissement\/curve-fight/.test(usePathname() ?? "");
 
   useEffect(() => {
     void enregistrerServiceWorker();

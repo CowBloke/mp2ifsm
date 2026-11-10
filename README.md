@@ -223,6 +223,49 @@ façon reels d’Instagram où chaque « vidéo » est un nombre réel tiré au 
 (`src/lib/reels.ts`) ; likes, abonnements et commentaires ajoutés ne sont
 pas enregistrés et disparaissent au rechargement.
 
+## Curve Fight (duel de fonctions)
+
+`/divertissement/curve-fight` : chacun écrit une expression **sans aperçu**,
+tous les plans sont dévoilés quand tout le monde est prêt, puis les courbes
+se tracent en même temps, à la même vitesse (longueur d’arc), depuis leur
+auteur et dans les deux sens. Une courbe qui touche un joueur l’élimine ; la
+courbe d’un joueur éliminé s’arrête. Elle s’arrête aussi au bord, sur un
+obstacle (qu’elle creuse d’un cratère), hors de son domaine ou sur un saut de
+plus de 1,5. Les survivants rejouent (8 volées au plus par manche).
+
+- **Réglages du salon** (hôte) : mode *Classique* ou *Brouillard* (on ne voit
+  que le disque autour de soi et les couloirs dégagés par ses propres
+  courbes), tir `y = f(x)` (graphe décalé pour passer par le joueur) ou
+  `y′ = f(x, y)` (solution passant par le joueur, Runge-Kutta 4 en longueur
+  d’arc), familles de fonctions autorisées, longueur maximale de
+  l’expression, temps de réflexion, nombre de manches, densité d’obstacles,
+  repère muet (ni graduations ni coordonnées). Des bots complètent la table.
+- **Code** : `src/lib/courbes/` — `expression.ts` (analyseur maison, aucune
+  évaluation de code ; sert aussi à l’écriture KaTeX), `simulation.ts`
+  (une volée, pure et déterministe), `monde.ts` (arène, réglages, grille du
+  brouillard), `bots.ts`, `salons.ts` (salons et déroulement),
+  `classement.ts` ; interface dans `src/components/courbes/`.
+- **Temps réel sans service de plus** : les salons vivent en mémoire dans le
+  processus Next. Le navigateur lit l’état par attente longue
+  (`GET /api/courbes/salons/<code>?v=<version>`, réponse au prochain
+  changement ou après 15 s) et agit par `POST` sur la même adresse. Le
+  serveur calcule chaque volée d’un coup ; le navigateur la rejoue à
+  l’heure du serveur. **Un redéploiement met fin aux parties en cours.**
+- **Brouillard** : chaque joueur reçoit sa propre vue. Positions, obstacles
+  et morceaux de courbes adverses hors de ses couloirs ne sont pas dans la
+  réponse : il n’y a rien à trouver dans les outils du navigateur.
+- **Classements** (`/divertissement/curve-fight/classement`) : tables
+  `courbes_partie`, `courbes_resultat`, `courbes_tir`
+  (`db/schema-courbes.sql`). Le site applique lui-même cette migration
+  additive au premier enregistrement ; en cas de refus de la base, le jeu
+  marche sans classement. Seules comptent les parties à deux humains au
+  moins et les éliminations entre humains.
+- La fenêtre de rappel des fiches et d’installation ne s’ouvre pas sur les
+  pages du jeu.
+
+Tests : `tests/courbes.test.ts` (analyseur, simulation, bots, brouillard,
+déroulement d’un salon), lancé par `npm test`.
+
 ## Toilet! (rubrique cachée)
 
 « Toilet factorielle » : classement des passages aux toilettes du bas, avec
