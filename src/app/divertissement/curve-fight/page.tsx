@@ -20,7 +20,7 @@ export default async function PageCurveFight() {
       <LienRetour href="/divertissement" label="Retour au divertissement" />
       <header className="page-heading">
         <h1>Curve Fight</h1>
-        <p>Écris une fonction. Sa courbe part de toi : si elle atteint un adversaire avant que la sienne ne t’atteigne, il est éliminé. De 2 à 10 joueurs.</p>
+        <p>Écris une fonction, sans la voir. Sa courbe part de toi : si elle atteint un adversaire avant que la sienne ne t’atteigne, il est éliminé. De 2 à 10 joueurs.</p>
       </header>
       <Accueil salons={salonsOuverts()} />
     </main>

@@ -27,7 +27,7 @@ export type Reglages = {
   mode: "classique" | "brouillard";
   tir: "fonction" | "equadiff";
   repereMuet: boolean;
-  /** Tracé de sa propre courbe pendant la saisie, comme sur une calculatrice graphique. */
+  /** Aide facultative : tracé de sa propre courbe pendant la saisie. Coupée par défaut, le jeu se joue de tête. */
   apercu: boolean;
   familles: Famille[];
   /** Caractères au plus, 0 : libre. */
@@ -39,7 +39,7 @@ export type Reglages = {
 };
 
 export const REGLAGES_DEFAUT: Reglages = {
-  mode: "classique", tir: "fonction", repereMuet: false, apercu: true,
+  mode: "classique", tir: "fonction", repereMuet: false, apercu: false,
   familles: [...TOUTES_FAMILLES], longueurMax: 0, temps: 90, manches: 3, obstacles: "normal",
 };
 

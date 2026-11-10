@@ -293,8 +293,8 @@ test("tracé : graphe en morceaux, graduations 1-2-5", () => {
   assert.equal(ecrireNombre(-0.0000001), "0");
 });
 
-test("réglages : l'aperçu est un réglage du salon, actif par défaut", () => {
-  assert.equal(REGLAGES_DEFAUT.apercu, true);
-  assert.equal(corrigerReglages(REGLAGES_DEFAUT, { apercu: false }).apercu, false);
-  assert.equal(corrigerReglages(REGLAGES_DEFAUT, { apercu: "non" }).apercu, true);
+test("réglages : pas d'aperçu par défaut, c'est une aide que l'hôte peut activer", () => {
+  assert.equal(REGLAGES_DEFAUT.apercu, false);
+  assert.equal(corrigerReglages(REGLAGES_DEFAUT, { apercu: true }).apercu, true);
+  assert.equal(corrigerReglages(REGLAGES_DEFAUT, { apercu: "oui" }).apercu, false);
 });

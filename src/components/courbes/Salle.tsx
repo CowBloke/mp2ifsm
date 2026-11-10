@@ -174,7 +174,7 @@ function Antichambre({ etat, agir, quitter, son, basculerSon }: {
 
           <Groupe titre="Aides">
             <Bascule actif={r.apercu} verrou={!hote} titre="Aperçu de la courbe"
-                     detail={r.apercu ? "Ta courbe se trace pendant que tu écris" : "Rien n’est tracé : il faut la voir de tête"}
+                     detail={r.apercu ? "Mode entraînement : ta courbe se trace pendant que tu écris" : "Désactivé : il faut la voir de tête"}
                      onClick={() => regler({ apercu: !r.apercu })} />
             <Bascule actif={!r.repereMuet} verrou={!hote} titre="Graduations et coordonnées"
                      detail={r.repereMuet ? "Repère muet : tout à l’œil" : "Le repère est gradué"}
@@ -284,7 +284,7 @@ export function Regles() {
     <details className="cf-regles">
       <summary>Comment on joue</summary>
       <ul>
-        <li>Chacun écrit une expression en secret. Selon le salon, ta courbe se trace pendant que tu écris, ou pas du tout.</li>
+        <li>Chacun écrit une expression en secret. <strong>Aucun aperçu</strong> : il faut voir la courbe de tête.</li>
         <li>Ta courbe part de toi, à gauche et à droite : c’est le graphe de f, translaté verticalement pour passer par ta position.</li>
         <li>Quand tout le monde est prêt, les expressions sont dévoilées, puis toutes les courbes se tracent en même temps, à la même vitesse.</li>
         <li>Une courbe qui touche un joueur l’élimine. La courbe d’un joueur éliminé s’arrête net : le chemin le plus court gagne les duels.</li>
@@ -671,7 +671,7 @@ function Saisie({ etat, moi, agir, horloge, brouillon, setBrouillon, valide, mes
   } else if (!r.apercu) {
     lecture = (
       <p>
-        Pas d’aperçu dans ce salon : la courbe {equadiff ? "sera la solution qui passe par toi" : "sera le graphe de f, translaté pour passer par toi"}
+        Rien n’est tracé avant le départ : la courbe {equadiff ? "sera la solution qui passe par toi" : "sera le graphe de f, translaté pour passer par toi"}
         {position ? ` ${position}` : ""}.
       </p>
     );

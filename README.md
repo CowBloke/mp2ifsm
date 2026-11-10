@@ -225,7 +225,7 @@ pas enregistrés et disparaissent au rechargement.
 
 ## Curve Fight (duel de fonctions)
 
-`/divertissement/curve-fight` : chacun écrit une expression en secret,
+`/divertissement/curve-fight` : chacun écrit une expression **sans aperçu**,
 toutes sont dévoilées quand tout le monde est prêt, puis les courbes
 se tracent en même temps, à la même vitesse (longueur d’arc), depuis leur
 auteur et dans les deux sens. Une courbe qui touche un joueur l’élimine ; la
@@ -240,12 +240,12 @@ plus de 1,5. Les survivants rejouent (8 volées au plus par manche).
   d’arc), familles de fonctions autorisées, longueur maximale de
   l’expression, temps de réflexion, nombre de manches, densité d’obstacles,
   repère muet (ni graduations ni coordonnées), aperçu de sa courbe pendant
-  la saisie (actif par défaut ; coupé, tout se calcule de tête). Des bots
+  la saisie (aide d’entraînement, **coupée par défaut** : le jeu se joue de tête). Des bots
   complètent la table.
 - **Interface** : une calculatrice graphique. À gauche la liste des
   expressions (une ligne par joueur, la saisie dans la sienne), à droite le
-  repère, qu’on déplace et qu’on zoome (souris, molette, pincement). Pendant
-  la saisie, le navigateur rejoue `simuler` pour sa seule courbe : l’aperçu
+  repère, qu’on déplace et qu’on zoome (souris, molette, pincement). Si
+  l’hôte active l’aperçu, le navigateur rejoue `simuler` pour sa seule courbe : l’aperçu
   est exactement ce qui partira (obstacles visibles compris), avec le graphe
   brut de f en pointillé. Les courbes d’une volée sont redessinées en
   repassant par la fonction entre deux ticks (`trace.ts`), donc elles restent
