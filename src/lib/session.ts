@@ -1,8 +1,8 @@
 import "server-only";
 import { randomBytes, scrypt, timingSafeEqual, createHash } from "node:crypto";
 import { promisify } from "node:util";
-import { cookies } from "next/headers";
-import { query, queryOne } from "./db";
+import { cookies, headers } from "next/headers";
+import { query, queryOne, tx } from "./db";
 import { ErreurMetier } from "./errors";
 
 const scryptAsync = promisify(scrypt) as (
@@ -59,15 +59,85 @@ export type Utilisateur = {
   groupe_reporte: boolean;
 };
 
-export async function creerSession(userId: string): Promise<void> {
+/**
+ * Jeton de la requête : en-tête `Authorization: Bearer` (app iOS), sinon
+ * cookie (site). Un en-tête ne part jamais seul d'un autre site, donc le
+ * jeton porteur n'ouvre aucune faille CSRF.
+ */
+async function jetonCourant(): Promise<string | null> {
+  const auth = (await headers()).get("authorization");
+  const m = auth ? /^Bearer ([A-Za-z0-9_-]{20,128})$/.exec(auth) : null;
+  if (m) return m[1];
+  return (await cookies()).get(COOKIE)?.value ?? null;
+}
+
+/**
+ * Vérifie un email et un mot de passe ; renvoie l'id du compte. Même coût
+ * et même erreur que l'email existe ou non : on ne révèle pas qui est inscrit.
+ */
+export async function verifierIdentifiants(email: string, motDePasse: string): Promise<string> {
+  if (!email || !motDePasse) throw new ErreurMetier("CHAMPS_MANQUANTS");
+  const u = await queryOne<{ id: string; password_hash: string }>(
+    `select id, password_hash from app_user where lower(email) = lower($1)`,
+    [email],
+  );
+  const ok = u
+    ? await verifierMotDePasse(motDePasse, u.password_hash)
+    : await verifierMotDePasse(motDePasse, await hashMotDePasse(randomBytes(16).toString("hex")));
+  if (!u || !ok) throw new ErreurMetier("IDENTIFIANTS_INVALIDES");
+  return u.id;
+}
+
+/** Enregistre une session en base et renvoie son jeton (jamais stocké en clair). */
+export async function ouvrirSession(userId: string): Promise<{ jeton: string; expire: Date }> {
   const jeton = randomBytes(32).toString("base64url");
   const expire = new Date(Date.now() + DUREE_JOURS * 86_400_000);
-
   await query(
     `insert into user_session (token_hash, user_id, expires_at) values ($1, $2, $3)`,
     [hashJeton(jeton), userId, expire],
   );
+  return { jeton, expire };
+}
 
+/**
+ * Crée un compte avec un code d'invitation de la classe ; renvoie son id.
+ * Le verrou sur le code sérialise les inscriptions concurrentes :
+ * max_uses ne peut pas être dépassé.
+ */
+export async function inscrireMembre(champs: {
+  email: unknown; pseudo: unknown; motDePasse: unknown; code: unknown;
+}): Promise<string> {
+  const email = String(champs.email ?? "").trim();
+  const pseudo = String(champs.pseudo ?? "").trim();
+  const motDePasse = String(champs.motDePasse ?? "");
+  const code = String(champs.code ?? "").trim();
+  if (!email || !pseudo || !motDePasse || !code) throw new ErreurMetier("CHAMPS_MANQUANTS");
+  if (motDePasse.length < 8) throw new ErreurMetier("MOT_DE_PASSE_COURT");
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new ErreurMetier("EMAIL_INVALIDE");
+  if (pseudo.length < 2 || pseudo.length > 40) throw new ErreurMetier("PSEUDO_INVALIDE");
+
+  const hash = await hashMotDePasse(motDePasse);
+  return tx(async (c) => {
+    const inv = await c.query<{ uses: number; max_uses: number }>(
+      `select uses, max_uses from invite_code where code = $1 for update`, [code]);
+    if (inv.rowCount === 0 || inv.rows[0].uses >= inv.rows[0].max_uses) {
+      throw new ErreurMetier("CODE_INVITATION_INVALIDE");
+    }
+    const existant = await c.query(`select 1 from app_user where lower(email) = lower($1)`, [email]);
+    if (existant.rowCount) throw new ErreurMetier("EMAIL_DEJA_UTILISE");
+    const pris = await c.query(`select 1 from app_user where lower(display_name) = lower($1)`, [pseudo]);
+    if (pris.rowCount) throw new ErreurMetier("PSEUDO_DEJA_UTILISE");
+    const u = await c.query<{ id: string }>(
+      `insert into app_user (email, display_name, password_hash) values ($1, $2, $3) returning id`,
+      [email, pseudo, hash]);
+    await c.query(`update invite_code set uses = uses + 1 where code = $1`, [code]);
+    return u.rows[0].id;
+  });
+}
+
+/** Session du site : ouverte en base puis posée en cookie. */
+export async function creerSession(userId: string): Promise<void> {
+  const { jeton, expire } = await ouvrirSession(userId);
   const jar = await cookies();
   jar.set(COOKIE, jeton, {
     httpOnly: true,
@@ -79,18 +149,16 @@ export async function creerSession(userId: string): Promise<void> {
 }
 
 export async function detruireSession(): Promise<void> {
-  const jar = await cookies();
-  const jeton = jar.get(COOKIE)?.value;
+  const jeton = await jetonCourant();
   if (jeton) {
     await query(`delete from user_session where token_hash = $1`, [hashJeton(jeton)]);
   }
-  jar.delete(COOKIE);
+  (await cookies()).delete(COOKIE);
 }
 
 /** Utilisateur courant, ou null. Ne leve jamais. */
 export async function utilisateurCourant(): Promise<Utilisateur | null> {
-  const jar = await cookies();
-  const jeton = jar.get(COOKIE)?.value;
+  const jeton = await jetonCourant();
   if (!jeton) return null;
 
   return queryOne<Utilisateur>(
@@ -107,8 +175,7 @@ export async function utilisateurCourant(): Promise<Utilisateur | null> {
  * seulement : elle réapparaît à la prochaine connexion.
  */
 export async function reporterDemandeGroupe(): Promise<void> {
-  const jar = await cookies();
-  const jeton = jar.get(COOKIE)?.value;
+  const jeton = await jetonCourant();
   if (!jeton) throw new ErreurMetier("NON_CONNECTE");
   await query(`update user_session set groupe_reporte = true where token_hash = $1`,
     [hashJeton(jeton)]);

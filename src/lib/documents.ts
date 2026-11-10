@@ -1,6 +1,27 @@
 import "server-only";
 import { query, queryOne } from "./db";
+import { JOURS_AVANT_PURGE } from "./constantes";
+import { ErreurMetier } from "./errors";
+import type { Utilisateur } from "./session";
 import { PLAFOND_GLOBAL, QUOTA_MEMBRE } from "./stockage";
+
+/**
+ * Suppression douce. Seuls le déposant et un administrateur peuvent
+ * supprimer ; le fichier reste 30 jours sur le disque, donc une
+ * suppression accidentelle est réversible.
+ */
+export async function mettreALaCorbeille(u: Utilisateur, id: number): Promise<void> {
+  const r = await query<{ id: number }>(
+    `update document
+        set deleted_at = now(), deleted_by = $2::uuid,
+            purge_after = now() + ($3::int || ' days')::interval
+      where id = $1 and deleted_at is null
+        and ($4::boolean or uploaded_by = $2::uuid)
+      returning id`,
+    [id, u.id, JOURS_AVANT_PURGE, u.role === "admin"],
+  );
+  if (r.length === 0) throw new ErreurMetier("NON_AUTORISE");
+}
 
 /*
  * Modèles de lecture du dépôt de documents.

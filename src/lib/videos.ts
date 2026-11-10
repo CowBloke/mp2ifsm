@@ -1,5 +1,7 @@
 import "server-only";
-import { query } from "./db";
+import { query, queryOne } from "./db";
+import { ErreurMetier } from "./errors";
+import type { Utilisateur } from "./session";
 import type { CouleurMatiere } from "./constantes";
 
 export type VideoVue = {
@@ -87,4 +89,55 @@ export async function listerCommentaires(videoId: number): Promise<CommentaireVi
     `select c.id, c.auteur as auteur_id, u.display_name as auteur, c.texte, c.created_at::text
        from video_commentaire c join app_user u on u.id = c.auteur
       where c.video_id = $1 order by c.created_at desc limit 300`, [videoId]);
+}
+
+/* Écritures du fil, partagées par les actions du site et l'API de l'app. */
+
+export function idVideo(id: unknown): number {
+  if (typeof id !== "number" || !Number.isSafeInteger(id) || id <= 0) throw new ErreurMetier("VIDEO_INTROUVABLE");
+  return id;
+}
+
+export async function aimerVideoPour(u: Utilisateur, videoId: number, aime: boolean): Promise<{ likes: number; aime: boolean }> {
+  const id = idVideo(videoId);
+  if (aime) {
+    await query(`insert into video_like (user_id, video_id)
+                 select $1::uuid, id from video where id = $2 and statut = 'pret'
+                 on conflict do nothing`, [u.id, id]);
+  } else {
+    await query(`delete from video_like where user_id = $1::uuid and video_id = $2`, [u.id, id]);
+  }
+  const r = await queryOne<{ likes: number; aime: boolean }>(
+    `select count(*)::int as likes, coalesce(bool_or(user_id = $2::uuid), false) as aime
+       from video_like where video_id = $1`, [id, u.id]);
+  return { likes: r?.likes ?? 0, aime: r?.aime ?? false };
+}
+
+export async function enregistrerVue(u: Utilisateur, videoId: number): Promise<void> {
+  await query(`insert into video_vue (user_id, video_id)
+               select $1::uuid, id from video where id = $2 and statut = 'pret'
+               on conflict do nothing`, [u.id, idVideo(videoId)]);
+}
+
+export async function ajouterCommentaire(u: Utilisateur, videoId: number, texte: unknown): Promise<CommentaireVideo[]> {
+  const id = idVideo(videoId);
+  const t = String(texte ?? "").trim();
+  if (!t || t.length > 500) throw new ErreurMetier("COMMENTAIRE_INVALIDE");
+  const r = await query(`insert into video_commentaire (video_id, auteur, texte)
+                         select id, $2::uuid, $3 from video where id = $1 and statut = 'pret'
+                         returning id`, [id, u.id, t]);
+  if (r.length === 0) throw new ErreurMetier("VIDEO_INTROUVABLE");
+  return listerCommentaires(id);
+}
+
+/** Par son auteur, l'auteur de la vidéo ou un admin. */
+export async function retirerCommentaire(u: Utilisateur, commentaireId: number): Promise<CommentaireVideo[]> {
+  if (!Number.isSafeInteger(commentaireId) || commentaireId <= 0) throw new ErreurMetier("NON_AUTORISE");
+  const r = await queryOne<{ video_id: number }>(
+    `delete from video_commentaire c
+      where c.id = $1 and ($3 or c.auteur = $2::uuid
+                           or exists (select 1 from video v where v.id = c.video_id and v.auteur = $2::uuid))
+      returning c.video_id`, [commentaireId, u.id, u.role === "admin"]);
+  if (!r) throw new ErreurMetier("NON_AUTORISE");
+  return listerCommentaires(r.video_id);
 }

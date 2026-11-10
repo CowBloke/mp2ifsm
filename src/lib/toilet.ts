@@ -1,7 +1,10 @@
 import "server-only";
+import { timingSafeEqual } from "node:crypto";
 import { join } from "node:path";
 import { query, queryOne } from "./db";
-import { RACINE } from "./stockage";
+import { ErreurMetier } from "./errors";
+import type { Utilisateur } from "./session";
+import { RACINE, supprimerDuDisque } from "./stockage";
 import type { Periode } from "./toilet-statuts";
 
 /*
@@ -33,6 +36,31 @@ export async function toiletVisible(userId: string): Promise<boolean> {
 export async function codeInvitation(): Promise<string | null> {
   const r = await queryOne<{ code: string }>(`select code_invitation as code from toilet_config`);
   return r?.code ?? null;
+}
+
+function memeCode(a: string, b: string): boolean {
+  const x = Buffer.from(a), y = Buffer.from(b);
+  return x.length === y.length && timingSafeEqual(x, y);
+}
+
+/** Inscrit le membre si le code du lien secret est le bon. */
+export async function activerToiletPour(u: Utilisateur, code: unknown): Promise<void> {
+  const attendu = await codeInvitation();
+  if (!attendu || typeof code !== "string" || !memeCode(code, attendu)) {
+    throw new ErreurMetier("TOILET_LIEN_INVALIDE");
+  }
+  await query(`insert into toilet_membre (user_id) values ($1::uuid) on conflict do nothing`, [u.id]);
+}
+
+/** Retire un passage (et sa photo) : son auteur (fausse manip) ou un administrateur. */
+export async function supprimerPassagePour(u: Utilisateur, passageId: number): Promise<void> {
+  if (!(await estMembreToilet(u.id))) throw new ErreurMetier("NON_AUTORISE");
+  if (!Number.isSafeInteger(passageId) || passageId <= 0) throw new ErreurMetier("NON_AUTORISE");
+  const r = await queryOne<{ storage_name: string | null }>(
+    `delete from toilet_passage where id = $1 and (user_id = $2::uuid or $3)
+      returning storage_name`, [passageId, u.id, u.role === "admin"]);
+  if (!r) throw new ErreurMetier("NON_AUTORISE");
+  if (r.storage_name) await supprimerDuDisque(DOSSIER_PHOTOS_TOILET, r.storage_name).catch(console.error);
 }
 
 export type LigneClassement = {

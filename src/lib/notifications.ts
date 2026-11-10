@@ -1,8 +1,11 @@
 import webpush from "web-push";
 import { query, queryOne } from "./db";
+import { pousserApns, type EnvironnementApns } from "./apns";
 
 /*
- * Notifications poussées (Web Push, VAPID).
+ * Notifications poussées : Web Push (VAPID) pour le site installé, APNs
+ * pour l'app iOS (apns.ts). Les deux sont des « appareils » du membre :
+ * mêmes préférences, mêmes envois uniques.
  *
  * Pas d'import "server-only" ici : le planificateur est chargé par
  * src/instrumentation.ts, hors de la couche React Server.
@@ -74,11 +77,36 @@ async function pousser(a: Abonnement, contenu: ContenuNotif): Promise<boolean> {
   }
 }
 
+type AppareilIos = { id: number; jeton: string; environnement: EnvironnementApns };
+
+async function pousserIos(a: AppareilIos, contenu: ContenuNotif): Promise<boolean> {
+  const r = await pousserApns(a.jeton, a.environnement, contenu);
+  if (r === "ok") {
+    await query(`update apns_appareil set last_ok_at = now(), echecs = 0 where id = $1`, [a.id]);
+  } else if (r === "perime") {
+    await query(`delete from apns_appareil where id = $1`, [a.id]);
+  } else {
+    await query(`update apns_appareil set echecs = echecs + 1 where id = $1`, [a.id]);
+    await query(`delete from apns_appareil where id = $1 and echecs >= 20`, [a.id]);
+  }
+  return r === "ok";
+}
+
+/** Membres ayant au moins un appareil (navigateur ou iPhone). */
+const APPAREILS = `(select user_id from push_abonnement union select user_id from apns_appareil)`;
+
 /** Envoie à tous les appareils d'un membre. Renvoie le nombre de réussites. */
 export async function envoyerAuMembre(userId: string, contenu: ContenuNotif): Promise<number> {
-  const abos = await query<Abonnement>(
-    `select id, user_id, endpoint, p256dh, auth from push_abonnement where user_id = $1::uuid`, [userId]);
-  const r = await Promise.all(abos.map((a) => pousser(a, contenu)));
+  const [abos, iphones] = await Promise.all([
+    query<Abonnement>(
+      `select id, user_id, endpoint, p256dh, auth from push_abonnement where user_id = $1::uuid`, [userId]),
+    query<AppareilIos>(
+      `select id, jeton, environnement from apns_appareil where user_id = $1::uuid`, [userId]),
+  ]);
+  const r = await Promise.all([
+    ...abos.map((a) => pousser(a, contenu)),
+    ...iphones.map((a) => pousserIos(a, contenu)),
+  ]);
   return r.filter(Boolean).length;
 }
 
@@ -102,7 +130,7 @@ async function destinataires(genre: GenreNotif, sauf?: string): Promise<string[]
     : genre === "devoirs" ? "coalesce(p.devoirs, true)" : "coalesce(p.messages, true)";
   const lignes = await query<{ id: string }>(
     `select distinct a.user_id as id
-       from push_abonnement a
+       from ${APPAREILS} a
        left join notif_pref p on p.user_id = a.user_id
       where ${colonne} and ($1::uuid is null or a.user_id <> $1::uuid)`, [sauf ?? null]);
   return lignes.map((l) => l.id);
@@ -166,7 +194,7 @@ export async function cartesFlashDisponibles(userId: string): Promise<number> {
 async function envoyerRappelFiches(jour: string, heure: number): Promise<void> {
   const ids = await query<{ id: string }>(
     `select distinct a.user_id as id
-       from push_abonnement a join notif_pref p on p.user_id = a.user_id
+       from ${APPAREILS} a join notif_pref p on p.user_id = a.user_id
       where p.flash and p.flash_heure = $1`, [heure]);
   for (const { id } of ids) {
     const n = await cartesFlashDisponibles(id);

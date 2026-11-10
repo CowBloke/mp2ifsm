@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { query, queryOne } from "./db";
 import { ErreurMetier, messageFr } from "./errors";
 import { exigerUtilisateur } from "./session";
-import { JOURS_AVANT_PURGE } from "./constantes";
+import { mettreALaCorbeille } from "./documents";
 import { matiereDuFormulaire } from "./matieres";
 import type { Reponse } from "./actions";
 
@@ -13,25 +13,10 @@ function echec(err: unknown): { ok: false; erreur: string } {
   return { ok: false, erreur: messageFr(err) };
 }
 
-/**
- * Suppression douce. Seuls le déposant et un administrateur peuvent
- * supprimer ; le fichier reste 30 jours sur le disque, donc une
- * suppression accidentelle est réversible.
- */
+/** Suppression douce (voir `mettreALaCorbeille`). */
 export async function supprimerDocument(id: number): Promise<Reponse<undefined>> {
   try {
-    const u = await exigerUtilisateur();
-    const r = await query<{ id: number }>(
-      `update document
-          set deleted_at = now(), deleted_by = $2::uuid,
-              purge_after = now() + ($3::int || ' days')::interval
-        where id = $1 and deleted_at is null
-          and ($4::boolean or uploaded_by = $2::uuid)
-        returning id`,
-      [id, u.id, JOURS_AVANT_PURGE, u.role === "admin"],
-    );
-    if (r.length === 0) throw new ErreurMetier("NON_AUTORISE");
-
+    await mettreALaCorbeille(await exigerUtilisateur(), id);
     revalidatePath("/documents");
     revalidatePath("/");
     return { ok: true };

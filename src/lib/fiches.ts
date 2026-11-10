@@ -87,6 +87,10 @@ export async function lirePaquet(slug: string, userId: string): Promise<PaquetVu
   return queryOne<PaquetVue>(`${SELECT_PAQUET} and d.slug = $2`, [userId, slug]);
 }
 
+export async function lirePaquetParId(id: number, userId: string): Promise<PaquetVue | null> {
+  return queryOne<PaquetVue>(`${SELECT_PAQUET} and d.id = $2`, [userId, id]);
+}
+
 export type CarteARevisier = {
   jeton: string;
   card_id: number;

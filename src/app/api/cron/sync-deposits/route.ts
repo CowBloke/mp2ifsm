@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { timingSafeEqual } from "node:crypto";
+import { refusJetonService } from "@/lib/jeton-service";
 import { reprendreTransferts } from "@/lib/kcmaths";
 import { purgerDocuments } from "@/lib/purge";
 import { purgerSessions } from "@/lib/session";
@@ -16,17 +16,8 @@ export const dynamic = "force-dynamic";
  * session utilisateur.
  */
 export async function POST(request: Request) {
-  const attendu = process.env.CRON_TOKEN;
-  if (!attendu) {
-    return NextResponse.json({ erreur: "CRON_TOKEN non configuré" }, { status: 503 });
-  }
-
-  const fourni = (request.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
-  const a = Buffer.from(fourni);
-  const b = Buffer.from(attendu);
-  if (a.length !== b.length || !timingSafeEqual(a, b)) {
-    return NextResponse.json({ erreur: "non autorisé" }, { status: 401 });
-  }
+  const refus = refusJetonService(request, "CRON_TOKEN");
+  if (refus) return refus;
 
   try {
     const purge = await purgerDocuments();

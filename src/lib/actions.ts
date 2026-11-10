@@ -6,11 +6,12 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { query, queryOne, tx } from "./db";
 import { ErreurMetier, messageFr } from "./errors";
-import { parseKc, parseMontant } from "./money";
-import { soldeCentimes } from "./queries";
+import { parseMontant } from "./money";
+import { transfererKcPour, type ResultatTransfert } from "./profil";
+import { parier, type ResultatPari } from "./paris";
 import {
   creerSession, detruireSession, exigerAdmin, exigerUtilisateur,
-  hashMotDePasse, verifierMotDePasse,
+  inscrireMembre, verifierIdentifiants,
 } from "./session";
 
 /*
@@ -33,69 +34,28 @@ function echec(err: unknown): { ok: false; erreur: string } {
   return { ok: false, erreur: messageFr(err) };
 }
 
-const MISE_MINIMUM = 10; // 0,10 PCK
 
 /* ------------------------------------------------------------------ */
 /* Paris                                                               */
 /* ------------------------------------------------------------------ */
 
-export type ResultatPari = {
-  betId: number;
-  soldeCentimes: number;
-  miseCentimes: number;
-};
+export type { ResultatPari };
 
-/**
- * Place une mise. Le montant arrive en texte brut depuis le formulaire
- * et n'est converti en centimes qu'ici, cote serveur.
- *
- * `cleIdempotence` est generee par le client au moment d'ouvrir la
- * feuille de pari : si la requete est rejouee (reseau instable, double
- * tap, rechargement), la contrainte UNIQUE fait que la seconde tentative
- * retrouve le pari existant au lieu d'en creer un second.
- */
+/** Place une mise (voir `parier`, src/lib/paris.ts). */
 export async function placerPari(
   outcomeId: number,
   montantSaisi: string,
   cleIdempotence: string,
 ): Promise<Reponse<ResultatPari>> {
   try {
-    const u = await exigerUtilisateur();
-
-    const cle = z.string().uuid().safeParse(cleIdempotence);
-    if (!cle.success) throw new ErreurMetier("INVALID_TRANSFER");
-    if (!Number.isSafeInteger(outcomeId) || outcomeId <= 0) {
-      throw new ErreurMetier("OUTCOME_NOT_FOUND");
-    }
-
-    const centimes = parseMontant(montantSaisi);
-    if (centimes === null) throw new ErreurMetier("MONTANT_INVALIDE");
-    if (centimes < MISE_MINIMUM) throw new ErreurMetier("MONTANT_MINIMUM");
-
-    const betId = await tx(async (c) => {
-      const r = await c.query<{ place_bet: number }>(
-        `select place_bet($1::uuid, $2::bigint, $3::bigint, $4::text) as place_bet`,
-        [u.id, outcomeId, centimes, `bet:${u.id}:${cle.data}`],
-      );
-      return r.rows[0].place_bet;
-    });
-
-    const slug = await queryOne<{ slug: string }>(
-      `select m.slug from bet b join market m on m.id = b.market_id where b.id = $1`,
-      [betId],
-    );
-
+    const data = await parier(await exigerUtilisateur(), outcomeId, montantSaisi, cleIdempotence);
     revalidatePath("/");
     revalidatePath("/marche");
     revalidatePath("/profil");
     revalidatePath("/marche/classement");
-    if (slug) revalidatePath(`/marche/${slug.slug}`);
-
-    // Etat autoritatif : le client remplace son estimation par ceci.
-    return {
-      ok: true,
-      data: { betId, soldeCentimes: await soldeCentimes(u.id), miseCentimes: centimes },
-    };
+    if (data.slug) revalidatePath(`/marche/${data.slug}`);
+    const { slug: _, ...resultat } = data;
+    return { ok: true, data: resultat };
   } catch (err) {
     return echec(err);
   }
@@ -105,47 +65,19 @@ export async function placerPari(
 /* Portefeuille                                                        */
 /* ------------------------------------------------------------------ */
 
-export type ResultatTransfert = {
-  statut: "effectue" | "en_attente" | "refuse";
-  motif: string | null;
-  solde: number;
-};
+export type { ResultatTransfert };
 
-/**
- * Depot (KC coins de kcmaths convertis en pricoupenkoins) ou retrait
- * (pricoupenkoins renvoyes en KC coins entiers). `cleIdempotence` est generee par le client a l'ouverture
- * du formulaire et sert de ref chez kcmaths : un double envoi ne
- * transfere jamais deux fois.
- */
+/** Dépôt ou retrait kcmaths (voir `transfererKcPour`, src/lib/profil.ts). */
 export async function transfererKc(
   sens: "depot" | "retrait",
   montantSaisi: string,
   cleIdempotence: string,
 ): Promise<Reponse<ResultatTransfert>> {
   try {
-    const u = await exigerUtilisateur();
-    const cle = z.string().uuid().safeParse(cleIdempotence);
-    if (!cle.success || (sens !== "depot" && sens !== "retrait")) {
-      throw new ErreurMetier("INVALID_TRANSFER");
-    }
-    // Les transferts avec kcmaths se font en KC coins entiers.
-    const montant = parseKc(montantSaisi);
-    if (montant === null) throw new ErreurMetier("MONTANT_KC_INVALIDE");
-
-    const { demarrerTransfert, traiterTransfert } = await import("./kcmaths");
-    await demarrerTransfert(u.id, u.email, sens, montant, cle.data);
-    const r = await traiterTransfert(cle.data);
-
+    const data = await transfererKcPour(await exigerUtilisateur(), sens, montantSaisi, cleIdempotence);
     revalidatePath("/profil");
     revalidatePath("/marche/classement");
-    return {
-      ok: true,
-      data: {
-        statut: r.statut,
-        motif: r.motif ? messageFr(new ErreurMetier(r.motif)) : null,
-        solde: await soldeCentimes(u.id),
-      },
-    };
+    return { ok: true, data };
   } catch (err) {
     return echec(err);
   }
@@ -305,24 +237,11 @@ export async function connexion(
   formData: FormData,
 ): Promise<Reponse<undefined>> {
   try {
-    const email = String(formData.get("email") ?? "").trim();
-    const motDePasse = String(formData.get("motDePasse") ?? "");
-    if (!email || !motDePasse) throw new ErreurMetier("CHAMPS_MANQUANTS");
-
-    const u = await queryOne<{ id: string; password_hash: string }>(
-      `select id, password_hash from app_user where lower(email) = lower($1)`,
-      [email],
+    const userId = await verifierIdentifiants(
+      String(formData.get("email") ?? "").trim(),
+      String(formData.get("motDePasse") ?? ""),
     );
-
-    // Meme cout et meme message que l'email existe ou non : on ne
-    // revele pas quels emails sont inscrits.
-    const ok = u
-      ? await verifierMotDePasse(motDePasse, u.password_hash)
-      : await verifierMotDePasse(motDePasse, await hashMotDePasse(randomUUID()));
-
-    if (!u || !ok) throw new ErreurMetier("IDENTIFIANTS_INVALIDES");
-
-    await creerSession(u.id);
+    await creerSession(userId);
   } catch (err) {
     return echec(err);
   }
@@ -334,45 +253,10 @@ export async function inscription(
   formData: FormData,
 ): Promise<Reponse<undefined>> {
   try {
-    const email = String(formData.get("email") ?? "").trim();
-    const pseudo = String(formData.get("pseudo") ?? "").trim();
-    const motDePasse = String(formData.get("motDePasse") ?? "");
-    const code = String(formData.get("code") ?? "").trim();
-
-    if (!email || !pseudo || !motDePasse || !code) throw new ErreurMetier("CHAMPS_MANQUANTS");
-    if (motDePasse.length < 8) throw new ErreurMetier("MOT_DE_PASSE_COURT");
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new ErreurMetier("EMAIL_INVALIDE");
-
-    const hash = await hashMotDePasse(motDePasse);
-
-    const userId = await tx(async (c) => {
-      // Le verrou sur le code d'invitation serialise les inscriptions
-      // concurrentes : max_uses ne peut pas etre depasse.
-      const inv = await c.query<{ code: string; uses: number; max_uses: number }>(
-        `select code, uses, max_uses from invite_code where code = $1 for update`,
-        [code],
-      );
-      if (inv.rowCount === 0 || inv.rows[0].uses >= inv.rows[0].max_uses) {
-        throw new ErreurMetier("CODE_INVITATION_INVALIDE");
-      }
-
-      const existant = await c.query(
-        `select 1 from app_user where lower(email) = lower($1)`, [email]);
-      if (existant.rowCount) throw new ErreurMetier("EMAIL_DEJA_UTILISE");
-
-      const pseudoPris = await c.query(
-        `select 1 from app_user where lower(display_name) = lower($1)`, [pseudo]);
-      if (pseudoPris.rowCount) throw new ErreurMetier("PSEUDO_DEJA_UTILISE");
-
-      const u = await c.query<{ id: string }>(
-        `insert into app_user (email, display_name, password_hash)
-         values ($1, $2, $3) returning id`,
-        [email, pseudo, hash],
-      );
-      await c.query(`update invite_code set uses = uses + 1 where code = $1`, [code]);
-      return u.rows[0].id;
+    const userId = await inscrireMembre({
+      email: formData.get("email"), pseudo: formData.get("pseudo"),
+      motDePasse: formData.get("motDePasse"), code: formData.get("code"),
     });
-
     await creerSession(userId);
   } catch (err) {
     return echec(err);

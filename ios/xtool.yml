@@ -1,0 +1,4 @@
+version: 1
+bundleID: com.leodiotax.mp2ifsm
+infoPath: Info.plist
+entitlementsPath: MP2.entitlements

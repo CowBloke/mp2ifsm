@@ -255,3 +255,16 @@ create table if not exists video_commentaire (
 create index if not exists video_commentaire_video_idx on video_commentaire (video_id, created_at);
 
 commit;
+
+-- App iOS : un appareil par jeton APNs, à côté des abonnements Web Push
+-- (bloc du 10 novembre 2026). Un jeton refusé par Apple est supprimé.
+create table if not exists apns_appareil (
+  id            bigserial primary key,
+  user_id       uuid not null references app_user(id) on delete cascade,
+  jeton         text not null unique check (jeton ~ '^[0-9a-f]{64,200}$'),
+  environnement text not null check (environnement in ('sandbox', 'production')),
+  created_at    timestamptz not null default now(),
+  last_ok_at    timestamptz,
+  echecs        smallint not null default 0
+);
+create index if not exists apns_appareil_user_idx on apns_appareil (user_id);
