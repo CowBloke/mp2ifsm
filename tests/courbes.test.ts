@@ -9,6 +9,7 @@ import {
   REGLAGES_DEFAUT, solide, visible,
 } from "../src/lib/courbes/monde";
 import { simuler, type Tireur } from "../src/lib/courbes/simulation";
+import { affiner, echantillonner, ecrireNombre, graduation, FINESSE } from "../src/lib/courbes/trace";
 import { agir, creerSalon, lireSalon, lireTraces } from "../src/lib/courbes/salons";
 
 const LIBRE = { familles: TOUTES_FAMILLES, longueurMax: 0, equadiff: false };
@@ -256,4 +257,44 @@ test("salon : du salon à la volée, et le brouillard filtre la vue", () => {
   assert.equal(lireSalon(code, leo).v, etat.v);
   agir(code, leo, { t: "quitter" });
   assert.throws(() => lireSalon(code, leo), /n’existe plus/);
+});
+
+test("tracé : la courbe affinée repasse par la fonction entre deux ticks", () => {
+  const e = lire("4sin(8x)");
+  const f = compiler(e.arbre);
+  const [tr] = simuler([{ id: "a", x: 0, y: 0, expr: e }], [], [], "fonction").traces;
+  const fin = affiner(tr.pts, f, 0);
+  assert.equal(fin.length / 2, (tr.pts.length / 2 - 1) * FINESSE + 1);
+  // Les points d'origine restent à leur place : l'animation garde son rythme.
+  for (let i = 0; i < tr.pts.length / 2; i++) {
+    assert.equal(fin[2 * FINESSE * i], tr.pts[2 * i]);
+    assert.equal(fin[2 * FINESSE * i + 1], tr.pts[2 * i + 1]);
+  }
+  // Et tout le tracé colle au graphe, virages serrés compris.
+  for (let i = 0; i < fin.length; i += 2) assert.ok(Math.abs(fin[i + 1] - f(fin[i], 0)) < 0.03, `x = ${fin[i]}`);
+  let pire = 0;
+  for (let i = 2; i < tr.pts.length; i += 2) {
+    const xm = (tr.pts[i - 2] + tr.pts[i]) / 2;
+    pire = Math.max(pire, Math.abs((tr.pts[i - 1] + tr.pts[i + 1]) / 2 - f(xm, 0)));
+  }
+  assert.ok(pire > 0.03, "sans affinage, les segments coupent les virages");
+});
+
+test("tracé : graphe en morceaux, graduations 1-2-5", () => {
+  const inverse = echantillonner(compiler(lire("1/x").arbre), 0, -5, 5, 0.01, 1.5);
+  assert.equal(inverse.length, 2);
+  assert.ok(inverse[0].at(-2)! < 0 && inverse[1][0] > 0);
+  assert.equal(echantillonner(compiler(lire("ln(x)").arbre), 0, -5, -1, 0.01, 1.5).length, 0);
+  assert.deepEqual(graduation(13), { pas: 10, divisions: 5 });
+  assert.deepEqual(graduation(40), { pas: 2, divisions: 4 });
+  assert.deepEqual(graduation(300), { pas: 0.5, divisions: 5 });
+  assert.equal(ecrireNombre(-2.5), "−2.5");
+  assert.equal(ecrireNombre(0.1 + 0.2), "0.3");
+  assert.equal(ecrireNombre(-0.0000001), "0");
+});
+
+test("réglages : l'aperçu est un réglage du salon, actif par défaut", () => {
+  assert.equal(REGLAGES_DEFAUT.apercu, true);
+  assert.equal(corrigerReglages(REGLAGES_DEFAUT, { apercu: false }).apercu, false);
+  assert.equal(corrigerReglages(REGLAGES_DEFAUT, { apercu: "non" }).apercu, true);
 });

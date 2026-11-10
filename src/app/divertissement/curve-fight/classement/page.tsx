@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Cadre } from "@/components/courbes/Cadre";
+import { LienRetour } from "@/components/LienRetour";
 import { Formule } from "@/components/courbes/Formule";
 import { lireClassements, type LigneTir } from "@/lib/courbes/classement";
 import { utilisateurCourant } from "@/lib/session";
@@ -16,7 +16,6 @@ const ONGLETS = [
 ] as const;
 type Onglet = (typeof ONGLETS)[number]["cle"];
 
-const MEDAILLES = ["#ffd23f", "#cfd8e6", "#e09a5b"];
 const jour = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", timeZone: "Europe/Paris" });
 
 /*
@@ -31,54 +30,50 @@ export default async function PageClassement({ searchParams }: { searchParams: P
   const c = await lireClassements();
 
   return (
-    <Cadre retour={{ href: BASE, libelle: "Salons" }}>
-      <header className="mb-5">
-        <h1 className="cf-logo text-[40px] sm:text-[56px]">Classement</h1>
-        <p className="mt-2 text-[13px] text-white/55">Parties entre membres uniquement : les bots ne rapportent rien.</p>
+    <main>
+      <LienRetour href={BASE} label="Retour à Curve Fight" />
+      <header className="page-heading">
+        <h1>Classement</h1>
+        <p>Parties entre membres uniquement : les bots ne rapportent rien.</p>
       </header>
 
-      <nav aria-label="Classements" className="mb-4 flex flex-wrap gap-2">
+      <nav aria-label="Classements" className="page-toolbar mb-6">
         {ONGLETS.map((o) => (
           <Link key={o.cle} href={`${BASE}/classement?onglet=${o.cle}`} scroll={false}
-                aria-current={o.cle === onglet ? "page" : undefined}
-                className={`cf-pastille ${o.cle === onglet ? "!border-[var(--cf-cyan)] !bg-[rgba(79,216,255,0.14)] !text-[var(--cf-cyan)]" : ""}`}>
+                aria-current={o.cle === onglet ? "page" : undefined} className="puce">
             {o.nom}
           </Link>
         ))}
       </nav>
 
-      {onglet === "joueurs" && (
-        <section className="cf-carte">
-          {c.joueurs.length === 0 ? <Vide /> : (
-            <ol className="flex flex-col">
-              <li className="grid grid-cols-[28px_minmax(0,1fr)_repeat(3,56px)] gap-2 px-2 pb-2 text-[11px] font-bold uppercase tracking-wider text-white/45">
-                <span /><span>Joueur</span><span className="text-right">Victoires</span>
-                <span className="text-right">Élim.</span><span className="text-right">Parties</span>
-              </li>
-              {c.joueurs.map((j, i) => (
-                <li key={j.id} className={`grid grid-cols-[28px_minmax(0,1fr)_repeat(3,56px)] items-center gap-2 rounded-[var(--radius-sm)] px-2 py-2.5
-                                            ${j.id === u.id ? "bg-[rgba(79,216,255,0.1)]" : i % 2 ? "" : "bg-white/[0.03]"}`}>
-                  <span className="font-mono text-[14px] font-bold" style={{ color: MEDAILLES[i] ?? "rgba(255,255,255,0.45)" }}>{i + 1}</span>
-                  <span className="truncate text-[15px] font-semibold">{j.nom}</span>
-                  <span className="text-right font-mono text-[15px] font-bold text-[var(--cf-or)]">{j.victoires}</span>
-                  <span className="text-right font-mono text-[14px]">{j.eliminations}</span>
-                  <span className="text-right font-mono text-[14px] text-white/55">{j.parties}</span>
-                </li>
-              ))}
-            </ol>
-          )}
-        </section>
-      )}
+      {onglet === "joueurs" && (c.joueurs.length === 0 ? <Vide /> : (
+        <table className="cf-table">
+          <thead>
+            <tr><th scope="col" className="w-8" /><th scope="col">Joueur</th><th scope="col">Victoires</th><th scope="col">Élim.</th><th scope="col">Parties</th></tr>
+          </thead>
+          <tbody>
+            {c.joueurs.map((j, i) => (
+              <tr key={j.id} aria-current={j.id === u.id ? "true" : undefined}>
+                <td className="text-[var(--muted-foreground)]">{i + 1}</td>
+                <td className="max-w-0 truncate text-[16px] font-medium">{j.nom}</td>
+                <td className="font-semibold">{j.victoires}</td>
+                <td>{j.eliminations}</td>
+                <td className="text-[var(--muted-foreground)]">{j.parties}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ))}
 
       {onglet === "tirs" && (
-        <div className="flex flex-col gap-4">
-          <section className="cf-carte">
-            <p className="cf-titre-carte">Les tirs les plus meurtriers</p>
+        <div className="page-stack">
+          <section>
+            <h2 className="etiquette">Les tirs les plus meurtriers</h2>
             {c.tirs.length === 0 ? <Vide /> : <ListeTirs tirs={c.tirs} />}
           </section>
           {c.lointains.length > 0 && (
-            <section className="cf-carte">
-              <p className="cf-titre-carte">Les tirs les plus lointains</p>
+            <section>
+              <h2 className="etiquette">Les tirs les plus lointains</h2>
               <ListeTirs tirs={c.lointains} distance />
             </section>
           )}
@@ -86,19 +81,19 @@ export default async function PageClassement({ searchParams }: { searchParams: P
       )}
 
       {onglet === "fonctions" && (
-        <section className="cf-carte">
-          <p className="cf-titre-carte">Les expressions qui ont fait le plus de victimes</p>
+        <section>
+          <h2 className="etiquette">Les expressions qui ont fait le plus de victimes</h2>
           {c.fetiches.length === 0 ? <Vide /> : (
-            <ol className="flex flex-col gap-2">
+            <ol>
               {c.fetiches.map((f, i) => (
-                <li key={`${f.tir}:${f.expression}`} className="flex items-center gap-3 rounded-[var(--radius-sm)] bg-white/[0.03] px-3 py-2.5">
-                  <span className="w-6 font-mono text-[14px] font-bold" style={{ color: MEDAILLES[i] ?? "rgba(255,255,255,0.45)" }}>{i + 1}</span>
+                <li key={`${f.tir}:${f.expression}`} className="ligne">
+                  <span className="w-5 text-[14px] text-[var(--muted-foreground)]">{i + 1}</span>
                   <span className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap text-[17px]">
                     <Formule source={f.expression} equadiff={f.tir === "equadiff"} />
                   </span>
-                  <span className="shrink-0 text-right text-[12px] text-white/55">
-                    <strong className="block font-mono text-[15px] text-[var(--cf-or)]">{f.victimes} élim.</strong>
-                    {f.tirs} tir{f.tirs > 1 ? "s" : ""} · {f.auteurs} auteur{f.auteurs > 1 ? "s" : ""}
+                  <span className="shrink-0 text-right">
+                    <strong className="block text-[15px] font-semibold">{f.victimes} élim.</strong>
+                    <span className="ligne__meta">{f.tirs} tir{f.tirs > 1 ? "s" : ""} · {f.auteurs} auteur{f.auteurs > 1 ? "s" : ""}</span>
                   </span>
                 </li>
               ))}
@@ -106,31 +101,31 @@ export default async function PageClassement({ searchParams }: { searchParams: P
           )}
         </section>
       )}
-    </Cadre>
+    </main>
   );
 }
 
 function Vide() {
-  return <p className="py-6 text-center text-[14px] text-white/50">Rien encore : la première partie entre membres ouvrira le classement.</p>;
+  return <p className="py-3 text-[15px] text-[var(--muted-foreground)]">Rien encore : la première partie entre membres ouvrira le classement.</p>;
 }
 
 function ListeTirs({ tirs, distance }: { tirs: LigneTir[]; distance?: boolean }) {
   return (
-    <ol className="flex flex-col gap-2">
+    <ol>
       {tirs.map((t, i) => (
-        <li key={t.id} className="flex items-center gap-3 rounded-[var(--radius-sm)] bg-white/[0.03] px-3 py-2.5">
-          <span className="w-6 font-mono text-[14px] font-bold" style={{ color: MEDAILLES[i] ?? "rgba(255,255,255,0.45)" }}>{i + 1}</span>
+        <li key={t.id} className="ligne">
+          <span className="w-5 text-[14px] text-[var(--muted-foreground)]">{i + 1}</span>
           <span className="min-w-0 flex-1">
             <span className="block overflow-x-auto whitespace-nowrap text-[17px]">
               <Formule source={t.expression} equadiff={t.tir === "equadiff"} />
             </span>
-            <span className="mt-0.5 block text-[12px] text-white/50">
+            <span className="block ligne__meta">
               {t.nom} · {jour.format(t.cree_le)}{t.mode === "brouillard" ? " · dans le brouillard" : ""}
             </span>
           </span>
-          <span className="shrink-0 text-right font-mono text-[15px] font-bold text-[var(--cf-or)]">
-            {distance ? `${t.longueur.toFixed(1)} u` : `${t.victimes} élim.`}
-            {!distance && <span className="block text-[11px] font-normal text-white/45">{t.longueur.toFixed(1)} u</span>}
+          <span className="shrink-0 text-right">
+            <strong className="block text-[15px] font-semibold">{distance ? `${t.longueur.toFixed(1)} u` : `${t.victimes} élim.`}</strong>
+            {!distance && <span className="ligne__meta">{t.longueur.toFixed(1)} u</span>}
           </span>
         </li>
       ))}

@@ -27,6 +27,8 @@ export type Reglages = {
   mode: "classique" | "brouillard";
   tir: "fonction" | "equadiff";
   repereMuet: boolean;
+  /** Tracé de sa propre courbe pendant la saisie, comme sur une calculatrice graphique. */
+  apercu: boolean;
   familles: Famille[];
   /** Caractères au plus, 0 : libre. */
   longueurMax: number;
@@ -37,7 +39,7 @@ export type Reglages = {
 };
 
 export const REGLAGES_DEFAUT: Reglages = {
-  mode: "classique", tir: "fonction", repereMuet: false,
+  mode: "classique", tir: "fonction", repereMuet: false, apercu: true,
   familles: [...TOUTES_FAMILLES], longueurMax: 0, temps: 90, manches: 3, obstacles: "normal",
 };
 
@@ -54,6 +56,7 @@ export function corrigerReglages(actuels: Reglages, brut: Record<string, unknown
   if (brut.mode === "classique" || brut.mode === "brouillard") r.mode = brut.mode;
   if (brut.tir === "fonction" || brut.tir === "equadiff") r.tir = brut.tir;
   if (typeof brut.repereMuet === "boolean") r.repereMuet = brut.repereMuet;
+  if (typeof brut.apercu === "boolean") r.apercu = brut.apercu;
   if (Array.isArray(brut.familles)) r.familles = TOUTES_FAMILLES.filter((f) => (brut.familles as unknown[]).includes(f));
   if (CHOIX.longueurMax.includes(brut.longueurMax as number)) r.longueurMax = brut.longueurMax as number;
   if (CHOIX.temps.includes(brut.temps as number)) r.temps = brut.temps as number;
@@ -113,6 +116,8 @@ export function genererArene(graine: number, n: number, densite: Reglages["obsta
 }
 
 export const arrondir = (v: number) => Math.round(v * 100) / 100;
+/** Points des courbes : au millième, pour rester sur le graphe quand on zoome. */
+export const arrondirFin = (v: number) => Math.round(v * 1000) / 1000;
 
 export function dansCercles(cercles: Cercle[], x: number, y: number): boolean {
   for (const c of cercles) {

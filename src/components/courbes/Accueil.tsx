@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
-import { COULEURS, type SalonOuvert } from "@/lib/courbes/vue";
+import { useEffect, useState } from "react";
+import type { SalonOuvert } from "@/lib/courbes/vue";
 import { Regles } from "./Salle";
 
 const BASE = "/divertissement/curve-fight";
@@ -11,47 +11,38 @@ const PHASES: Record<SalonOuvert["phase"], string> = {
   salon: "En attente", preparation: "En partie", volee: "En partie", finManche: "En partie", fin: "Partie finie",
 };
 
-/** Décor du titre : quelques courbes qui glissent, comme sur un oscilloscope. */
-function Oscilloscope() {
-  const ref = useRef<HTMLCanvasElement>(null);
-  useEffect(() => {
-    const canvas = ref.current!;
-    const ctx = canvas.getContext("2d")!;
-    const calme = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const courbes: ((x: number, t: number) => number)[] = [
-      (x, t) => 0.55 * Math.sin(x * 1.3 + t),
-      (x, t) => 0.35 * Math.sin(x * 2.4 - t * 1.4) + 0.25 * Math.cos(x * 0.7 + t * 0.5),
-      (x, t) => 0.12 * (x - 3.2 + Math.sin(t * 0.4)) ** 2 - 0.6,
-      (x, t) => 0.5 * Math.tanh(2 * Math.sin(x * 0.9 - t * 0.8)),
-    ];
-    let raf = 0;
-    function image(ms: number) {
-      const r = canvas.getBoundingClientRect();
-      const dpr = Math.min(2, window.devicePixelRatio || 1);
-      if (canvas.width !== Math.round(r.width * dpr)) { canvas.width = Math.round(r.width * dpr); canvas.height = Math.round(r.height * dpr); }
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, r.width, r.height);
-      const t = calme ? 1 : ms / 1600;
-      courbes.forEach((f, i) => {
-        ctx.beginPath();
-        for (let px = 0; px <= r.width; px += 4) {
-          const y = r.height / 2 - f((px / r.width) * 6.4, t + i * 1.7) * r.height * 0.42;
-          if (px) ctx.lineTo(px, y); else ctx.moveTo(px, y);
-        }
-        ctx.strokeStyle = COULEURS[[0, 1, 2, 4][i]];
-        ctx.globalAlpha = 0.16; ctx.lineWidth = 8; ctx.stroke();
-        ctx.globalAlpha = 0.75; ctx.lineWidth = 1.6; ctx.stroke();
-      });
-      ctx.globalAlpha = 1;
-      if (!calme) raf = requestAnimationFrame(image);
-    }
-    raf = requestAnimationFrame(image);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-  return <canvas ref={ref} aria-hidden="true" className="absolute inset-0 h-full w-full opacity-70" />;
+/** Le jeu en une figure : deux joueurs, une courbe qui part de l'un et atteint l'autre. */
+function Figure() {
+  // y = 26·sin(x/38) sur un repère de 320 × 120, origine au centre.
+  const points = Array.from({ length: 41 }, (_, i) => {
+    const x = 60 + i * 5;
+    return `${x},${(60 - 26 * Math.sin((x - 160) / 38)).toFixed(1)}`;
+  }).join(" ");
+  return (
+    <svg viewBox="0 0 320 120" className="cf-figure" role="img"
+         aria-label="Deux joueurs dans un repère ; la courbe de l’un rejoint l’autre.">
+      <defs>
+        <pattern id="cf-carreaux" width="20" height="20" patternUnits="userSpaceOnUse">
+          <path d="M20 0H0V20" fill="none" stroke="currentColor" strokeOpacity="0.1" />
+        </pattern>
+      </defs>
+      <rect width="320" height="120" fill="url(#cf-carreaux)" />
+      <path d="M0 60h320M160 0v120" stroke="currentColor" strokeOpacity="0.55" />
+      <circle cx="118" cy="34" r="17" fill="currentColor" fillOpacity="0.1" stroke="currentColor" strokeOpacity="0.6" />
+      <polyline points={points} fill="none" stroke="var(--cf-j1)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+      <g style={{ color: "var(--cf-j1)" }}>
+        <circle cx="60" cy="72.7" r="8" fill="currentColor" fillOpacity="0.2" stroke="currentColor" strokeWidth="2" />
+        <circle cx="60" cy="72.7" r="2.5" fill="currentColor" />
+      </g>
+      <g style={{ color: "var(--cf-j0)" }}>
+        <circle cx="260" cy="47.3" r="8" fill="currentColor" fillOpacity="0.2" stroke="currentColor" strokeWidth="1.5" />
+        <circle cx="260" cy="47.3" r="2.5" fill="currentColor" />
+      </g>
+    </svg>
+  );
 }
 
-export function Accueil({ pseudo, salons: initiaux }: { pseudo: string; salons: SalonOuvert[] }) {
+export function Accueil({ salons: initiaux }: { salons: SalonOuvert[] }) {
   const router = useRouter();
   const [salons, setSalons] = useState(initiaux);
   const [code, setCode] = useState("");
@@ -85,58 +76,39 @@ export function Accueil({ pseudo, salons: initiaux }: { pseudo: string; salons: 
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <section className="relative overflow-hidden rounded-[var(--radius-lg)] border border-white/10 bg-black/30 px-5 py-10 text-center sm:py-14">
-        <Oscilloscope />
-        <div className="relative">
-          <h1 className="cf-logo text-[52px] sm:text-[88px]">CURVE FIGHT</h1>
-          <p className="mx-auto mt-3 max-w-[520px] text-[15px] leading-relaxed text-white/75">
-            Écris une fonction. Sans aperçu. Si sa courbe atteint un adversaire avant que la sienne ne t’atteigne, il disparaît.
-          </p>
-          <p className="mt-2 text-[12px] text-white/45">Connecté·e en tant que {pseudo} · 2 à 10 joueurs</p>
-        </div>
+    <div className="page-stack">
+      <Figure />
+
+      <section className="flex flex-col gap-3">
+        <button type="button" className="bouton-principal" onClick={creer} disabled={creation}>
+          {creation ? "Création…" : "Créer un salon"}
+        </button>
+        {erreur && <p role="alert" className="text-[14px] font-medium text-[var(--destructive)]">{erreur}</p>}
+        <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); if (codeValide) router.push(`${BASE}/salon/${code}`); }}>
+          <input className="champ min-w-0 flex-1 font-mono uppercase tracking-[0.2em]" value={code}
+                 onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4))}
+                 placeholder="Code" aria-label="Code du salon à rejoindre" autoComplete="off" autoCapitalize="characters" spellCheck={false} />
+          <button type="submit" className="puce !h-12 !px-5" disabled={!codeValide}>Rejoindre</button>
+        </form>
       </section>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <section className="cf-carte flex flex-col gap-3">
-          <p className="cf-titre-carte mb-0">Nouvelle partie</p>
-          <p className="text-[14px] text-white/65">Ouvre un salon, règle le mode et les fonctions autorisées, puis invite la classe. Seul ? Ajoute des bots.</p>
-          <button type="button" className="cf-bouton mt-auto" onClick={creer} disabled={creation}>
-            {creation ? "Création…" : "Créer un salon"}
-          </button>
-          {erreur && <p role="alert" className="text-[13px] text-[var(--cf-rose)]">{erreur}</p>}
-        </section>
-
-        <form className="cf-carte flex flex-col gap-3"
-              onSubmit={(e) => { e.preventDefault(); if (codeValide) router.push(`${BASE}/salon/${code}`); }}>
-          <p className="cf-titre-carte mb-0">Rejoindre par code</p>
-          <input className="cf-champ text-center text-[24px] font-bold uppercase tracking-[0.4em]" value={code}
-                 onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4))}
-                 placeholder="ABCD" aria-label="Code du salon" autoComplete="off" autoCapitalize="characters" spellCheck={false} />
-          <button type="submit" className="cf-bouton-discret mt-auto min-h-[48px]" disabled={!codeValide}>Rejoindre</button>
-        </form>
-      </div>
-
-      <section className="cf-carte">
-        <p className="cf-titre-carte">Salons ouverts</p>
+      <section>
+        <h2 className="etiquette">Salons ouverts</h2>
         {salons.length === 0 ? (
-          <p className="text-[14px] text-white/50">Aucun salon pour l’instant. Ouvre le premier.</p>
+          <p className="py-3 text-[15px] text-[var(--muted-foreground)]">Aucun pour l’instant. Ouvre le premier ; seul, tu peux y ajouter des bots.</p>
         ) : (
-          <ul className="flex flex-col gap-2">
+          <ul>
             {salons.map((s) => (
               <li key={s.code}>
-                <Link href={`${BASE}/salon/${s.code}`}
-                      className="flex items-center gap-3 rounded-[var(--radius-sm)] bg-white/[0.04] px-3 py-3 text-white hover:bg-white/[0.09] hover:text-white">
-                  <span className="font-mono text-[18px] font-black tracking-[0.2em] text-[var(--cf-cyan)]">{s.code}</span>
+                <Link href={`${BASE}/salon/${s.code}`} className="ligne">
+                  <span className="w-[4.5ch] font-mono text-[16px] font-semibold tracking-[0.08em]">{s.code}</span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[14px] font-semibold">Salon de {s.hote}</span>
-                    <span className="block text-[12px] text-white/50">
+                    <span className="block truncate ligne__titre">Salon de {s.hote}</span>
+                    <span className="block ligne__meta">
                       {s.mode === "brouillard" ? "Brouillard" : "Classique"} · {s.tir === "equadiff" ? "y′ = f(x, y)" : "y = f(x)"} · {s.joueurs} joueur{s.joueurs > 1 ? "s" : ""}
                     </span>
                   </span>
-                  <span className={`text-[12px] font-semibold ${s.phase === "salon" ? "text-[#5dff9b]" : "text-white/50"}`}>
-                    {s.phase === "salon" ? "Rejoindre" : `${PHASES[s.phase]} · regarder`}
-                  </span>
+                  <span className="ligne__meta">{s.phase === "salon" ? "Rejoindre" : `${PHASES[s.phase]} · regarder`}</span>
                 </Link>
               </li>
             ))}
@@ -144,13 +116,19 @@ export function Accueil({ pseudo, salons: initiaux }: { pseudo: string; salons: 
         )}
       </section>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Regles />
-        <Link href={`${BASE}/classement`} className="cf-carte block text-white hover:bg-white/[0.08] hover:text-white">
-          <p className="cf-titre-carte">Classement</p>
-          <p className="text-[18px] font-bold">Meilleurs joueurs, plus beaux tirs, fonctions fétiches →</p>
+      <section>
+        <Link href={`${BASE}/classement`} className="ligne">
+          <span className="min-w-0 flex-1">
+            <span className="block ligne__titre">Classement</span>
+            <span className="block ligne__meta">Meilleurs joueurs, plus beaux tirs, fonctions fétiches</span>
+          </span>
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8"
+               strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="text-[var(--muted-foreground)]">
+            <path d="m9 6 6 6-6 6" />
+          </svg>
         </Link>
-      </div>
+        <Regles />
+      </section>
     </div>
   );
 }

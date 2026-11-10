@@ -33,7 +33,7 @@ export default async function PageDivertissement() {
         <Tuile href="/divertissement/videos" titre="Vidéos" icone={<IconeVideos />}
                detail="Explications filmées par la classe" />
         <Tuile href="/divertissement/curve-fight" titre="Curve Fight" icone={<IconeCourbes />}
-               detail="Duel de fonctions, sans aperçu" />
+               detail="Duel de fonctions sur un repère" />
         {toilet && (
           <Tuile href="/toilet" titre="Toilet!" icone={<span className="text-[24px]" aria-hidden="true">🚽</span>}
                  detail="Le classement des toilettes du bas" />

@@ -69,9 +69,3 @@ export type SalonOuvert = {
   code: string; hote: string; joueurs: number; phase: Phase;
   mode: Reglages["mode"]; tir: Reglages["tir"];
 };
-
-/** Dix teintes lisibles sur fond sombre, dans l'ordre d'arrivée. */
-export const COULEURS = [
-  "#4fd8ff", "#ff5c7a", "#ffd23f", "#5dff9b", "#c38bff",
-  "#ff9a3c", "#ff6bd6", "#9dff3c", "#7c9bff", "#f4f1e8",
-];

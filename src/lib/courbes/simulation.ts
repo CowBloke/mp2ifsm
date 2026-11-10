@@ -9,7 +9,7 @@
  */
 import { compiler, type Expression } from "./expression";
 import {
-  LONGUEUR_MAX, PAS, RAYON_CRATERE, RAYON_JOUEUR, X_MAX, Y_MAX, arrondir, solide, type Cercle,
+  LONGUEUR_MAX, PAS, RAYON_CRATERE, RAYON_JOUEUR, X_MAX, Y_MAX, arrondir, arrondirFin, solide, type Cercle,
 } from "./monde";
 
 export type Tireur = { id: string; x: number; y: number; expr: Expression | null };
@@ -163,7 +163,7 @@ export function simuler(
         if (!avancer(b) || ++garde > 20000) b.actif = false;
       }
       if (garde > 20000) b.fin = "longueur";
-      b.pts.push(arrondir(b.x), arrondir(b.y));
+      b.pts.push(arrondirFin(b.x), arrondirFin(b.y));
     }
     for (const e of touches.values()) {
       evenements.push(e);

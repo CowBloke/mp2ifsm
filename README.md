@@ -225,8 +225,8 @@ pas enregistrés et disparaissent au rechargement.
 
 ## Curve Fight (duel de fonctions)
 
-`/divertissement/curve-fight` : chacun écrit une expression **sans aperçu**,
-tous les plans sont dévoilés quand tout le monde est prêt, puis les courbes
+`/divertissement/curve-fight` : chacun écrit une expression en secret,
+toutes sont dévoilées quand tout le monde est prêt, puis les courbes
 se tracent en même temps, à la même vitesse (longueur d’arc), depuis leur
 auteur et dans les deux sens. Une courbe qui touche un joueur l’élimine ; la
 courbe d’un joueur éliminé s’arrête. Elle s’arrête aussi au bord, sur un
@@ -239,11 +239,22 @@ plus de 1,5. Les survivants rejouent (8 volées au plus par manche).
   `y′ = f(x, y)` (solution passant par le joueur, Runge-Kutta 4 en longueur
   d’arc), familles de fonctions autorisées, longueur maximale de
   l’expression, temps de réflexion, nombre de manches, densité d’obstacles,
-  repère muet (ni graduations ni coordonnées). Des bots complètent la table.
+  repère muet (ni graduations ni coordonnées), aperçu de sa courbe pendant
+  la saisie (actif par défaut ; coupé, tout se calcule de tête). Des bots
+  complètent la table.
+- **Interface** : une calculatrice graphique. À gauche la liste des
+  expressions (une ligne par joueur, la saisie dans la sienne), à droite le
+  repère, qu’on déplace et qu’on zoome (souris, molette, pincement). Pendant
+  la saisie, le navigateur rejoue `simuler` pour sa seule courbe : l’aperçu
+  est exactement ce qui partira (obstacles visibles compris), avec le graphe
+  brut de f en pointillé. Les courbes d’une volée sont redessinées en
+  repassant par la fonction entre deux ticks (`trace.ts`), donc elles restent
+  sur le graphe à tout zoom. Couleurs et surfaces : jetons de la plateforme,
+  clair et sombre.
 - **Code** : `src/lib/courbes/` — `expression.ts` (analyseur maison, aucune
   évaluation de code ; sert aussi à l’écriture KaTeX), `simulation.ts`
   (une volée, pure et déterministe), `monde.ts` (arène, réglages, grille du
-  brouillard), `bots.ts`, `salons.ts` (salons et déroulement),
+  brouillard), `trace.ts` (géométrie d’affichage), `bots.ts`, `salons.ts` (salons et déroulement),
   `classement.ts` ; interface dans `src/components/courbes/`.
 - **Temps réel sans service de plus** : les salons vivent en mémoire dans le
   processus Next. Le navigateur lit l’état par attente longue
