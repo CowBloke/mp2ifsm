@@ -310,3 +310,65 @@ create table if not exists place_joueur (
   dernier_pose  timestamptz,
   banni         boolean not null default false
 );
+
+-- Quiz : QCM écrits par la classe (bloc du 12 novembre 2026).
+-- Un quiz porte des questions, chaque question 2 à 6 choix dont au moins
+-- un juste. Questions et choix retirés par l'auteur sont masqués
+-- (supprime_le), jamais effacés : les réponses déjà données y renvoient.
+-- La justesse d'une réponse n'est pas stockée : elle se recalcule contre
+-- les choix justes actuels, donc corriger le corrigé corrige les scores.
+create table if not exists quiz (
+  id           serial primary key,
+  titre        text not null check (length(btrim(titre)) between 2 and 120),
+  description  text not null default '' check (length(description) <= 1000),
+  subject_id   smallint references subject(id),
+  created_by   uuid not null references app_user(id) on delete cascade,
+  cree_le      timestamptz not null default now(),
+  modifie_le   timestamptz not null default now(),
+  supprime_le  timestamptz
+);
+create index if not exists quiz_liste_idx on quiz (cree_le desc) where supprime_le is null;
+
+create table if not exists quiz_question (
+  id           serial primary key,
+  quiz_id      integer not null references quiz(id) on delete cascade,
+  position     smallint not null,
+  enonce       text not null check (length(btrim(enonce)) between 1 and 2000),
+  explication  text not null default '' check (length(explication) <= 2000),
+  supprime_le  timestamptz
+);
+create index if not exists quiz_question_quiz_idx on quiz_question (quiz_id, position);
+
+create table if not exists quiz_choix (
+  id           serial primary key,
+  question_id  integer not null references quiz_question(id) on delete cascade,
+  position     smallint not null,
+  texte        text not null check (length(btrim(texte)) between 1 and 500),
+  juste        boolean not null default false,
+  supprime_le  timestamptz
+);
+create index if not exists quiz_choix_question_idx on quiz_choix (question_id, position);
+
+-- Une tentative par passage ; seule la première compte dans les
+-- statistiques de la classe, les suivantes servent à s'entraîner.
+create table if not exists quiz_tentative (
+  id          bigserial primary key,
+  quiz_id     integer not null references quiz(id) on delete cascade,
+  user_id     uuid not null references app_user(id) on delete cascade,
+  numero      integer not null check (numero >= 1),
+  debut_le    timestamptz not null default now(),
+  fini_le     timestamptz,
+  unique (quiz_id, user_id, numero)
+);
+-- Au plus une tentative en cours par membre et par quiz.
+create unique index if not exists quiz_tentative_en_cours_idx
+  on quiz_tentative (quiz_id, user_id) where fini_le is null;
+
+create table if not exists quiz_reponse (
+  tentative_id  bigint not null references quiz_tentative(id) on delete cascade,
+  question_id   integer not null references quiz_question(id) on delete cascade,
+  choix         integer[] not null,
+  repondu_le    timestamptz not null default now(),
+  primary key (tentative_id, question_id)
+);
+create index if not exists quiz_reponse_question_idx on quiz_reponse (question_id);

@@ -216,7 +216,7 @@ séparé et ne remplace pas le build `.next` du service en cours.
 ## Divertissement
 
 L’onglet **Divertissement** (`/divertissement`) regroupe le **Marché**
-(`/marche`, inchangé), les **Vidéos** éducatives (ci-dessous) et les **Réels** (`/divertissement/reels`) : une blague
+(`/marche`, inchangé), les **Vidéos** éducatives et les **Quiz** (ci-dessous), et les **Réels** (`/divertissement/reels`) : une blague
 façon reels d’Instagram où chaque « vidéo » est un nombre réel tiré au hasard
 (décimaux, √n, notation scientifique, π, e, φ…), avec des commentaires
 élogieux et des compteurs fictifs. Tout est généré dans le navigateur
@@ -353,6 +353,33 @@ Tables `place_config`, `place_log` (historique complet, colonne `annule`),
 `place_pixel` (état courant) et `place_joueur` (dernier pixel, bannissement)
 dans `db/schema-dossiers.sql` (bloc du 12 novembre 2026). Tests :
 `tests/place.test.ts`.
+
+## Quiz
+
+`/divertissement/quiz` : des QCM écrits par la classe. N’importe quel membre
+crée un quiz (titre, matière, description, puis 1 à 50 questions de 2 à 6
+choix, une ou plusieurs bonnes réponses, explication facultative, LaTeX entre
+`$…$` rendu par KaTeX côté serveur) ; l’auteur ou un admin le modifie ou le
+retire. Une réponse est juste si elle coche exactement les bons choix.
+
+On répond une question à la fois (`/quiz/<id>/jouer`) : le corrigé et
+l’explication n’arrivent qu’après validation, avec la réussite de la classe à
+cette question. La progression est en base ; quitter puis revenir reprend la
+tentative. Les choix sont mélangés (ordre fixe par tentative). On peut
+recommencer autant qu’on veut : **seul le premier essai compte pour la
+classe** (c’est annoncé, avec le fait que les noms sont visibles).
+
+Les **statistiques** (`/quiz/<id>/stats`, ouvertes après un essai terminé,
+et toujours à l’auteur et aux admins puisqu’elles montrent le corrigé) :
+participants, moyenne, grille membres × questions (✓/✗, score du premier
+essai, meilleur essai), puis chaque question avec la répartition des choix.
+La liste montre ma réussite par matière et le filtre `?matiere=`.
+
+La justesse n’est jamais stockée : elle se recalcule contre les bonnes
+réponses actuelles, donc corriger un corrigé corrige les scores. Questions et
+choix retirés sont masqués (`supprime_le`), jamais effacés. Tables `quiz*`
+dans `db/schema-dossiers.sql` (bloc du 12 novembre 2026) ; règles pures et
+agrégation dans `src/lib/quiz-commun.ts` (testées par `tests/quiz.test.ts`).
 
 ## Vidéos éducatives
 

@@ -36,6 +36,8 @@ export default async function PageDivertissement() {
                detail="Duel de fonctions, sans aperçu" />
         <Tuile href="/divertissement/toile" titre="La Toile" icone={<IconeToile />}
                detail="Un pixel toutes les 5 minutes" />
+        <Tuile href="/divertissement/quiz" titre="Quiz" icone={<IconeQuiz />}
+               detail="QCM de la classe, avec les stats" />
         {toilet && (
           <Tuile href="/toilet" titre="Toilet!" icone={<span className="text-[24px]" aria-hidden="true">🚽</span>}
                  detail="Le classement des toilettes du bas" />
@@ -107,6 +109,18 @@ function IconeToile() {
       <rect x="3" y="3" width="18" height="18" rx="3" />
       <path d="M9 3v18M15 3v18M3 9h18M3 15h18" strokeOpacity="0.45" />
       <path d="M3.9 3.9h5.1v5.1H3.9zM15 9h5.1v6H15zM9 15h6v5.1H9z" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+/* Liste de cases cochées : les quiz. */
+function IconeQuiz() {
+  return (
+    <svg {...trait}>
+      <rect x="3" y="4" width="5" height="5" rx="1.5" />
+      <path d="m4.3 6.6 1.2 1.1 2-2.4" />
+      <rect x="3" y="14" width="5" height="5" rx="1.5" />
+      <path d="M11.5 6.5H21M11.5 16.5H21" />
     </svg>
   );
 }

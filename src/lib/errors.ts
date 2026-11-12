@@ -81,6 +81,11 @@ export const MESSAGES_FR: Record<string, string> = {
   COURS_CLE_INVALIDE: "Identifiant invalide (minuscules, chiffres et tirets)",
   CHAPITRE_INTROUVABLE: "Chapitre introuvable",
   APPAREIL_INVALIDE: "Appareil non reconnu pour les notifications",
+  QUIZ_INTROUVABLE: "Quiz introuvable",
+  QUIZ_VIDE: "Ce quiz n’a pas encore de question",
+  QUIZ_INVALIDE: "Quiz invalide, rechargez la page",
+  QUIZ_CHOIX_MANQUANT: "Choisis au moins une réponse",
+  QUIZ_DEJA_REPONDU: "Question déjà répondue, rechargez la page",
   // En dernier : la recherche par sous-chaîne doit d'abord trouver les
   // codes précis (CARTE_INTROUVABLE, DOSSIER_INTROUVABLE…).
   INTROUVABLE: "Élément introuvable",
