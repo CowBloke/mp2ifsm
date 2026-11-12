@@ -322,6 +322,38 @@ NEXT_BUILD_DIR=.next-portal-check npm run build
 node --env-file=.env --conditions=react-server --import tsx tests/toilet.integration.ts
 ```
 
+## La Toile
+
+`/divertissement/toile` : une toile de 100 × 100 pixels commune à la classe,
+façon r/place. On touche un pixel (la toile zoome d’elle-même s’il est petit),
+on choisit une des 18 couleurs, on pose, puis on attend **5 minutes par compte**
+avant le suivant. Pincer/molette pour zoomer, glisser pour se déplacer ;
+au clavier : flèches, + / −, Entrée. Toucher un pixel montre qui l’a posé et quand.
+
+Temps réel par attente longue (`GET /api/toile?v=<version>`, 25 s au plus,
+réveillée en mémoire dans le processus Next.js) ; la version est le dernier
+`place_log.id`. Toutes les écritures prennent le même verrou consultatif, donc
+les id deviennent visibles dans l’ordre et aucun client ne saute un changement.
+Au-delà de 3000 changements de retard, la toile entière est renvoyée (base64,
+un octet par pixel).
+
+**Modération** (administrateurs, sous la toile ; `POST /api/toile/admin`,
+rôle revérifié côté serveur) :
+
+* geler / dégeler la toile ; changer le délai (minutes) ;
+* pinceau admin : sans délai, même toile gelée, pixels marqués « modération » ;
+* bannir / débannir un membre ; lever l’attente d’un membre ou de tous ;
+* annuler les pixels d’un membre (dernière heure ou tous) : là où ils sont
+  encore visibles, chaque pixel reprend la couleur d’avant lui ; ce que
+  d’autres ont dessiné par-dessus est gardé ;
+* zone (deux coins touchés sur la toile) : effacer, remplir avec la couleur
+  choisie, ou **remettre comme il y a N minutes** (pixels annulés ignorés).
+
+Tables `place_config`, `place_log` (historique complet, colonne `annule`),
+`place_pixel` (état courant) et `place_joueur` (dernier pixel, bannissement)
+dans `db/schema-dossiers.sql` (bloc du 12 novembre 2026). Tests :
+`tests/place.test.ts`.
+
 ## Vidéos éducatives
 
 `/divertissement/videos` : les membres publient des vidéos où ils expliquent

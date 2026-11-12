@@ -34,6 +34,8 @@ export default async function PageDivertissement() {
                detail="Explications filmées par la classe" />
         <Tuile href="/divertissement/curve-fight" titre="Curve Fight" icone={<IconeCourbes />}
                detail="Duel de fonctions, sans aperçu" />
+        <Tuile href="/divertissement/toile" titre="La Toile" icone={<IconeToile />}
+               detail="Un pixel toutes les 5 minutes" />
         {toilet && (
           <Tuile href="/toilet" titre="Toilet!" icone={<span className="text-[24px]" aria-hidden="true">🚽</span>}
                  detail="Le classement des toilettes du bas" />
@@ -94,6 +96,17 @@ function IconeCourbes() {
       <path d="M3 3v18h18" />
       <path d="M5 16c3-9 5-9 7-4s4 5 8-6" />
       <path d="M5 8c4 1 9 4 15 9" />
+    </svg>
+  );
+}
+
+/* Grille de pixels, quelques cases remplies : La Toile. */
+function IconeToile() {
+  return (
+    <svg {...trait}>
+      <rect x="3" y="3" width="18" height="18" rx="3" />
+      <path d="M9 3v18M15 3v18M3 9h18M3 15h18" strokeOpacity="0.45" />
+      <path d="M3.9 3.9h5.1v5.1H3.9zM15 9h5.1v6H15zM9 15h6v5.1H9z" fill="currentColor" stroke="none" />
     </svg>
   );
 }

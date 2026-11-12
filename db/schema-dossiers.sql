@@ -268,3 +268,45 @@ create table if not exists apns_appareil (
   echecs        smallint not null default 0
 );
 create index if not exists apns_appareil_user_idx on apns_appareil (user_id);
+
+-- La Toile : toile de pixels partagée façon r/place (bloc du 12 novembre 2026).
+-- place_log est l'historique complet (un pixel posé = une ligne, une action
+-- de modération = une ligne par pixel modifié) ; son id sert de version aux
+-- clients. place_pixel est l'état courant ; un pixel absent est blanc (0).
+-- Toutes les écritures prennent le même verrou consultatif : les id
+-- deviennent visibles dans l'ordre, un client ne saute aucun changement.
+create table if not exists place_config (
+  id              boolean primary key default true check (id),
+  delai_secondes  integer not null default 300 check (delai_secondes between 0 and 86400),
+  gelee           boolean not null default false
+);
+insert into place_config default values on conflict do nothing;
+
+create table if not exists place_log (
+  id       bigserial primary key,
+  x        smallint not null check (x between 0 and 99),
+  y        smallint not null check (y between 0 and 99),
+  couleur  smallint not null check (couleur between 0 and 31),
+  user_id  uuid references app_user(id) on delete set null,
+  nature   text not null check (nature in ('pixel', 'admin')),
+  -- Pixel retiré par un administrateur (vandalisme) : on l'ignore quand
+  -- on cherche la couleur qu'avait un pixel avant lui.
+  annule   boolean not null default false,
+  cree_le  timestamptz not null default now()
+);
+create index if not exists place_log_xy_idx   on place_log (x, y, id desc);
+create index if not exists place_log_user_idx on place_log (user_id, cree_le desc);
+
+create table if not exists place_pixel (
+  x        smallint not null,
+  y        smallint not null,
+  couleur  smallint not null,
+  log_id   bigint not null references place_log(id),
+  primary key (x, y)
+);
+
+create table if not exists place_joueur (
+  user_id       uuid primary key references app_user(id) on delete cascade,
+  dernier_pose  timestamptz,
+  banni         boolean not null default false
+);
