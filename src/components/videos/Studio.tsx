@@ -2,16 +2,18 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { DUREE_MAX_S, CLIPS_MAX, FILTRES, filtreCss, formatDuree, vignetteCss } from "@/lib/videos-montage";
+import { DUREE_MAX_S, CLIPS_MAX, FILTRES, TAILLE_MAX_VIDEO, filtreCss, formatDuree, vignetteCss } from "@/lib/videos-montage";
 import { Editeur, type Reglages, type Segment } from "./Editeur";
 import { FeuilleMusique, PastilleMusique, type MusiqueChoisie } from "./Musique";
 import { LENTILLES, parCle } from "./lentilles/catalogue";
 import { chargerDetecteur, Moteur } from "./lentilles/moteur";
+import { debitPour, lireInfos, recompresser, type InfosVideo } from "./importer";
 
 /*
  * Studio d'enregistrement : la caméra de l'appareil, filmée directement
- * dans l'app (aucun fichier importé). On enregistre plusieurs clips
- * comme sur les réseaux sociaux, puis on passe au montage.
+ * dans l'app, ou des vidéos importées de la galerie du téléphone. On
+ * enchaîne plusieurs clips comme sur les réseaux sociaux, puis on passe
+ * au montage.
  */
 
 export type Clip = { id: string; blob: Blob; url: string; duree: number; largeur: number; hauteur: number; filtre: string };
@@ -27,6 +29,13 @@ function typeEnregistrement(): string {
   ];
   return candidats.find((t) => typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(t)) ?? "";
 }
+
+const mo = (octets: number) => (Math.max(0, octets) / 1048576).toFixed(1).replace(".", ",");
+
+type Importation = {
+  fichier: File; infos: InfosVideo | null; limite: number; place: number;
+  debit: number | null; progres: number | null; erreur: string | null;
+};
 
 let compteur = 0;
 const nouvelId = () => `c${Date.now().toString(36)}${(compteur++).toString(36)}`;
@@ -61,10 +70,71 @@ export function Studio({ matieres }: { matieres: { id: number; nom: string }[] }
     router.push("/divertissement/videos");
   }
 
-  const ajouterClip = useCallback((c: Clip) => {
+  const ajouterClip = useCallback((c: Clip, fin = c.duree) => {
     setClips((l) => [...l, c]);
-    setSegments((s) => [...s, { cle: nouvelId(), clip: c.id, debut: 0, fin: c.duree, muet: false, filtre: c.filtre }]);
+    setSegments((s) => [...s, { cle: nouvelId(), clip: c.id, debut: 0, fin, muet: false, filtre: c.filtre }]);
   }, []);
+
+  // --- Import depuis la galerie -----------------------------------------
+  const [importation, setImportation] = useState<Importation | null>(null);
+  const annulation = useRef<AbortController | null>(null);
+  const reste = DUREE_MAX_S - dureeMontage;
+  // Place restante sous la limite d'envoi (clips déjà là + musique importée).
+  const place = TAILLE_MAX_VIDEO - clips.reduce((s, c) => s + c.blob.size, 0)
+    - (reglages.musique?.cle === "perso" ? reglages.musique.fichier?.size ?? 0 : 0) - 512 * 1024;
+
+  async function importer(fichier: File) {
+    if (reste < 1 || clips.length >= CLIPS_MAX) return;
+    const base: Importation = { fichier, infos: null, limite: 0, place, debit: null, progres: null, erreur: null };
+    setImportation(base);
+    let infos: InfosVideo;
+    try {
+      infos = await lireInfos(fichier);
+    } catch {
+      setImportation({ ...base, erreur: "Cette vidéo ne peut pas être lue par ce navigateur (format non pris en charge). Essayez une vidéo filmée en H.264, ou filmez-la directement ici." });
+      return;
+    }
+    const limite = Math.min(infos.duree, reste);
+    if (limite < 0.5) { setImportation({ ...base, erreur: "Cette vidéo est trop courte." }); return; }
+    if (fichier.size <= place) {
+      // Le fichier tient tel quel : le clip entier est gardé, le montage s'arrête à la durée restante.
+      ajouterClip({ id: nouvelId(), blob: fichier, url: URL.createObjectURL(fichier), duree: Math.floor(infos.duree * 10) / 10,
+                    largeur: infos.largeur, hauteur: infos.hauteur, filtre: "aucun" }, Math.floor(limite * 10) / 10);
+      setImportation(null);
+      setPhase("montage");
+      return;
+    }
+    setImportation({ ...base, infos, limite, debit: debitPour(limite, place) });
+  }
+
+  async function reenregistrer() {
+    const imp = importation;
+    if (!imp?.infos || !imp.debit) return;
+    const ctrl = new AbortController();
+    annulation.current = ctrl;
+    setImportation({ ...imp, progres: 0 });
+    try {
+      const r = await recompresser(imp.fichier, {
+        limite: imp.limite, debit: imp.debit, type: typeEnregistrement(), signal: ctrl.signal,
+        onProgres: (p) => setImportation((x) => (x && x.progres !== null ? { ...x, progres: p } : x)),
+      });
+      const duree = Math.floor(r.duree * 10) / 10;
+      ajouterClip({ id: nouvelId(), blob: r.blob, url: URL.createObjectURL(r.blob), duree, largeur: r.largeur, hauteur: r.hauteur, filtre: "aucun" });
+      setImportation(null);
+      setPhase("montage");
+    } catch (e) {
+      if (ctrl.signal.aborted) { setImportation(null); return; }
+      console.error("import vidéo:", e);
+      setImportation({ ...imp, progres: null, erreur: "Le réenregistrement a échoué sur cet appareil. Essayez une vidéo plus courte." });
+    } finally {
+      annulation.current = null;
+    }
+  }
+
+  function fermerImport() {
+    annulation.current?.abort();
+    setImportation(null);
+  }
 
   function retirerDernier() {
     const dernier = segments.at(-1);
@@ -80,19 +150,79 @@ export function Studio({ matieres }: { matieres: { id: number; nom: string }[] }
                     reglages={reglages} setReglages={setReglages}
                     onCamera={() => setPhase("camera")} onQuitter={quitter} />;
   }
-  return <Camera reste={DUREE_MAX_S - dureeMontage} nbSegments={segments.length} dureeMontage={dureeMontage}
-                 peutAjouter={clips.length < CLIPS_MAX}
-                 filtre={filtre} setFiltre={setFiltre} musique={reglages.musique} onMusique={choisirMusique}
-                 onClip={ajouterClip} onAnnulerDernier={retirerDernier} onSuivant={() => setPhase("montage")}
-                 onQuitter={quitter} />;
+  return (
+    <>
+      <Camera reste={reste} nbSegments={segments.length} dureeMontage={dureeMontage}
+              peutAjouter={clips.length < CLIPS_MAX}
+              filtre={filtre} setFiltre={setFiltre} musique={reglages.musique} onMusique={choisirMusique}
+              onClip={ajouterClip} onImporter={importer} onAnnulerDernier={retirerDernier} onSuivant={() => setPhase("montage")}
+              onQuitter={quitter} />
+      {importation && <FeuilleImport imp={importation} reste={reste} onReenregistrer={reenregistrer} onFermer={fermerImport} />}
+    </>
+  );
 }
 
-function Camera({ reste, nbSegments, dureeMontage, peutAjouter, filtre, setFiltre, musique, onMusique, onClip, onAnnulerDernier, onSuivant, onQuitter }: {
+/* Étapes d'un import : lecture, choix du réenregistrement, progression ou erreur. */
+function FeuilleImport({ imp, reste, onReenregistrer, onFermer }: {
+  imp: Importation; reste: number; onReenregistrer: () => void; onFermer: () => void;
+}) {
+  const { infos, progres, erreur } = imp;
+  const coupe = infos && infos.duree > reste + 0.2;
+  return (
+    <div className="reels__voile import__voile">
+      <div role="dialog" aria-modal="true" aria-labelledby="import-titre" className="reels__feuille musique__feuille import__feuille">
+        <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-white/25" aria-hidden="true" />
+        <h2 id="import-titre" className="w-full text-center text-[15px] font-semibold">
+          {erreur ? "Import impossible" : !infos ? "Lecture de la vidéo…" : progres !== null ? "Préparation de la vidéo…" : "Vidéo trop lourde"}
+        </h2>
+        <p className="mt-1 truncate text-center text-[12px] opacity-60">{imp.fichier.name} · {mo(imp.fichier.size)} Mo</p>
+        {erreur ? (
+          <p role="alert" className="mt-4 text-[14px] leading-snug text-[#ff8a8a]">{erreur}</p>
+        ) : !infos ? (
+          <div className="mt-6 flex justify-center"><span className="reels__chargement" aria-hidden="true" /></div>
+        ) : progres !== null ? (
+          <>
+            <div className="studio__jauge import__jauge mt-5" role="progressbar" aria-label="Préparation"
+                 aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progres * 100)}>
+              <span style={{ width: `${progres * 100}%` }} />
+            </div>
+            <p className="mt-2 text-center text-[13px] tabular opacity-80">
+              {Math.round(progres * 100)} % · encore {formatDuree(Math.max(0, imp.limite * (1 - progres)))}
+            </p>
+            <p className="mt-3 text-center text-[12px] opacity-60">Gardez l’écran allumé et l’app ouverte.</p>
+          </>
+        ) : imp.debit ? (
+          <p className="mt-4 text-[14px] leading-snug opacity-85">
+            Elle dépasse la place disponible ({mo(imp.place)} Mo). L’app peut la réenregistrer en 720p :
+            cela prend la durée de la vidéo ({formatDuree(imp.limite)}), écran allumé.
+            {coupe && ` Seul le début (${formatDuree(imp.limite)}) sera gardé : 3 min au total.`}
+          </p>
+        ) : (
+          <p role="alert" className="mt-4 text-[14px] leading-snug text-[#ff8a8a]">
+            Plus assez de place pour cette vidéo ({mo(imp.place)} Mo restants) : retirez des clips ou choisissez une vidéo plus courte.
+          </p>
+        )}
+        <div className="mt-5 flex gap-2">
+          {infos && !erreur && progres === null && imp.debit && (
+            <button type="button" className="bouton-principal h-11 flex-1" onClick={onReenregistrer}>Réenregistrer</button>
+          )}
+          <button type="button" className="musique__importer" onClick={onFermer}>
+            {erreur || (infos && !imp.debit) ? "Fermer" : "Annuler"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Camera({ reste, nbSegments, dureeMontage, peutAjouter, filtre, setFiltre, musique, onMusique, onClip, onImporter, onAnnulerDernier, onSuivant, onQuitter }: {
   reste: number; nbSegments: number; dureeMontage: number; peutAjouter: boolean;
   filtre: string; setFiltre: (f: string) => void;
   musique: MusiqueChoisie | null; onMusique: (m: MusiqueChoisie | null) => void;
-  onClip: (c: Clip) => void; onAnnulerDernier: () => void; onSuivant: () => void; onQuitter: () => void;
+  onClip: (c: Clip) => void; onImporter: (f: File) => void;
+  onAnnulerDernier: () => void; onSuivant: () => void; onQuitter: () => void;
 }) {
+  const choixFichier = useRef<HTMLInputElement>(null);
   const apercu = useRef<HTMLVideoElement>(null);
   const flux = useRef<MediaStream | null>(null);
   const enregistreur = useRef<MediaRecorder | null>(null);
@@ -354,6 +484,13 @@ function Camera({ reste, nbSegments, dureeMontage, peutAjouter, filtre, setFiltr
             </svg>
           </button>
         )}
+        <button type="button" className="studio__icone" disabled={enCours || decompte !== null || reste < 1 || !peutAjouter}
+                onClick={() => choixFichier.current?.click()} aria-label="Importer une vidéo du téléphone">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <rect x="3.5" y="4.5" width="17" height="15" rx="3" /><path d="m3.5 16 4.5-4.5 3.5 3.5 2.5-2.5 6.5 6" /><circle cx="15.5" cy="9" r="1.6" />
+          </svg>
+          <span className="studio__mini">Importer</span>
+        </button>
         <button type="button" className="studio__icone" aria-pressed={minuteur} disabled={enCours}
                 onClick={() => setMinuteur((m) => !m)} aria-label="Minuteur de 3 secondes">
           <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" aria-hidden="true">
@@ -373,7 +510,15 @@ function Camera({ reste, nbSegments, dureeMontage, peutAjouter, filtre, setFiltr
       {erreur && (
         <div className="studio__erreur" role="alert">
           <p>{erreur}</p>
-          <button type="button" className="bouton-principal mt-4 h-11 px-5" onClick={onQuitter}>Retour</button>
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            {reste >= 1 && peutAjouter && (
+              <button type="button" className="bouton-principal h-11 px-5" onClick={() => choixFichier.current?.click()}>Importer une vidéo</button>
+            )}
+            {nbSegments > 0 && (
+              <button type="button" className="bouton-principal h-11 px-5" onClick={onSuivant}>Montage</button>
+            )}
+            <button type="button" className="musique__importer flex-none" onClick={onQuitter}>Retour</button>
+          </div>
         </div>
       )}
 
@@ -431,6 +576,8 @@ function Camera({ reste, nbSegments, dureeMontage, peutAjouter, filtre, setFiltr
           : mode === "lentilles" ? "Touchez pour filmer · glissez pour changer de lentille"
           : "Touchez pour filmer · glissez pour changer de filtre"}
       </p>
+      <input ref={choixFichier} type="file" accept="video/*,.mp4,.mov,.webm,.m4v" hidden
+             onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) onImporter(f); }} />
       {feuilleSon && <FeuilleMusique choisie={musique} onChoisir={onMusique} onFermer={() => setFeuilleSon(false)} />}
     </div>
   );

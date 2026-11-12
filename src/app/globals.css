@@ -766,6 +766,9 @@ html.fil-plein-ecran .bottom-nav { display: none; }
 .musique__importer { flex: 1; min-width: 0; background: rgb(255 255 255 / 0.12); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .musique__importer:disabled { opacity: 0.6; }
 .musique__retirer { background: none; color: #ff6b6b; }
+.import__voile { z-index: 70; }
+.import__feuille { height: auto; padding-top: 10px; }
+.import__jauge { margin-inline: 0; }
 .musique__pastille {
   display: inline-flex; align-items: center; gap: 6px; max-width: min(64vw, 240px); height: 34px; padding: 0 14px;
   border-radius: 999px; border: 0; background: rgb(0 0 0 / 0.42); color: #fff; font-size: 13px; font-weight: 600;

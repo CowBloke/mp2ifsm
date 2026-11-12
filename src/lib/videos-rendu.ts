@@ -65,13 +65,20 @@ type Sonde = { largeur: number; hauteur: number; audio: boolean; duree: number }
 
 async function sonder(chemin: string): Promise<Sonde> {
   const json = JSON.parse(await lancer("ffprobe", [
-    "-v", "error", "-show_entries", "stream=codec_type,width,height:format=duration",
+    "-v", "error", "-show_entries", "stream=codec_type,width,height:stream_tags=rotate:stream_side_data=rotation:format=duration",
     "-of", "json", chemin,
-  ], 60_000)) as { streams?: { codec_type: string; width?: number; height?: number }[]; format?: { duration?: string } };
+  ], 60_000)) as {
+    streams?: { codec_type: string; width?: number; height?: number; tags?: { rotate?: string }; side_data_list?: { rotation?: number }[] }[];
+    format?: { duration?: string };
+  };
   const v = json.streams?.find((s) => s.codec_type === "video");
   if (!v?.width || !v.height) throw new Error("aucune piste vidéo");
+  // Vidéos de téléphone : un portrait est souvent stocké en paysage avec une rotation
+  // (ffmpeg la applique au décodage) ; on compte donc les dimensions affichées.
+  const rotation = Number(v.side_data_list?.find((d) => d.rotation !== undefined)?.rotation ?? v.tags?.rotate ?? 0);
+  const tourne = Math.abs(Math.round(rotation / 90)) % 2 === 1;
   return {
-    largeur: v.width, hauteur: v.height,
+    largeur: tourne ? v.height : v.width, hauteur: tourne ? v.width : v.height,
     audio: !!json.streams?.some((s) => s.codec_type === "audio"),
     duree: Number(json.format?.duration) || 0,
   };

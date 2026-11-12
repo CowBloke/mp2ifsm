@@ -3,14 +3,15 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  CLIP_MIN_S, FILTRES, INTERLIGNE, TAILLES_TEXTE, TEXTES_MAX, TAILLE_MAX_VIDEO,
+  CLIP_MIN_S, DUREE_MAX_S, FILTRES, INTERLIGNE, TAILLES_TEXTE, TEXTES_MAX, TAILLE_MAX_VIDEO,
   couperTexte, filtreCss, formatDuree, hautDuBloc, vignetteCss, type Montage, type TexteMontage,
 } from "@/lib/videos-montage";
 import { FeuilleMusique, IconeNote, type MusiqueChoisie } from "./Musique";
 import type { Clip } from "./Studio";
 
 /*
- * Éditeur de montage. Rien n'est réencodé dans le navigateur : l'aperçu
+ * Éditeur de montage. Rien n'est réencodé dans le navigateur (hors vidéos
+ * importées trop lourdes, voir importer.ts) : l'aperçu
  * enchaîne les clips dans un seul <video>, imite le filtre en CSS et pose
  * les textes à l'échelle exacte de l'image finale (720×1280 ou 1280×720).
  * Le serveur refait la même chose avec ffmpeg à la publication.
@@ -117,7 +118,7 @@ export function Editeur({ clips, segments, setSegments, reglages, setReglages, m
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
         </button>
         <h1 className="text-[17px] font-semibold">Montage</h1>
-        <button type="button" className="studio__suivant" disabled={total < 1}
+        <button type="button" className="studio__suivant" disabled={total < 1 || total > DUREE_MAX_S + 0.5}
                 onClick={() => { lecteur.pause(); setEtape("publier"); }}>
           Suivant
         </button>
@@ -125,6 +126,11 @@ export function Editeur({ clips, segments, setSegments, reglages, setReglages, m
 
       <Scene W={W} H={H} filtre={segments[iCourant]?.filtre ?? "aucun"} textes={textesVisibles} t={t} videoRef={lecteur.ref}
              onToucher={lecteur.basculer} lecture={lecteur.lecture} />
+      {total > DUREE_MAX_S + 0.5 && (
+        <p role="alert" className="mx-auto mt-2 px-4 text-center text-[13px] text-[#ff8a8a]">
+          {formatDuree(total)} : raccourcissez les clips, la vidéo ne peut pas dépasser {formatDuree(DUREE_MAX_S)}.
+        </p>
+      )}
 
       <div className="editeur__transport">
         <button type="button" className="studio__icone" onClick={lecteur.basculer}
@@ -157,7 +163,7 @@ export function Editeur({ clips, segments, setSegments, reglages, setReglages, m
                 </button>
               ))}
               <button type="button" className="editeur__puce editeur__puce--ajout" onClick={onCamera}
-                      disabled={total >= 179}>+ Filmer</button>
+                      disabled={total >= 179}>+ Ajouter</button>
             </div>
 
             <Plage libelle={`Clip ${choisi + 1} — garder de ${seg.debut.toFixed(1)} s à ${seg.fin.toFixed(1)} s`}
@@ -649,7 +655,7 @@ function Publication({ clips, segments, reglages, total, W, H, matieres, onRetou
     form.set("description", description.trim());
     form.set("matiere", matiere);
     form.set("montage", JSON.stringify(montage));
-    utilises.forEach((c, i) => form.append("clips", c.blob, `clip-${i}.${c.blob.type.includes("mp4") ? "mp4" : "webm"}`));
+    utilises.forEach((c, i) => form.append("clips", c.blob, `clip-${i}.${c.blob.type.includes("mp4") ? "mp4" : c.blob.type.includes("quicktime") ? "mov" : "webm"}`));
     if (fichierMusique) form.append("musique", fichierMusique, "musique");
     const xhr = new XMLHttpRequest();
     xhr.open("POST", "/api/videos");

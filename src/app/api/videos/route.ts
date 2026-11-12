@@ -12,11 +12,14 @@ import { DOSSIER_VIDEOS, cheminVideo, traiterFile } from "@/lib/videos-rendu";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/* Signatures des conteneurs produits par MediaRecorder. */
+/*
+ * Signatures des conteneurs de MediaRecorder (WebM, MP4) et des vidéos
+ * importées du téléphone (MP4, MOV : premier atome QuickTime).
+ */
 function estVideo(buf: Buffer): boolean {
   const webm = buf[0] === 0x1a && buf[1] === 0x45 && buf[2] === 0xdf && buf[3] === 0xa3;
-  const mp4 = buf.subarray(4, 8).toString("latin1") === "ftyp";
-  return webm || mp4;
+  const atome = buf.subarray(4, 8).toString("latin1");
+  return webm || ["ftyp", "moov", "mdat", "wide", "free", "skip"].includes(atome);
 }
 
 /* Formats audio courants d'un téléphone : MP3, M4A/AAC, OGG/Opus, WAV, FLAC, WebM. */
@@ -31,7 +34,7 @@ function estAudio(buf: Buffer): boolean {
 }
 
 /*
- * Publication d'une vidéo : les clips bruts enregistrés dans l'app et la
+ * Publication d'une vidéo : les clips bruts (filmés dans l'app ou importés) et la
  * description du montage. La vidéo finale est rendue en arrière-plan.
  */
 export async function POST(request: Request) {

@@ -427,9 +427,15 @@ compteurs, grille de ses vidéos, puis fil limité à ses vidéos
 profil personnel montre les vidéos en montage ; on y arrive après la
 publication.
 
-**Tout se filme dans l’app** (`/divertissement/videos/nouvelle`, aucun
-import de vidéo) : caméra avant/arrière, minuteur 3 s, plusieurs clips
-d’affilée, 3 minutes au total. **Filtres façon Snap** : on glisse à
+**Studio** (`/divertissement/videos/nouvelle`) : caméra avant/arrière,
+minuteur 3 s, plusieurs clips d’affilée, 3 minutes au total. Le bouton
+**Importer** ajoute aussi des vidéos de la galerie du téléphone (MP4, MOV,
+WebM ; `importer.ts`) : un fichier qui tient dans la place restante est
+envoyé tel quel (le montage s’arrête aux 3 minutes, à couper dans
+l’éditeur) ; un fichier trop lourd est réenregistré en 720p dans le
+navigateur en le relisant (canvas + Web Audio + `MediaRecorder`, en temps
+réel, débit ajusté à la place restante). Le rendu tient compte de la
+rotation des vidéos de téléphone (portrait stocké en paysage). **Filtres façon Snap** : on glisse à
 gauche/à droite sur l’image (ou on touche la bande de pastilles) pour
 changer de filtre en direct ; chaque clip garde le sien (`clips[].filtre`
 du montage, modifiable ensuite dans l’onglet *Filtres*, « appliquer à
@@ -471,7 +477,7 @@ ignore `volume`) ; le rendu, lui, l’applique. L’**éditeur** intégré (`Edi
 couper le début/la fin d’un clip, le scinder à la tête de lecture, le
 déplacer, couper son son, le supprimer, refilmer ; textes à l’écran
 (position, taille, bandeau ou ombre, plage de temps) ; six filtres ; image
-de couverture. Aucun réencodage dans le navigateur : l’aperçu imite le
+de couverture. Pas de réencodage dans le navigateur (hors import trop lourd) : l’aperçu imite le
 résultat (filtre CSS, textes à l’échelle exacte de l’image finale) et la
 publication envoie les clips bruts (WebM ou MP4 de `MediaRecorder`,
 90 Mo au plus) avec la description du montage (`src/lib/videos-montage.ts`,
