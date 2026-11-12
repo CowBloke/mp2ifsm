@@ -4,6 +4,8 @@ import { LienRetour } from "@/components/LienRetour";
 import { Formule } from "@/components/courbes/Formule";
 import { lireClassements, type LigneTir } from "@/lib/courbes/classement";
 import { utilisateurCourant } from "@/lib/session";
+import { EnTeteJeu } from "@/components/divertissement/EnTeteJeu";
+import { styleJeu } from "@/components/divertissement/jeux";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Classement de Curve Fight — MP2I/FSM" };
@@ -30,12 +32,10 @@ export default async function PageClassement({ searchParams }: { searchParams: P
   const c = await lireClassements();
 
   return (
-    <main>
-      <LienRetour href={BASE} label="Retour à Curve Fight" />
-      <header className="page-heading">
-        <h1>Classement</h1>
-        <p>Parties entre membres uniquement : les bots ne rapportent rien.</p>
-      </header>
+    <main className="jeu" style={styleJeu("courbes")}>
+      <EnTeteJeu jeu="courbes" titre="Classement" retour={{ href: BASE, label: "Retour à Curve Fight" }}>
+        Parties entre membres uniquement : les bots ne rapportent rien.
+      </EnTeteJeu>
 
       <nav aria-label="Classements" className="page-toolbar mb-6">
         {ONGLETS.map((o) => (

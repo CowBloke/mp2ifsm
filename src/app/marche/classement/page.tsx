@@ -4,6 +4,8 @@ import { SqueletteListe } from "@/components/Squelettes";
 import { formatCentimes } from "@/lib/money";
 import { classement } from "@/lib/queries";
 import { utilisateurCourant } from "@/lib/session";
+import { EnTeteJeu } from "@/components/divertissement/EnTeteJeu";
+import { styleJeu } from "@/components/divertissement/jeux";
 
 export const dynamic = "force-dynamic";
 
@@ -12,13 +14,10 @@ export default async function PageClassement() {
   if (!u) redirect("/connexion");
 
   return (
-    <main className="reading-column">
-      <header className="page-heading mb-5">
-      <h1 className="text-[22px] font-bold leading-tight lg:text-[32px]">Classement</h1>
-      <p className="mt-1 text-[13px] text-[var(--muted-foreground)] lg:text-[15px]">
+    <main className="reading-column jeu" style={styleJeu("marche")}>
+      <EnTeteJeu jeu="marche" titre="Classement" retour={{ href: "/marche", label: "Retour au marché" }}>
         Classé par gain net, pas par solde : déposer plus ne fait pas monter.
-      </p>
-      </header>
+      </EnTeteJeu>
 
       <Suspense fallback={<SqueletteListe n={8} />}>
         <Tableau moi={u.id} />

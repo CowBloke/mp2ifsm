@@ -6,6 +6,7 @@ import { SqueletteCarte } from "@/components/Squelettes";
 import { formatCentimes, tempsRestant } from "@/lib/money";
 import { lireMarche, soldeCentimes } from "@/lib/queries";
 import { utilisateurCourant } from "@/lib/session";
+import { styleJeu } from "@/components/divertissement/jeux";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +20,7 @@ export default async function PageMarche({
   if (!u) redirect("/connexion");
 
   return (
-    <main>
+    <main className="jeu" style={styleJeu("marche")}>
       <LienRetour href="/marche" label="Retour au marché" />
       <Suspense fallback={<SqueletteCarte />}>
         <Detail slug={slug} userId={u.id} />
