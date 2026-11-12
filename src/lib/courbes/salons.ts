@@ -6,7 +6,7 @@ import { ErreurExpression, verifier, type Contraintes, type Expression } from ".
 import {
   JOUEURS_MAX, PAS, REGLAGES_DEFAUT, VITESSE, VOLEES_MAX, VUE_DEPART, VUE_TRACE,
   aleatoire, cercleVisible, corrigerReglages, devoiler, genererArene, nouveauVoile, visible,
-  type Cercle, type Reglages,
+  type Cercle, type Reglages, type StyleCarte,
 } from "./monde";
 import { simuler, type Resultat } from "./simulation";
 import type { Phase, SalonOuvert, VueEvenement, VueSalon, VueTrace, VueTraces } from "./vue";
@@ -35,6 +35,16 @@ type Participant = {
   voile: Uint8Array | null;
   sillages: { volee: number; pts: number[] }[];
   historique: { volee: number; source: string; bilan: string }[];
+  /** Éliminé : le joueur qu'il conseille, et la courbe qu'il lui propose (cachée jusqu'au départ). */
+  conseil: { cible: string; expression: Expression | null } | null;
+};
+
+/** Courbe proposée par un éliminé : rejouée seule depuis sa cible, elle ne touche personne pour de vrai. */
+type Conseil = {
+  id: string; cible: string; source: string;
+  traces: Resultat["traces"];
+  /** Qui elle aurait éliminé, et quand. */
+  touches: { victime: string; tick: number; x: number; y: number }[];
 };
 
 type Volee = {
@@ -44,6 +54,9 @@ type Volee = {
   expressions: { id: string; source: string | null }[];
   crateresAvant: number;
   vivantsAvant: Set<string>;
+  conseils: Conseil[];
+  /** Ticks d'animation : la plus longue des courbes, fantômes compris. */
+  ticks: number;
 };
 
 type Salon = {
@@ -51,7 +64,7 @@ type Salon = {
   version: number; diffusee: number; cree: number;
   participants: Map<string, Participant>;
   manche: number; volee: number; compteurVolees: number;
-  obstacles: Cercle[]; crateres: Cercle[];
+  obstacles: Cercle[]; crateres: Cercle[]; carte: StyleCarte;
   echeance: number; transition: number;
   tir: Volee | null;
   gagnants: string[];
@@ -162,16 +175,22 @@ function avancer(s: Salon): void {
 function ouvrirPreparation(s: Salon, t: number): void {
   s.phase = "preparation";
   s.echeance = s.reglages.temps ? t + s.reglages.temps * 1000 : 0;
-  for (const p of s.participants.values()) { p.pret = false; p.expression = null; }
+  for (const p of s.participants.values()) {
+    p.pret = false; p.expression = null;
+    // Le conseiller garde sa cible tant qu'elle est en vie.
+    const cible = p.conseil && s.participants.get(p.conseil.cible);
+    p.conseil = cible && cible.vivant && !p.vivant ? { cible: cible.id, expression: null } : null;
+  }
   s.version++;
 }
 
 function nouvelleManche(s: Salon, t: number): void {
   const joueurs = [...s.participants.values()].filter((p) => p.enJeu);
-  const arene = genererArene(randomInt(2 ** 31), joueurs.length, s.reglages.obstacles);
+  const arene = genererArene(randomInt(2 ** 31), joueurs.length, s.reglages.obstacles, s.reglages.carte);
   s.manche++;
   s.volee = 1;
   s.obstacles = arene.obstacles;
+  s.carte = arene.style;
   s.crateres = [];
   s.tir = null;
   s.gagnants = [];
@@ -245,9 +264,27 @@ function lancerVolee(s: Salon, t: number): void {
     }
   }
 
+  // Les conseils des éliminés : chacun rejoué seul depuis sa cible, sur l'arène d'avant la volée.
+  const conseils: Conseil[] = [];
+  const crateresDAvant = s.crateres.slice(0, crateresAvant);
+  for (const p of s.participants.values()) {
+    const cible = p.conseil && s.participants.get(p.conseil.cible);
+    if (!p.conseil?.expression || !cible || !lice.includes(cible)) continue;
+    const essai = simuler(
+      [{ id: cible.id, x: cible.x, y: cible.y, expr: p.conseil.expression },
+       ...lice.filter((q) => q !== cible).map((q) => ({ id: q.id, x: q.x, y: q.y, expr: null }))],
+      s.obstacles, crateresDAvant, s.reglages.tir);
+    conseils.push({
+      id: p.id, cible: cible.id, source: p.conseil.expression.source, traces: essai.traces,
+      touches: essai.evenements.flatMap((e) => (e.type === "elimination"
+        ? [{ victime: e.victime, tick: e.tick, x: e.x, y: e.y }] : [])),
+    });
+  }
+  const ticks = Math.max(resultat.ticks, ...conseils.map((c) => Math.max(...c.traces.map((tr) => tr.pts.length / 2 - 1))));
+
   const nbTirs = tireurs.filter((x) => x.expr).length;
   const revelation = nbTirs ? Math.min(11_000, Math.max(4500, 3000 + 1100 * nbTirs)) : 2500;
-  const animation = (resultat.ticks * PAS / VITESSE) * 1000;
+  const animation = (ticks * PAS / VITESSE) * 1000;
   s.tir = {
     n: ++s.compteurVolees, manche: s.manche, volee: s.volee,
     tRevelation: t, tAnimation: t + revelation, tFin: t + revelation + animation + 3200,
@@ -255,9 +292,13 @@ function lancerVolee(s: Salon, t: number): void {
     expressions: lice.map((p) => ({ id: p.id, source: p.pret && p.expression ? p.expression.source : null })),
     crateresAvant,
     vivantsAvant: new Set(lice.map((p) => p.id)),
+    conseils, ticks,
   };
   s.phase = "volee";
-  for (const p of s.participants.values()) { p.pret = false; p.expression = null; }
+  for (const p of s.participants.values()) {
+    p.pret = false; p.expression = null;
+    if (p.conseil) p.conseil.expression = null;
+  }
   s.version++;
 }
 
@@ -317,6 +358,7 @@ function nouveau(id: string, nom: string, couleur: number, bot: boolean): Partic
   return {
     id, nom, couleur, bot, enJeu: false, x: 0, y: 0, vivant: false, pret: false, expression: null,
     points: 0, eliminations: 0, manchesGagnees: 0, vu: Date.now(), voile: null, sillages: [], historique: [],
+    conseil: null,
   };
 }
 
@@ -332,7 +374,7 @@ export function creerSalon(u: Membre): string {
   } while (salons.has(code));
   const s: Salon = {
     code, hote: u.id, reglages: { ...REGLAGES_DEFAUT }, phase: "salon", version: 1, diffusee: 1, cree: Date.now(),
-    participants: new Map(), manche: 0, volee: 0, compteurVolees: 0, obstacles: [], crateres: [],
+    participants: new Map(), manche: 0, volee: 0, compteurVolees: 0, obstacles: [], crateres: [], carte: "semis",
     echeance: 0, transition: 0, tir: null, gagnants: [], minuterie: null, attentes: new Set(),
     rnd: aleatoire(randomInt(2 ** 31)),
   };
@@ -372,6 +414,7 @@ export type Action =
   | { t: "reglages"; reglages: Record<string, unknown> }
   | { t: "bot"; delta: number }
   | { t: "lancer" } | { t: "tirer"; expression: string } | { t: "annuler" }
+  | { t: "aider"; id: string } | { t: "conseiller"; expression: string } | { t: "retirerConseil" }
   | { t: "salon" } | { t: "quitter" } | { t: "exclure"; id: string };
 
 export function agir(code: string, u: Membre, a: Action): VueSalon | null {
@@ -434,6 +477,27 @@ export function agir(code: string, u: Membre, a: Action): VueSalon | null {
       moi.pret = true;
       break;
     }
+    case "aider": {
+      const cible = s.participants.get(String(a.id));
+      if (s.phase !== "preparation" || !moi.enJeu || moi.vivant) throw new ErreurSalon("Seul un joueur éliminé peut en aider un autre");
+      if (!cible || cible === moi || !cible.enJeu || !cible.vivant) throw new ErreurSalon("Ce joueur n’est plus en lice");
+      moi.conseil = { cible: cible.id, expression: null };
+      break;
+    }
+    case "conseiller": {
+      if (s.phase !== "preparation" || !moi.conseil) throw new ErreurSalon("Choisis d’abord un joueur à aider");
+      try {
+        moi.conseil.expression = verifier(String(a.expression ?? ""), contraintes(s.reglages));
+      } catch (err) {
+        if (err instanceof ErreurExpression) throw new ErreurSalon(err.message);
+        throw err;
+      }
+      break;
+    }
+    case "retirerConseil": {
+      if (moi.conseil) moi.conseil.expression = null;
+      break;
+    }
     case "annuler": {
       if (s.phase === "preparation") moi.pret = false;
       break;
@@ -443,7 +507,7 @@ export function agir(code: string, u: Membre, a: Action): VueSalon | null {
       if (s.phase !== "fin") throw new ErreurSalon("La partie n’est pas finie");
       s.phase = "salon";
       s.tir = null;
-      for (const p of s.participants.values()) { p.enJeu = false; p.vivant = false; }
+      for (const p of s.participants.values()) { p.enJeu = false; p.vivant = false; p.conseil = null; }
       break;
     }
     case "quitter": {
@@ -493,11 +557,13 @@ function vue(s: Salon, moi: Participant): VueSalon {
         manchesGagnees: p.manchesGagnees, x: cache ? null : p.x, y: cache ? null : p.y,
       };
     }),
-    manche: s.manche, volee: s.volee,
+    manche: s.manche, volee: s.volee, carte: s.carte,
     obstacles: voile ? s.obstacles.filter((c) => cercleVisible(voile, c)) : s.obstacles,
     crateres: s.crateres.map((c, n) => ({ ...c, n })).filter((c) => !voile || cercleVisible(voile, c)),
     echeance: s.phase === "preparation" ? s.echeance : 0,
     monExpression: moi.pret && moi.expression ? moi.expression.source : null,
+    monConseil: moi.conseil && s.phase === "preparation"
+      ? { cible: moi.conseil.cible, source: moi.conseil.expression?.source ?? null } : null,
     historique: moi.historique,
     voile: voile ? {
       sillages: moi.sillages.filter((x) => s.phase !== "volee" || x.volee < s.volee).map((x) => x.pts),
@@ -505,7 +571,7 @@ function vue(s: Salon, moi: Participant): VueSalon {
     tir: tir && s.phase !== "salon" ? {
       n: tir.n, manche: tir.manche, volee: tir.volee,
       tRevelation: tir.tRevelation, tAnimation: tir.tAnimation, tFin: tir.tFin,
-      ticks: tir.resultat.ticks, expressions: tir.expressions,
+      ticks: tir.ticks, expressions: tir.expressions,
       evenements: tir.resultat.evenements.flatMap((e): VueEvenement[] => {
         if (e.type === "impact") return !voile || visible(voile, e.x, e.y) ? [e] : [];
         const vu = !voile || e.victime === moi.id || visible(voile, e.x, e.y);
@@ -513,6 +579,12 @@ function vue(s: Salon, moi: Participant): VueSalon {
                   x: vu ? e.x : null, y: vu ? e.y : null }];
       }),
       crateresAvant: tir.crateresAvant, vivantsAvant: [...tir.vivantsAvant],
+      // Sous le brouillard, une victime hors de vue n'est pas nommée : ce serait la situer.
+      conseils: tir.conseils.map((c) => ({
+        id: c.id, cible: c.cible, source: c.source,
+        touches: c.touches.filter((h) => !voile || h.victime === moi.id || visible(voile, h.x, h.y))
+          .map((h) => ({ victime: h.victime, tick: h.tick })),
+      })),
     } : null,
     transition: s.phase === "finManche" ? s.transition : 0,
     gagnants: s.phase === "finManche" || s.phase === "fin" ? s.gagnants : [],
@@ -538,16 +610,20 @@ export function lireTraces(code: string, u: Membre): VueTraces | null {
   if (!moi || !s.tir || s.phase === "salon") return null;
   const voile = sousVoile(s, moi);
   const traces: VueTrace[] = [];
-  for (const tr of s.tir.resultat.traces) {
-    if (!voile || tr.joueur === moi.id) {
-      traces.push({ joueur: tr.joueur, dir: tr.dir, debut: 0, pts: tr.pts, fin: tr.fin });
+  const toutes = [
+    ...s.tir.resultat.traces.map((tr) => ({ tr, conseil: undefined as string | undefined })),
+    ...s.tir.conseils.flatMap((c) => c.traces.map((tr) => ({ tr, conseil: c.id }))),
+  ];
+  for (const { tr, conseil } of toutes) {
+    if (!voile || (tr.joueur === moi.id && !conseil)) {
+      traces.push({ joueur: tr.joueur, dir: tr.dir, debut: 0, pts: tr.pts, fin: tr.fin, conseil });
       continue;
     }
     // Courbe adverse sous le brouillard : seuls les morceaux qui passent dans mes couloirs.
     let morceau: VueTrace | null = null;
     for (let i = 0; i < tr.pts.length; i += 2) {
       if (visible(voile, tr.pts[i], tr.pts[i + 1])) {
-        if (!morceau) traces.push(morceau = { joueur: tr.joueur, dir: tr.dir, debut: i / 2, pts: [], fin: null });
+        if (!morceau) traces.push(morceau = { joueur: tr.joueur, dir: tr.dir, debut: i / 2, pts: [], fin: null, conseil });
         morceau.pts.push(tr.pts[i], tr.pts[i + 1]);
       } else morceau = null;
     }

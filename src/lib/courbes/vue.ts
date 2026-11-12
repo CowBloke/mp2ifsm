@@ -3,7 +3,7 @@
  * reçoit sa propre vue : sous le brouillard, ce qu'il n'a pas dégagé
  * n'est pas dans la réponse (rien à trouver dans les outils du navigateur).
  */
-import type { Cercle, Reglages } from "./monde";
+import type { Cercle, Reglages, StyleCarte } from "./monde";
 import type { Fin } from "./simulation";
 
 export type Phase = "salon" | "preparation" | "volee" | "finManche" | "fin";
@@ -32,6 +32,8 @@ export type VueTir = {
   /** Les cratères de rang ≥ crateresAvant apparaissent pendant cette volée. */
   crateresAvant: number;
   vivantsAvant: string[];
+  /** Courbes proposées par les éliminés (id : le conseiller), dévoilées avec les autres. */
+  conseils: { id: string; cible: string; source: string; touches: { victime: string; tick: number }[] }[];
 };
 
 export type VueSalon = {
@@ -41,11 +43,15 @@ export type VueSalon = {
   reglages: Reglages;
   joueurs: VueJoueur[];
   manche: number; volee: number;
+  /** Style de l'arène de la manche. */
+  carte: StyleCarte;
   obstacles: Cercle[];
   crateres: (Cercle & { n: number })[];
   /** Fin de la préparation (ms), 0 : sans limite. */
   echeance: number;
   monExpression: string | null;
+  /** Éliminé : le joueur que j'aide et ma proposition, que personne d'autre ne voit avant le départ. */
+  monConseil: { cible: string; source: string | null } | null;
   historique: { volee: number; source: string; bilan: string }[];
   /** Non nul : je suis sous le brouillard ; mes couloirs déjà dégagés. */
   voile: { sillages: number[][] } | null;
@@ -61,6 +67,8 @@ export type VueTrace = {
   debut: number;
   pts: number[];
   fin: Fin | null;
+  /** Courbe fantôme : id du conseiller (la courbe part de `joueur`). */
+  conseil?: string;
 };
 
 export type VueTraces = { n: number; traces: VueTrace[] };

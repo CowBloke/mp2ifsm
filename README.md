@@ -242,6 +242,24 @@ plus de 1,5. Les survivants rejouent (8 volées au plus par manche).
   repère muet (ni graduations ni coordonnées), aperçu de sa courbe pendant
   la saisie (aide d’entraînement, **coupée par défaut** : le jeu se joue de tête). Des bots
   complètent la table.
+- **Cartes** (`genererArene`, `monde.ts`) : styles *Semis*, *Massifs*, *Murs*
+  (chaînes de petits disques, parfois percées), *Pilier* (gros rocher
+  central) et *Miroir* (tout symétrique par rapport à l’origine) ; *Variée*
+  (défaut) en tire un par manche, affiché dans la barre. **Équité** : 24
+  essais de placement des joueurs (ellipse ou hasard, loin des bords),
+  on garde celui dont les plus proches voisins sont les plus réguliers ;
+  10 essais d’obstacles, on garde celui où chacun a autant de place autour
+  de lui (`noteEquite` : rayons libres sur 9 unités) et une ligne de tir
+  droite vers quelqu’un. À deux joueurs, joueurs et obstacles sont toujours
+  symétriques. Un obstacle trop proche d’un joueur rétrécit au lieu de
+  disparaître.
+- **Éliminés : conseiller** : pendant la préparation, un éliminé choisit un
+  joueur en lice et lui propose une courbe (actions `aider`, `conseiller`,
+  `retirerConseil`). Personne d’autre ne la voit avant le départ ; elle est
+  alors dévoilée avec les autres et rejouée seule depuis sa cible, en
+  tirets à la couleur du conseiller, sans tuer personne ni creuser de
+  cratère (« aurait touché … » sous la ligne du joueur). Sous le
+  brouillard, un joueur en lice n’en reçoit que les morceaux de ses couloirs.
 - **Interface** : une calculatrice graphique. À gauche la liste des
   expressions (une ligne par joueur, la saisie dans la sienne), à droite le
   repère, qu’on déplace et qu’on zoome (souris, molette, pincement). Si
@@ -251,6 +269,12 @@ plus de 1,5. Les survivants rejouent (8 volées au plus par manche).
   repassant par la fonction entre deux ticks (`trace.ts`), donc elles restent
   sur le graphe à tout zoom. Couleurs et surfaces : jetons de la plateforme,
   clair et sombre.
+- **Navigateurs** : le repère ne se redessine à chaque image que pendant
+  que les courbes avancent ; obstacles et brouillard sont des calques en
+  cache, redessinés seulement quand la vue ou l’état changent ; plus de
+  `shadowBlur` (bord du brouillard en dégradé et passes successives).
+  Pincement Safari (`gesture*`), molette Firefox en lignes, repli de
+  `roundRect`, `webkitAudioContext` et `color-mix`.
 - **Code** : `src/lib/courbes/` — `expression.ts` (analyseur maison, aucune
   évaluation de code ; sert aussi à l’écriture KaTeX), `simulation.ts`
   (une volée, pure et déterministe), `monde.ts` (arène, réglages, grille du

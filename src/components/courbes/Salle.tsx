@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FAMILLES, ErreurExpression, compiler, verifier, type Expression, type Famille } from "@/lib/courbes/expression";
-import { CHOIX, JOUEURS_MAX, PAS, VITESSE, VOLEES_MAX, type Reglages } from "@/lib/courbes/monde";
+import { CHOIX, JOUEURS_MAX, NOMS_CARTES, PAS, VITESSE, VOLEES_MAX, type Reglages } from "@/lib/courbes/monde";
 import type { Action } from "@/lib/courbes/salons";
 import { simuler, type Fin } from "@/lib/courbes/simulation";
 import { affiner, ecrireNombre } from "@/lib/courbes/trace";
@@ -205,6 +205,10 @@ function Antichambre({ etat, agir, quitter, son, basculerSon }: {
               <Segments valeur={r.obstacles} verrou={!hote} onChange={(obstacles) => regler({ obstacles })}
                         options={CHOIX.obstacles.map((v) => ({ v, nom: v[0].toUpperCase() + v.slice(1) }))} />
             </Groupe>
+            <Groupe titre="Carte" aide={r.carte === "variee" ? "Une disposition différente à chaque manche." : undefined}>
+              <Segments valeur={r.carte} verrou={!hote} onChange={(carte) => regler({ carte })}
+                        options={CHOIX.carte.map((v) => ({ v, nom: NOMS_CARTES[v] }))} />
+            </Groupe>
             <Groupe titre="Longueur de l’expression">
               <Segments valeur={r.longueurMax} verrou={!hote} onChange={(longueurMax) => regler({ longueurMax })}
                         options={CHOIX.longueurMax.map((v) => ({ v, nom: v ? `≤ ${v}` : "Libre" }))} />
@@ -342,7 +346,11 @@ function Partie({ etat, agir, horloge, quitter, son, basculerSon }: {
   const surEvenement = (e: VueEvenement) => (e.type === "impact" ? sons.impact() : sons.elimination());
 
   const joue = etat.phase === "preparation" && !!moi && moi.enJeu && moi.vivant;
-  const source = etat.monExpression ?? brouillon;
+  // Éliminé : on aide un joueur encore en lice, avec une courbe fantôme qui part de lui.
+  const aide = etat.phase === "preparation" && !!moi && moi.enJeu && !moi.vivant;
+  const cibleAide = aide && etat.monConseil ? parId.get(etat.monConseil.cible) ?? null : null;
+  const tireur = joue ? moi : cibleAide;
+  const source = joue ? etat.monExpression ?? brouillon : cibleAide ? etat.monConseil?.source ?? brouillon : "";
   const analyse = useMemo((): { expr: Expression | null; message: string } => {
     if (!source.trim()) return { expr: null, message: "" };
     try {
@@ -353,9 +361,9 @@ function Partie({ etat, agir, horloge, quitter, son, basculerSon }: {
   }, [source, r.familles, r.longueurMax, equadiff]);
 
   // L'aperçu rejoue la simulation du serveur pour sa seule courbe : ce qui est tracé est ce qui partira.
-  const x0 = moi?.x ?? null, y0 = moi?.y ?? null;
+  const x0 = tireur?.x ?? null, y0 = tireur?.y ?? null;
   const apercu = useMemo((): ApercuDetaille | null => {
-    if (!r.apercu || !joue || !analyse.expr || x0 === null || y0 === null) return null;
+    if (!r.apercu || !tireur || !analyse.expr || x0 === null || y0 === null) return null;
     const f = compiler(analyse.expr.arbre);
     const decalage = equadiff ? 0 : y0 - f(x0, 0);
     const res = simuler([{ id: "moi", x: x0, y: y0, expr: analyse.expr }], etat.obstacles, etat.crateres, r.tir);
@@ -365,7 +373,7 @@ function Partie({ etat, agir, horloge, quitter, son, basculerSon }: {
       branches: res.traces.map((tr) => (equadiff ? tr.pts : affiner(tr.pts, f, decalage))),
       fins: res.traces.map((tr) => ({ dir: tr.dir, fin: tr.fin })),
     };
-  }, [r.apercu, r.tir, joue, analyse.expr, x0, y0, equadiff, etat.obstacles, etat.crateres]);
+  }, [r.apercu, r.tir, tireur, analyse.expr, x0, y0, equadiff, etat.obstacles, etat.crateres]);
 
   const premier = [...etat.joueurs].filter((p) => p.enJeu)
     .sort((a, b) => b.points - a.points || b.eliminations - a.eliminations)[0];
@@ -389,7 +397,7 @@ function Partie({ etat, agir, horloge, quitter, son, basculerSon }: {
         <p className="cf-barre__titre">Curve Fight <span>{etat.code}</span></p>
         <p className="cf-barre__infos">
           Manche {etat.manche}/{r.manches} · Volée {etat.volee}/{VOLEES_MAX}
-          <span> · {r.mode === "brouillard" ? "Brouillard" : "Classique"} · {equadiff ? "y′ = f(x, y)" : "y = f(x)"}{r.repereMuet ? " · Repère muet" : ""}</span>
+          <span> · {r.mode === "brouillard" ? "Brouillard" : "Classique"} · {equadiff ? "y′ = f(x, y)" : "y = f(x)"}{r.repereMuet ? " · Repère muet" : ""}{etat.carte ? ` · Carte ${NOMS_CARTES[etat.carte]}` : ""}</span>
         </p>
         <button type="button" className="cf-barre__bouton" aria-pressed={son} onClick={basculerSon}
                 aria-label={son ? "Couper le son" : "Activer le son"}>
@@ -412,10 +420,23 @@ function Partie({ etat, agir, horloge, quitter, son, basculerSon }: {
             {moi?.enJeu && (
               <LigneJoueur etat={etat} p={moi} tick={tick}>
                 {joue && (
-                  <Saisie etat={etat} moi={moi} agir={agir} horloge={horloge} brouillon={brouillon} setBrouillon={setBrouillon}
-                          valide={!!analyse.expr} message={analyse.message} apercu={apercu} />
+                  <Saisie etat={etat} tireur={moi} horloge={horloge} brouillon={brouillon} setBrouillon={setBrouillon}
+                          valide={!!analyse.expr} message={analyse.message} apercu={apercu}
+                          verrou={etat.monExpression} bouton="Verrouiller mon tir"
+                          envoyer={(expression) => agir({ t: "tirer", expression })} annuler={() => agir({ t: "annuler" })} />
                 )}
               </LigneJoueur>
+            )}
+            {aide && moi && (
+              <Conseiller etat={etat} cible={cibleAide} agir={agir}>
+                {cibleAide && (
+                  <Saisie etat={etat} tireur={cibleAide} horloge={horloge} brouillon={brouillon} setBrouillon={setBrouillon}
+                          valide={!!analyse.expr} message={analyse.message} apercu={apercu}
+                          verrou={etat.monConseil?.source ?? null} bouton="Proposer cette courbe"
+                          envoyer={(expression) => agir({ t: "conseiller", expression })}
+                          annuler={() => agir({ t: "retirerConseil" })} />
+                )}
+              </Conseiller>
             )}
             {etat.joueurs.filter((p) => p.enJeu && p.id !== etat.moi).map((p) => (
               <LigneJoueur key={p.id} etat={etat} p={p} tick={tick} />
@@ -561,6 +582,9 @@ function LigneJoueur({ etat, p, tick, children }: {
   const bourreau = vus.find((e) => e.type === "elimination" && e.victime === p.id);
   const expression = tir?.expressions.find((e) => e.id === p.id);
   const enPreparation = etat.phase === "preparation";
+  const parId = (id: string) => etat.joueurs.find((j) => j.id === id);
+  // Les conseils reçus, montrés pendant la volée et l'écran de fin de manche.
+  const conseils = !enPreparation ? (tir?.conseils ?? []).filter((c) => c.cible === p.id) : [];
 
   let statut = "";
   if (enPreparation && vivant) statut = p.bot || p.pret ? "prêt" : p.present ? "réfléchit" : "absent";
@@ -591,8 +615,20 @@ function LigneJoueur({ etat, p, tick, children }: {
           </p>
         )}
         {enPreparation && moi && !vivant && (
-          <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">Tu reviens à la manche suivante.</p>
+          <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">Tu reviens à la manche suivante. En attendant, aide un joueur ci-dessous.</p>
         )}
+        {conseils.map((c) => {
+          const vues = c.touches.filter((h) => h.tick <= tick).map((h) => nom(h.victime));
+          return (
+            <div key={c.id} className="cf-conseil" style={teinte(parId(c.id)?.couleur ?? 0)}>
+              <p className="text-[13px] text-[var(--muted-foreground)]">
+                <span className="cf-trait cf-trait--tirets" aria-hidden="true" /> {c.id === etat.moi ? "Ton conseil" : `Conseil de ${nom(c.id)}`}
+                {vues.length > 0 && <> · aurait touché {vues.join(", ")}</>}
+              </p>
+              <p className="cf-formule cf-formule--conseil"><Formule source={c.source} equadiff={equadiff} /></p>
+            </div>
+          );
+        })}
       </div>
     </li>
   );
@@ -600,20 +636,27 @@ function LigneJoueur({ etat, p, tick, children }: {
 
 /* --- La saisie -------------------------------------------------------------- */
 
-function Saisie({ etat, moi, agir, horloge, brouillon, setBrouillon, valide, message, apercu }: {
-  etat: VueSalon; moi: VueJoueur; agir: Agir; horloge: () => number;
+/** Saisie d'une expression : son propre tir, ou la courbe proposée à un autre (tireur : d'où elle part). */
+function Saisie({ etat, tireur, horloge, brouillon, setBrouillon, valide, message, apercu, verrou, bouton, envoyer, annuler }: {
+  etat: VueSalon; tireur: VueJoueur; horloge: () => number;
   brouillon: string; setBrouillon: (v: string) => void;
   valide: boolean; message: string; apercu: ApercuDetaille | null;
+  /** Expression déjà envoyée, ou null. */
+  verrou: string | null; bouton: string;
+  envoyer: (expression: string) => Promise<string | null>; annuler: () => void;
 }) {
   const r = etat.reglages;
   const equadiff = r.tir === "equadiff";
   const [erreur, setErreur] = useState<string | null>(null);
   const champ = useRef<HTMLInputElement>(null);
-  const verrouille = etat.monExpression !== null;
+  const verrouille = verrou !== null;
+  const moi = tireur;
+  const pourAutrui = tireur.id !== etat.moi;
+  const toi = pourAutrui ? tireur.nom : "toi";
 
   async function valider() {
     if (!valide) return;
-    const e = await agir({ t: "tirer", expression: brouillon });
+    const e = await envoyer(brouillon);
     setErreur(e);
     if (!e) sons.pret();
   }
@@ -624,7 +667,7 @@ function Saisie({ etat, moi, agir, horloge, brouillon, setBrouillon, valide, mes
   useEffect(() => {
     if (reste !== null && reste < 1300 && !verrouille && valide && envoiAuto.current !== etat.echeance) {
       envoiAuto.current = etat.echeance;
-      void agir({ t: "tirer", expression: brouillon });
+      void envoyer(brouillon);
     }
   });
 
@@ -648,7 +691,7 @@ function Saisie({ etat, moi, agir, horloge, brouillon, setBrouillon, valide, mes
   if (apercu && !apercu.part) {
     lecture = (
       <p className="text-[var(--destructive)]">
-        {equadiff ? "La pente n’est pas définie là où tu es" : `f n’est pas définie en ton abscisse${position ? ` (x = ${ecrireNombre(moi.x ?? 0)})` : ""}`} : aucune courbe ne partirait.
+        {equadiff ? `La pente n’est pas définie ${pourAutrui ? "là où est " + toi : "là où tu es"}` : `f n’est pas définie en ${pourAutrui ? "l’abscisse de " + toi : "ton abscisse"}${position ? ` (x = ${ecrireNombre(moi.x ?? 0)})` : ""}`} : aucune courbe ne partirait.
       </p>
     );
   } else if (apercu) {
@@ -657,21 +700,21 @@ function Saisie({ etat, moi, agir, horloge, brouillon, setBrouillon, valide, mes
       <>
         {!equadiff && (
           <p>
-            <span className="cf-trait cf-trait--tirets" aria-hidden="true" /> Ton tir
-            {position ? <> : <span className="font-mono">y = f(x){ecrireNombre(apercu.decalage, 2) === "0" ? "" : ` ${apercu.decalage < 0 ? "−" : "+"} ${ecrireNombre(Math.abs(apercu.decalage), 2)}`}</span>, pour passer par toi {position}.</>
-                      : " : le graphe translaté pour passer par toi."}
+            <span className="cf-trait cf-trait--tirets" aria-hidden="true" /> {pourAutrui ? "Le tir proposé" : "Ton tir"}
+            {position ? <> : <span className="font-mono">y = f(x){ecrireNombre(apercu.decalage, 2) === "0" ? "" : ` ${apercu.decalage < 0 ? "−" : "+"} ${ecrireNombre(Math.abs(apercu.decalage), 2)}`}</span>, pour passer par {toi} {position}.</>
+                      : ` : le graphe translaté pour passer par ${toi}.`}
             <br />
             <span className="cf-trait cf-trait--points" aria-hidden="true" /> Le graphe de f, tel quel.
           </p>
         )}
-        {equadiff && <p><span className="cf-trait cf-trait--tirets" aria-hidden="true" /> La solution qui passe par toi{position ? ` ${position}` : ""}, sur son champ de pentes.</p>}
+        {equadiff && <p><span className="cf-trait cf-trait--tirets" aria-hidden="true" /> La solution qui passe par {toi}{position ? ` ${position}` : ""}, sur son champ de pentes.</p>}
         <p>À droite, elle {de(1)} ; à gauche, elle {de(-1)}.</p>
       </>
     );
   } else if (!r.apercu) {
     lecture = (
       <p>
-        Rien n’est tracé avant le départ : la courbe {equadiff ? "sera la solution qui passe par toi" : "sera le graphe de f, translaté pour passer par toi"}
+        Rien n’est tracé avant le départ : la courbe {equadiff ? `sera la solution qui passe par ${toi}` : `sera le graphe de f, translaté pour passer par ${toi}`}
         {position ? ` ${position}` : ""}.
       </p>
     );
@@ -680,9 +723,9 @@ function Saisie({ etat, moi, agir, horloge, brouillon, setBrouillon, valide, mes
   if (verrouille) {
     return (
       <>
-        <p className="cf-formule"><Formule source={etat.monExpression!} equadiff={equadiff} /></p>
+        <p className="cf-formule"><Formule source={verrou!} equadiff={equadiff} /></p>
         <div className="cf-lecture">{lecture}</div>
-        <button type="button" className="puce mt-2" onClick={() => agir({ t: "annuler" })}>Modifier mon expression</button>
+        <button type="button" className="puce mt-2" onClick={annuler}>{pourAutrui ? "Modifier ma proposition" : "Modifier mon expression"}</button>
       </>
     );
   }
@@ -711,7 +754,39 @@ function Saisie({ etat, moi, agir, horloge, brouillon, setBrouillon, valide, mes
         ))}
       </div>
       {erreur && <p role="alert" className="mb-2 text-[13px] text-[var(--destructive)]">{erreur}</p>}
-      <button type="submit" className="bouton-principal !h-12" disabled={!valide}>Verrouiller mon tir</button>
+      <button type="submit" className="bouton-principal !h-12" disabled={!valide}>{bouton}</button>
     </form>
+  );
+}
+
+/* --- Éliminé : aider un joueur encore en lice ------------------------------- */
+
+function Conseiller({ etat, cible, agir, children }: {
+  etat: VueSalon; cible: VueJoueur | null; agir: Agir; children?: React.ReactNode;
+}) {
+  const [erreur, setErreur] = useState<string | null>(null);
+  const enLice = etat.joueurs.filter((p) => p.enJeu && p.vivant && p.id !== etat.moi);
+  const choisir = async (id: string) => setErreur(await agir({ t: "aider", id }));
+  return (
+    <li className="cf-ligne cf-aide" style={teinte(cible?.couleur ?? 0)}>
+      <div className="cf-ligne__marge"><span className="cf-pion" data-barre="" aria-hidden="true" /></div>
+      <div className="cf-ligne__corps">
+        <p className="text-[14px] font-semibold">Aider un joueur</p>
+        <p className="mt-0.5 text-[13px] text-[var(--muted-foreground)]">
+          Propose-lui une courbe : elle partira de lui en fantôme, sans toucher personne pour de vrai,
+          et reste cachée jusqu’au départ des courbes.
+        </p>
+        <div className="mt-2 flex flex-wrap gap-2" role="radiogroup" aria-label="Joueur à aider">
+          {enLice.map((p) => (
+            <button key={p.id} type="button" role="radio" aria-checked={cible?.id === p.id}
+                    className="puce cf-puce-joueur" style={teinte(p.couleur)} onClick={() => choisir(p.id)}>
+              <span className="cf-pion" aria-hidden="true" />{p.nom}
+            </button>
+          ))}
+        </div>
+        {erreur && <p role="alert" className="mt-2 text-[13px] text-[var(--destructive)]">{erreur}</p>}
+        {children}
+      </div>
+    </li>
   );
 }

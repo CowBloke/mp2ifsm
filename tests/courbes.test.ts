@@ -5,8 +5,8 @@ import {
 } from "../src/lib/courbes/expression";
 import { choisirTir } from "../src/lib/courbes/bots";
 import {
-  RAYON_JOUEUR, X_MAX, Y_MAX, aleatoire, corrigerReglages, devoiler, genererArene, nouveauVoile,
-  REGLAGES_DEFAUT, solide, visible,
+  CARTES, RAYON_JOUEUR, X_MAX, Y_MAX, aleatoire, corrigerReglages, devoiler, genererArene, nouveauVoile,
+  REGLAGES_DEFAUT, noteEquite, solide, visible,
 } from "../src/lib/courbes/monde";
 import { simuler, type Tireur } from "../src/lib/courbes/simulation";
 import { affiner, echantillonner, ecrireNombre, graduation, FINESSE } from "../src/lib/courbes/trace";
@@ -91,6 +91,36 @@ test("arène : joueurs écartés, sur des entiers, hors des obstacles", () => {
     }
   }
   assert.deepEqual(genererArene(7, 4, "normal"), genererArene(7, 4, "normal"));
+});
+
+test("arène : chaque style de carte respecte les règles, à deux tout est symétrique", () => {
+  for (const carte of [...CARTES, "variee"] as const) {
+    for (let graine = 1; graine <= 15; graine++) {
+      for (const n of [2, 3, 6, 10]) {
+        const a = genererArene(graine, n, "beaucoup", carte);
+        assert.equal(a.positions.length, n);
+        if (carte !== "variee") assert.equal(a.style, carte);
+        for (const [i, p] of a.positions.entries()) {
+          assert.ok(Number.isInteger(p.x) && Number.isInteger(p.y));
+          assert.ok(Math.abs(p.x) <= X_MAX - 3 && Math.abs(p.y) <= Y_MAX - 3);
+          for (const q of a.positions.slice(i + 1)) assert.ok(Math.hypot(p.x - q.x, p.y - q.y) > 4);
+          for (const o of a.obstacles) assert.ok(Math.hypot(p.x - o.x, p.y - o.y) > o.r + RAYON_JOUEUR + 1);
+        }
+        if (n === 2) {
+          const [p, q] = a.positions;
+          assert.ok(p.x + q.x === 0 && p.y + q.y === 0, "joueurs symétriques");
+          for (const o of a.obstacles) {
+            assert.ok(a.obstacles.some((m) => Math.abs(m.x + o.x) < 0.02 && Math.abs(m.y + o.y) < 0.02 && m.r === o.r),
+              `${carte} : reflet de (${o.x}, ${o.y})`);
+          }
+        }
+      }
+    }
+  }
+  // Les styles se distinguent : les murs sont faits de nombreux petits disques.
+  const murs = genererArene(3, 4, "normal", "murs"), semis = genererArene(3, 4, "normal", "semis");
+  assert.ok(murs.obstacles.length > semis.obstacles.length);
+  assert.ok(noteEquite(semis.positions, semis.obstacles) > 0.5);
 });
 
 const tireur = (id: string, x: number, y: number, source?: string): Tireur =>
@@ -257,6 +287,53 @@ test("salon : du salon à la volée, et le brouillard filtre la vue", () => {
   assert.equal(lireSalon(code, leo).v, etat.v);
   agir(code, leo, { t: "quitter" });
   assert.throws(() => lireSalon(code, leo), /n’existe plus/);
+});
+
+test("salon : un éliminé aide un joueur en lice avec une courbe fantôme, cachée jusqu'au départ", () => {
+  const leo = { id: "21111111-1111-4111-8111-111111111111", nom: "Léo" };
+  const zoe = { id: "31111111-1111-4111-8111-111111111111", nom: "Zoé" };
+  const code = creerSalon(leo);
+  lireSalon(code, zoe);
+  agir(code, leo, { t: "bot", delta: 1 });
+  agir(code, leo, { t: "reglages", reglages: { manches: 1, obstacles: "peu", temps: 0 } });
+  let etat = agir(code, leo, { t: "lancer" })!;
+  assert.equal(etat.phase, "preparation");
+  assert.throws(() => agir(code, leo, { t: "aider", id: zoe.id }), /éliminé/);
+
+  // Léo est éliminé d'office (le salon est en mémoire du processus).
+  const salon = (globalThis as unknown as { courbesSalons: Map<string, { participants: Map<string, { vivant: boolean }> }> })
+    .courbesSalons.get(code)!;
+  salon.participants.get(leo.id)!.vivant = false;
+  assert.throws(() => agir(code, leo, { t: "aider", id: leo.id }), /plus en lice/);
+  assert.throws(() => agir(code, leo, { t: "conseiller", expression: "x" }), /Choisis/);
+
+  etat = agir(code, leo, { t: "aider", id: zoe.id })!;
+  const z = etat.joueurs.find((p) => p.id === zoe.id)!, bot = etat.joueurs.find((p) => p.bot)!;
+  const pente = (bot.y! - z.y!) / (bot.x! - z.x!);
+  const conseil = `${Number(pente.toFixed(4))}x`;
+  etat = agir(code, leo, { t: "conseiller", expression: conseil })!;
+  assert.deepEqual(etat.monConseil, { cible: zoe.id, source: conseil });
+  assert.equal(etat.phase, "preparation");
+
+  // Zoé ne voit rien du conseil avant le départ.
+  const vueZoe = lireSalon(code, zoe);
+  assert.equal(vueZoe.monConseil, null);
+  assert.ok(!JSON.stringify(vueZoe).includes(conseil));
+
+  // Zoé tire une courbe qui ne part pas : seul le fantôme vole.
+  etat = agir(code, zoe, { t: "tirer", expression: "ln(x-1000)" })!;
+  assert.equal(etat.phase, "volee");
+  const c = etat.tir!.conseils.find((x) => x.id === leo.id)!;
+  assert.equal(c.cible, zoe.id);
+  assert.equal(c.source, conseil);
+  const fantomes = lireTraces(code, zoe)!.traces.filter((t) => t.conseil === leo.id);
+  assert.equal(fantomes.length, 2);
+  assert.deepEqual(fantomes[0].pts.slice(0, 2), [z.x, z.y]);
+  // Le fantôme ne tue pas : le bot reste en vie même s'il est « touché ».
+  assert.ok(etat.joueurs.find((p) => p.bot)!.vivant);
+  assert.ok(!etat.tir!.evenements.some((e) => e.type === "elimination" && e.tueur === zoe.id));
+  agir(code, leo, { t: "quitter" });
+  agir(code, zoe, { t: "quitter" });
 });
 
 test("tracé : la courbe affinée repasse par la fonction entre deux ticks", () => {

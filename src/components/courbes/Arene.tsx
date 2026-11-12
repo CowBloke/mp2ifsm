@@ -52,13 +52,17 @@ export function Arene(props: Props) {
     const [plein, pctx] = calque();       // matière des obstacles, cratères retirés
     const [contour, octx] = calque();     // leur bord
     const [bords, tctx] = calque();       // bord des cratères, dans la matière
-    const [brume, bctx] = calque();       // brouillard
+    const [roche, rctx] = calque();       // les trois, composés : redessinés seulement quand ils changent
+    const [voile, vctx] = calque();       // brouillard sans les courbes en cours, mis en cache
+    const [brume, bctx] = calque();       // brouillard de l'image
     const calme = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     let W = 0, H = 0, dpr = 1;
     /** Vue : centre en coordonnées du repère, pixels par unité. */
     let cx = 0, cy = 0, k = 1, kBase = 1, libre = false;
     let sale = true;
+    /** Clés des calques mis en cache : vides, ils sont redessinés à la prochaine image. */
+    let cacheRoche = "", cacheVoile = "";
     let theme: Theme | null = null, classeTheme = "";
 
     const sx = (x: number) => W / 2 + (x - cx) * k;
@@ -82,7 +86,8 @@ export function Arene(props: Props) {
       if (!r.width || !r.height) return;
       dpr = Math.min(2, window.devicePixelRatio || 1);
       W = r.width; H = r.height;
-      for (const c of [canvas, plein, contour, bords, brume]) { c.width = Math.round(W * dpr); c.height = Math.round(H * dpr); }
+      for (const c of [canvas, plein, contour, bords, roche, voile, brume]) { c.width = Math.round(W * dpr); c.height = Math.round(H * dpr); }
+      cacheRoche = ""; cacheVoile = "";
       if (libre) kBase = Math.min(W / (2 * X_MAX + 3), H / (2 * Y_MAX + 3));
       else origine();
       sale = true;
@@ -144,7 +149,22 @@ export function Arene(props: Props) {
     const molette = (e: WheelEvent) => {
       e.preventDefault();
       const p = lieu(e);
-      zoomer(p.x, p.y, Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015)));
+      // Firefox compte parfois en lignes ou en pages, pas en pixels.
+      const dy = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? H : 1);
+      zoomer(p.x, p.y, Math.exp(-borner(dy, -120, 120) * (e.ctrlKey ? 0.01 : 0.0015)));
+    };
+    // Safari (pavé tactile du Mac) pince par « gesture » et non par la molette.
+    let echelleGeste = 1;
+    const geste = (e: Event) => {
+      e.preventDefault();
+      const g = e as Event & { scale?: number; clientX?: number; clientY?: number };
+      if (e.type === "gesturestart") { echelleGeste = 1; return; }
+      const r = canvas.getBoundingClientRect();
+      const echelle = g.scale ?? 1;
+      if (echelle > 0 && doigts.size < 2) {
+        zoomer((g.clientX ?? r.left + W / 2) - r.left, (g.clientY ?? r.top + H / 2) - r.top, echelle / echelleGeste);
+      }
+      echelleGeste = echelle;
     };
     canvas.addEventListener("pointerdown", appui);
     canvas.addEventListener("pointermove", mouvement);
@@ -153,6 +173,7 @@ export function Arene(props: Props) {
     canvas.addEventListener("pointerleave", sortie);
     canvas.addEventListener("wheel", molette, { passive: false });
     canvas.addEventListener("dblclick", origine);
+    for (const nom of ["gesturestart", "gesturechange", "gestureend"]) canvas.addEventListener(nom, geste);
 
     /* --- Dessin --------------------------------------------------------- */
 
@@ -222,11 +243,14 @@ export function Arene(props: Props) {
 
       const tir = etat.tir;
       const enDirect = !!tir && etat.phase === "volee";
-      if (!sale && !enDirect && ondes.length === 0) return;
+      const t = horloge();
+      // On ne redessine à chaque image que pendant que les courbes avancent.
+      const anime = enDirect && t >= tir.tAnimation - 50
+        && ((t - tir.tAnimation) / 1000) * VITESSE / PAS <= tir.ticks + 2;
+      if (!sale && !anime && ondes.length === 0) return;
       sale = false;
       const th = theme;
 
-      const t = horloge();
       const tick = enDirect ? Math.max(0, ((t - tir.tAnimation) / 1000) * VITESSE / PAS) : Infinity;
       const parId = new Map(etat.joueurs.map((p) => [p.id, p]));
       const moi = parId.get(etat.moi);
@@ -240,7 +264,9 @@ export function Arene(props: Props) {
         finesDe = lignes; finesCle = cle;
         fines = (lignes?.traces ?? []).map((tr): Fine => {
           const p = parId.get(tr.joueur);
-          const source = tir?.expressions.find((e) => e.id === tr.joueur)?.source;
+          const source = tr.conseil
+            ? tir?.conseils.find((c) => c.id === tr.conseil)?.source
+            : tir?.expressions.find((e) => e.id === tr.joueur)?.source;
           if (etat.reglages.tir === "fonction" && source && p && p.x !== null && p.y !== null) {
             try {
               const f = compiler(lire(source).arbre);
@@ -363,7 +389,9 @@ export function Arene(props: Props) {
       // Obstacles : matière translucide, bord net, cratères retirés.
       const crateres = etat.crateres.filter((c) =>
         !tir || !enDirect || c.n < tir.crateresAvant || (impactAu.get(`${c.x},${c.y}`) ?? 0) <= tick);
-      if (etat.obstacles.length) {
+      const cleRoche = `${W}|${H}|${dpr}|${cx}|${cy}|${k}|${classeTheme}|${etat.v}|${crateres.length}`;
+      if (etat.obstacles.length && cleRoche !== cacheRoche) {
+        cacheRoche = cleRoche;
         for (const c of [pctx, octx, tctx]) {
           c.setTransform(dpr, 0, 0, dpr, 0, 0);
           c.globalCompositeOperation = "source-over";
@@ -385,26 +413,36 @@ export function Arene(props: Props) {
         }
         teinter(pctx, th.encre);
         teinter(octx, th.encre);
-        ctx.globalAlpha = 0.13; ctx.drawImage(plein, 0, 0, W, H);
-        ctx.globalAlpha = 0.7; ctx.drawImage(contour, 0, 0, W, H);
-        if (crateres.length) ctx.drawImage(bords, 0, 0, W, H);
-        ctx.globalAlpha = 1;
+        rctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        rctx.globalCompositeOperation = "source-over";
+        rctx.clearRect(0, 0, W, H);
+        rctx.globalAlpha = 0.13; rctx.drawImage(plein, 0, 0, W, H);
+        rctx.globalAlpha = 0.7; rctx.drawImage(contour, 0, 0, W, H);
+        if (crateres.length) rctx.drawImage(bords, 0, 0, W, H);
+        rctx.globalAlpha = 1;
       }
+      if (etat.obstacles.length) ctx.drawImage(roche, 0, 0, W, H);
 
       const alphaTraces = enDirect ? 1 : enPreparation ? 0.3 : 0.9;
       const dessinerCourbes = (miennes: boolean) => {
         ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.lineWidth = 2.5;
         for (const { tr, pts, finesse } of fines) {
-          if ((tr.joueur === etat.moi) !== miennes) continue;
-          const couleur = couleurDe(tr.joueur);
-          ctx.strokeStyle = couleur; ctx.globalAlpha = alphaTraces;
+          // Courbe fantôme d'un conseiller : à sa couleur, en tirets, sous les vraies.
+          const fantome = !!tr.conseil;
+          if ((tr.joueur === etat.moi && !fantome) !== miennes) continue;
+          const couleur = couleurDe(tr.conseil ?? tr.joueur);
+          ctx.strokeStyle = couleur; ctx.globalAlpha = fantome ? alphaTraces * 0.6 : alphaTraces;
+          ctx.lineWidth = fantome ? 1.75 : 2.5;
+          if (fantome) ctx.setLineDash([6, 5]);
           ctx.beginPath();
           const tete = chemin(ctx, pts, (tick - tr.debut) * finesse);
           ctx.stroke();
+          ctx.setLineDash([]);
           ctx.globalAlpha = 1;
           if (tete && enDirect) {
-            ctx.fillStyle = couleur;
-            ctx.beginPath(); ctx.arc(sx(tete[0]), sy(tete[1]), 4, 0, TAU); ctx.fill();
+            ctx.beginPath(); ctx.arc(sx(tete[0]), sy(tete[1]), fantome ? 3 : 4, 0, TAU);
+            if (fantome) { ctx.fillStyle = th.papier; ctx.fill(); ctx.lineWidth = 1.5; ctx.stroke(); }
+            else { ctx.fillStyle = couleur; ctx.fill(); }
           }
         }
       };
@@ -441,31 +479,50 @@ export function Arene(props: Props) {
       dessinerJoueurs(false);
 
       // Brouillard : opaque et hachuré, sauf autour de soi et le long de ses courbes.
+      // Bord adouci sans shadowBlur (très lent sur Safari et Firefox) : un dégradé
+      // pour le disque, trois passes de largeur décroissante pour les couloirs.
       if (etat.voile !== null && moi && moi.x !== null && moi.y !== null) {
-        bctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        bctx.globalCompositeOperation = "source-over";
-        bctx.shadowBlur = 0; bctx.globalAlpha = 1;
-        bctx.fillStyle = th.papier; bctx.fillRect(0, 0, W, H);
-        bctx.globalAlpha = 0.3; bctx.fillStyle = th.gris; bctx.fillRect(0, 0, W, H);
-        bctx.globalAlpha = 0.1; bctx.strokeStyle = th.encre; bctx.lineWidth = 1;
-        bctx.beginPath();
-        for (let h = -H; h < W; h += 9) { bctx.moveTo(h, H); bctx.lineTo(h + H, 0); }
-        bctx.stroke();
-        bctx.globalAlpha = 1;
-        bctx.globalCompositeOperation = "destination-out";
-        bctx.shadowColor = "#000"; bctx.shadowBlur = k * 0.9 * dpr;
-        bctx.fillStyle = "#000"; bctx.strokeStyle = "#000";
-        bctx.beginPath(); bctx.arc(sx(moi.x), sy(moi.y), VUE_DEPART * k, 0, TAU); bctx.fill();
-        bctx.lineWidth = 2 * VUE_TRACE * k; bctx.lineJoin = "round"; bctx.lineCap = "round";
-        for (const pts of etat.voile.sillages) {
-          bctx.beginPath(); chemin(bctx, pts, Infinity); bctx.stroke();
+        const flou = 0.9 * k;
+        const effacer = (c: CanvasRenderingContext2D, liste: number[][], jusqua: (i: number) => number) => {
+          c.lineJoin = "round"; c.lineCap = "round"; c.strokeStyle = "#000";
+          for (const [largeur, alpha] of [[2 * VUE_TRACE * k + 2 * flou, 0.35], [2 * VUE_TRACE * k + flou, 0.5], [2 * VUE_TRACE * k, 1]]) {
+            c.globalAlpha = alpha; c.lineWidth = largeur;
+            liste.forEach((pts, i) => { c.beginPath(); chemin(c, pts, jusqua(i)); c.stroke(); });
+          }
+          c.globalAlpha = 1;
+        };
+        const cleVoile = `${W}|${H}|${dpr}|${cx}|${cy}|${k}|${classeTheme}|${etat.v}|${moi.x},${moi.y}`;
+        if (cleVoile !== cacheVoile) {
+          cacheVoile = cleVoile;
+          vctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          vctx.globalCompositeOperation = "source-over";
+          vctx.globalAlpha = 1;
+          vctx.fillStyle = th.papier; vctx.fillRect(0, 0, W, H);
+          vctx.globalAlpha = 0.3; vctx.fillStyle = th.gris; vctx.fillRect(0, 0, W, H);
+          vctx.globalAlpha = 0.1; vctx.strokeStyle = th.encre; vctx.lineWidth = 1;
+          vctx.beginPath();
+          for (let h = -H; h < W; h += 9) { vctx.moveTo(h, H); vctx.lineTo(h + H, 0); }
+          vctx.stroke();
+          vctx.globalAlpha = 1;
+          vctx.globalCompositeOperation = "destination-out";
+          const mx = sx(moi.x), my = sy(moi.y), r = VUE_DEPART * k;
+          const degrade = vctx.createRadialGradient(mx, my, Math.max(0, r - flou), mx, my, r + flou);
+          degrade.addColorStop(0, "rgba(0,0,0,1)"); degrade.addColorStop(1, "rgba(0,0,0,0)");
+          vctx.fillStyle = degrade;
+          vctx.beginPath(); vctx.arc(mx, my, r + flou, 0, TAU); vctx.fill();
+          effacer(vctx, etat.voile.sillages, () => Infinity);
         }
-        for (const { tr, pts, finesse } of fines) {
-          if (tr.joueur !== etat.moi) continue;
-          bctx.beginPath(); chemin(bctx, pts, (tick - tr.debut) * finesse); bctx.stroke();
-        }
-        bctx.shadowBlur = 0;
-        ctx.drawImage(brume, 0, 0, W, H);
+        const miennes = fines.filter((f) => f.tr.joueur === etat.moi && !f.tr.conseil);
+        if (enDirect && miennes.length) {
+          bctx.setTransform(1, 0, 0, 1, 0, 0);
+          bctx.globalCompositeOperation = "copy";
+          bctx.globalAlpha = 1;
+          bctx.drawImage(voile, 0, 0);
+          bctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          bctx.globalCompositeOperation = "destination-out";
+          effacer(bctx, miennes.map((f) => f.pts), (i) => (tick - miennes[i].tr.debut) * miennes[i].finesse);
+          ctx.drawImage(brume, 0, 0, W, H);
+        } else ctx.drawImage(voile, 0, 0, W, H);
       }
 
       // Aperçu du brouillon : le graphe brut en pointillé fin, le tir (qui passe par soi) en tirets.
@@ -525,7 +582,10 @@ export function Arene(props: Props) {
         const l = ctx.measureText(libelle).width + 14;
         const bx = x + 12 + l > W ? x - 12 - l : x + 12, byy = y - 32 < 0 ? y + 12 : y - 32;
         ctx.fillStyle = th.encre;
-        ctx.beginPath(); ctx.roundRect(bx, byy, l, 22, 6); ctx.fill();
+        ctx.beginPath();
+        // roundRect manque aux Safari d'avant 16 et aux Firefox d'avant 112.
+        if (typeof ctx.roundRect === "function") ctx.roundRect(bx, byy, l, 22, 6); else ctx.rect(bx, byy, l, 22);
+        ctx.fill();
         ctx.fillStyle = th.papier; ctx.textAlign = "left"; ctx.textBaseline = "middle";
         ctx.fillText(libelle, bx + 7, byy + 11.5);
       }
@@ -542,6 +602,7 @@ export function Arene(props: Props) {
       canvas.removeEventListener("pointerleave", sortie);
       canvas.removeEventListener("wheel", molette);
       canvas.removeEventListener("dblclick", origine);
+      for (const nom of ["gesturestart", "gesturechange", "gestureend"]) canvas.removeEventListener(nom, geste);
     };
   }, []);
 

@@ -865,7 +865,7 @@ html.fil-plein-ecran .bottom-nav { display: none; }
 /* Pion d'un joueur : le même disque que dans le repère. */
 .cf-pion {
   position: relative; flex-shrink: 0; width: 18px; height: 18px; border-radius: 999px;
-  border: 2px solid var(--c); background: color-mix(in oklab, var(--c) 20%, transparent);
+  border: 2px solid var(--c); background: transparent; background: color-mix(in oklab, var(--c) 20%, transparent);
 }
 .cf-pion::after { content: ""; position: absolute; inset: 5px; border-radius: 999px; background: var(--c); }
 .cf-pion[data-barre] { border-style: dashed; background: none; opacity: 0.6; }
@@ -961,6 +961,12 @@ html.fil-plein-ecran .bottom-nav { display: none; }
 .cf-ligne:focus-within { box-shadow: inset 3px 0 0 var(--c); }
 .cf-formule { margin-top: 4px; overflow-x: auto; white-space: nowrap; font-size: 18px; color: var(--c); }
 .cf-formule--passee { font-size: 15px; color: var(--muted-foreground); }
+.cf-formule--conseil { margin-top: 0; font-size: 15px; opacity: 0.85; }
+.cf-conseil { margin-top: 6px; padding-left: 10px; border-left: 2px dashed var(--c); }
+.cf-puce-joueur { display: inline-flex; align-items: center; gap: 8px; }
+.cf-puce-joueur .cf-pion { width: 14px; height: 14px; }
+.cf-puce-joueur .cf-pion::after { inset: 3px; }
+.cf-puce-joueur[aria-checked="true"] { border-color: var(--c); box-shadow: inset 0 0 0 1px var(--c); }
 .cf-jeu .katex { font-size: 1.05em; }
 
 .cf-saisie { display: flex; align-items: baseline; gap: 8px; margin-top: 6px; font-family: var(--font-mono); }

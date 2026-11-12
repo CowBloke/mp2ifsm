@@ -17,7 +17,11 @@ export function reglerSon(actif: boolean): void {
 /** À appeler sur un clic : débloque le son pour la suite. */
 export function reveiller(): void {
   try {
-    ctx ??= new AudioContext();
+    // Safari d'avant la version 14.1 ne connaît que le nom préfixé.
+    const Contexte = window.AudioContext
+      ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Contexte) return;
+    ctx ??= new Contexte();
     if (ctx.state === "suspended") void ctx.resume();
   } catch { /* pas de son sur cet appareil */ }
 }
