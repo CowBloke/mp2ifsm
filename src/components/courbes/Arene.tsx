@@ -2,7 +2,10 @@
 
 import { useEffect, useRef } from "react";
 import { compiler, lire } from "@/lib/courbes/expression";
-import { PAS, RAYON_JOUEUR, VITESSE, VUE_DEPART, VUE_TRACE, X_MAX, Y_MAX } from "@/lib/courbes/monde";
+import {
+  ACCELERE, chronologieDe, momentEnCours, tickA, vitesse, type Chronologie, type Moment,
+} from "@/lib/courbes/chronologie";
+import { DEGAGEMENT_CENTRE, RAYON_JOUEUR, VUE_DEPART, VUE_TRACE, X_MAX, Y_MAX, depart } from "@/lib/courbes/monde";
 import { FINESSE, affiner, echantillonner, ecrireNombre, graduation } from "@/lib/courbes/trace";
 import type { VueEvenement, VueSalon, VueTrace, VueTraces } from "@/lib/courbes/vue";
 
@@ -20,11 +23,21 @@ type Props = {
   apercu: Apercu | null;
   /** Horloge du serveur, en ms. */
   horloge: () => number;
-  surEvenement?: (e: VueEvenement) => void;
+  /** Une élimination ou un impact vient d'arriver à l'écran ; moment : le ralenti dont fait partie l'élimination. */
+  surEvenement?: (e: VueEvenement, moment: Moment | null) => void;
+  /** Le temps commence à ralentir avant ce moment. */
+  surRalenti?: (moment: Moment) => void;
   children?: React.ReactNode;
 };
 
 type Onde = { x: number; y: number; vie: number; duree: number; couleur: string; portee: number };
+/** Particule, en unités du repère : étincelle (point), éclat (trait qui tourne) ou poussière. */
+type Particule = {
+  x: number; y: number; vx: number; vy: number; vie: number; duree: number;
+  couleur: string; taille: number; forme: 0 | 1; angle: number; rotation: number; frein: number;
+};
+/** Texte qui surgit : au-dessus d'un joueur (x, y), ou au milieu de l'écran (x null). */
+type Surgi = { x: number | null; y: number; texte: string; couleur: string; vie: number; duree: number; taille: number };
 type Theme = { papier: string; dehors: string; encre: string; gris: string; joueurs: string[] };
 type Fine = { tr: VueTrace; pts: number[]; finesse: number };
 
@@ -223,6 +236,25 @@ export function Arene(props: Props) {
 
     let fines: Fine[] = [], finesDe: VueTraces | null = null, finesCle = "";
     let ondes: Onde[] = [];
+    let particules: Particule[] = [];
+    let surgis: Surgi[] = [];
+    /** Secousse de l'écran (px) et éclair (opacité), qui retombent d'eux-mêmes. */
+    let secousse = 0, eclair = 0, couleurEclair = "#fff";
+    let chrono: Chronologie | null = null, chronoN = -1;
+    let ralentiAnnonce = new Set<number>();
+    /** La caméra suit-elle un moment (vue non touchée par le joueur) ? */
+    let camera = false;
+    const PARTICULES_MAX = 700;
+
+    function jaillir(x: number, y: number, nb: number, couleur: string, vMin: number, vMax: number, opts: Partial<Particule> = {}) {
+      for (let i = 0; i < nb && particules.length < PARTICULES_MAX; i++) {
+        const a = Math.random() * TAU, v = vMin + Math.random() * (vMax - vMin);
+        particules.push({
+          x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, vie: 0, duree: 0.5 + Math.random() * 0.7,
+          couleur, taille: 1.5 + Math.random() * 2.5, forme: 0, angle: a, rotation: 0, frein: 2.2, ...opts,
+        });
+      }
+    }
     let dernierTick = 0, dernierN = -1, derniereImage = performance.now();
     let vues: Props | null = null;
 
@@ -244,18 +276,49 @@ export function Arene(props: Props) {
       const tir = etat.tir;
       const enDirect = !!tir && etat.phase === "volee";
       const t = horloge();
-      // On ne redessine à chaque image que pendant que les courbes avancent.
-      const anime = enDirect && t >= tir.tAnimation - 50
-        && ((t - tir.tAnimation) / 1000) * VITESSE / PAS <= tir.ticks + 2;
-      if (!sale && !anime && ondes.length === 0) return;
+      if (tir && tir.n !== chronoN) { chronoN = tir.n; chrono = chronologieDe(tir); ralentiAnnonce = new Set(); }
+      // On ne redessine à chaque image que pendant que les courbes avancent, ou que les effets vivent.
+      const anime = enDirect && !!chrono && t >= tir.tAnimation - 50 && t - tir.tAnimation <= chrono.duree + 300;
+      const effets = ondes.length + particules.length + surgis.length > 0 || secousse > 0.2 || eclair > 0.01;
+      if (!sale && !anime && !effets && !camera) return;
       sale = false;
       const th = theme;
 
-      const tick = enDirect ? Math.max(0, ((t - tir.tAnimation) / 1000) * VITESSE / PAS) : Infinity;
+      const tick = enDirect && chrono ? tickA(chrono, t - tir.tAnimation) : Infinity;
+      // Vitesse du temps de jeu : les effets ralentissent avec les courbes.
+      const allure = enDirect && chrono && Number.isFinite(tick) ? vitesse(chrono, tick) : 1;
+      const dtJeu = dt * allure;
+      const enCours = enDirect && chrono && Number.isFinite(tick) ? momentEnCours(chrono, tick) : null;
+      /** 0 : vitesse normale ; 1 : au plus fort du plus fort ralenti. */
+      const intensite = allure < 1 ? (1 - allure) / 0.88 : 0;
+      if (enCours && enCours.poids > 0.05 && !ralentiAnnonce.has(enCours.moment.tick)) {
+        ralentiAnnonce.add(enCours.moment.tick);
+        d.surRalenti?.(enCours.moment);
+      }
       const parId = new Map(etat.joueurs.map((p) => [p.id, p]));
       const moi = parId.get(etat.moi);
       const couleurDe = (id: string) => th.joueurs[parId.get(id)?.couleur ?? 0];
       const muet = etat.reglages.repereMuet;
+      const centre = etat.reglages.mode === "centre";
+
+      // Caméra : tant que le joueur n'a pas bougé la vue, elle se rapproche des grands moments.
+      // Sous le brouillard, une victime hors de vue n'a pas de position : pas de caméra.
+      const lieux = enCours && !libre && !calme ? enCours.moment.victimes.flatMap((id) => {
+        const e = tir?.evenements.find((x) => x.type === "elimination" && x.victime === id);
+        return e && e.type === "elimination" && e.x !== null && e.y !== null ? [{ x: e.x, y: e.y }] : [];
+      }) : [];
+      if (enCours && lieux.length) {
+        const w = enCours.poids;
+        const mx = lieux.reduce((a, p) => a + p.x, 0) / lieux.length, my = lieux.reduce((a, p) => a + p.y, 0) / lieux.length;
+        k = kBase * (1 + w * (0.2 + 0.22 * enCours.moment.force));
+        // Le cadre ne sort pas de l'arène plus qu'il ne faut.
+        const demiX = Math.max(0, X_MAX - W / 2 / k), demiY = Math.max(0, Y_MAX - H / 2 / k);
+        cx = borner(mx * w, -demiX - 1.5, demiX + 1.5); cy = borner(my * w, -demiY - 1.5, demiY + 1.5);
+        camera = true;
+      } else if (camera) {
+        camera = false;
+        if (!libre) origine();
+      }
 
       // Courbes de la volée, repassées par leur fonction quand on la connaît.
       const lignes = traces && tir && traces.n === tir.n ? traces : null;
@@ -270,7 +333,8 @@ export function Arene(props: Props) {
           if (etat.reglages.tir === "fonction" && source && p && p.x !== null && p.y !== null) {
             try {
               const f = compiler(lire(source).arbre);
-              const decalage = p.y - f(p.x, 0);
+              const o = depart(etat.reglages.mode, { x: p.x, y: p.y });
+              const decalage = o.y - f(o.x, 0);
               if (Number.isFinite(decalage)) return { tr, pts: affiner(tr.pts, f, decalage), finesse: FINESSE };
             } catch { /* expression illisible : on garde les segments */ }
           }
@@ -281,13 +345,46 @@ export function Arene(props: Props) {
       // Éliminations et impacts qui viennent de se produire.
       if (tir && tir.n !== dernierN) { dernierN = tir.n; dernierTick = Number.isFinite(tick) ? tick : Infinity; }
       if (enDirect && tick > dernierTick) {
+        const annonces = new Set<Moment>();
         for (const e of tir.evenements) {
           if (e.tick <= dernierTick || e.tick > tick) continue;
-          surEvenement?.(e);
-          if (calme) continue;
-          if (e.type === "impact") ondes.push({ x: e.x, y: e.y, vie: 0, duree: 0.35, couleur: th.gris, portee: 2 });
-          else if (e.x !== null && e.y !== null) {
-            ondes.push({ x: e.x, y: e.y, vie: 0, duree: 0.7, couleur: couleurDe(e.victime), portee: 6 });
+          const moment = e.type === "elimination" ? chrono?.moments.find((m) => m.victimes.includes(e.victime)) ?? null : null;
+          surEvenement?.(e, moment);
+          if (e.type === "impact") {
+            ondes.push({ x: e.x, y: e.y, vie: 0, duree: 0.35, couleur: th.gris, portee: 2 });
+            if (calme) continue;
+            jaillir(e.x, e.y, 14, th.encre, 2, 9, { duree: 0.6, taille: 2, frein: 3 });
+            jaillir(e.x, e.y, 5, th.gris, 1, 5, { forme: 1, taille: 4, rotation: 8, duree: 0.8 });
+            secousse = Math.max(secousse, 2.5);
+            continue;
+          }
+          const force = moment?.force ?? 1;
+          const victime = couleurDe(e.victime), tueur = couleurDe(e.tueur);
+          if (e.x !== null && e.y !== null) {
+            ondes.push({ x: e.x, y: e.y, vie: 0, duree: 0.7 + 0.2 * force, couleur: victime, portee: 4 + 3 * force });
+            ondes.push({ x: e.x, y: e.y, vie: -0.12, duree: 0.9 + 0.2 * force, couleur: tueur, portee: 2 + 2 * force });
+            if (!calme) {
+              jaillir(e.x, e.y, 30 + 20 * force, victime, 3, 10 + 5 * force, { duree: 0.9, frein: 1.8 });
+              jaillir(e.x, e.y, 8 + 6 * force, tueur, 2, 8 + 3 * force, { forme: 1, taille: 6, rotation: 10, duree: 1.2, frein: 1.5 });
+              jaillir(e.x, e.y, 16, "#ffffff", 6, 16, { duree: 0.35, taille: 1.6, frein: 4 });
+            }
+            const p = parId.get(e.victime);
+            surgis.push({
+              x: e.x, y: e.y, couleur: victime, vie: 0, duree: 1.6, taille: 15,
+              texte: e.tueur === e.victime ? `${p?.id === etat.moi ? "Toi" : p?.nom ?? "?"} · tir ami` : `${p?.id === etat.moi ? "Toi" : p?.nom ?? "?"} ✕`,
+            });
+          }
+          if (!calme) {
+            secousse = Math.max(secousse, 5 + 5 * force);
+            if (force >= 2 || e.victime === etat.moi) { eclair = Math.max(eclair, 0.12 + 0.08 * force); couleurEclair = victime; }
+          }
+          if (moment && force >= 2 && !annonces.has(moment) && moment.victimes[0] === e.victime) {
+            annonces.add(moment);
+            const n = moment.victimes.length;
+            const texte = moment.tirAmi && n === 1 ? "TIR AMI !"
+              : moment.decisif && n === 1 ? "COUP DE GRÂCE"
+              : n >= 4 ? `CARNAGE ×${n}` : n === 3 ? "TRIPLÉ !" : n === 2 ? "COUP DOUBLE !" : "TIR AMI !";
+            surgis.push({ x: null, y: 0, texte, couleur: tueur, vie: 0, duree: 2.2, taille: 34 + 6 * force });
           }
         }
         dernierTick = tick;
@@ -308,10 +405,14 @@ export function Arene(props: Props) {
       ctx.globalAlpha = 1;
       ctx.setLineDash([]);
 
-      // Feuille : l'arène en clair, le dehors grisé.
-      const gx = sx(-X_MAX), dx = sx(X_MAX), hy = sy(Y_MAX), by = sy(-Y_MAX);
+      // Feuille : l'arène en clair, le dehors grisé. La secousse décale tout le reste.
       ctx.fillStyle = th.dehors;
       ctx.fillRect(0, 0, W, H);
+      secousse *= Math.exp(-dt * 8);
+      if (secousse > 0.2) {
+        ctx.translate((Math.random() * 2 - 1) * secousse, (Math.random() * 2 - 1) * secousse);
+      }
+      const gx = sx(-X_MAX), dx = sx(X_MAX), hy = sy(Y_MAX), by = sy(-Y_MAX);
       ctx.fillStyle = th.papier;
       ctx.fillRect(gx, hy, dx - gx, by - hy);
 
@@ -423,6 +524,21 @@ export function Arene(props: Props) {
       }
       if (etat.obstacles.length) ctx.drawImage(roche, 0, 0, W, H);
 
+      // Mode Centre : la rampe de lancement, d'où partent toutes les courbes.
+      if (centre) {
+        const ox = sx(0), oy = sy(0), r = DEGAGEMENT_CENTRE * k;
+        const pulse = enDirect && tick < 40 ? 1 - tick / 40 : 0;
+        ctx.strokeStyle = th.encre; ctx.lineWidth = 1.25;
+        ctx.globalAlpha = 0.35; ctx.setLineDash([4, 5]);
+        ctx.beginPath(); ctx.arc(ox, oy, r, 0, TAU); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 0.12 + 0.3 * pulse; ctx.fillStyle = th.encre;
+        ctx.beginPath(); ctx.arc(ox, oy, Math.max(4, 0.7 * k) * (1 + pulse), 0, TAU); ctx.fill();
+        ctx.globalAlpha = 0.8; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(ox, oy, Math.max(4, 0.7 * k), 0, TAU); ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+
       const alphaTraces = enDirect ? 1 : enPreparation ? 0.3 : 0.9;
       const dessinerCourbes = (miennes: boolean) => {
         ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.lineWidth = 2.5;
@@ -436,13 +552,29 @@ export function Arene(props: Props) {
           if (fantome) ctx.setLineDash([6, 5]);
           ctx.beginPath();
           const tete = chemin(ctx, pts, (tick - tr.debut) * finesse);
+          // En direct, un halo sous le trait : la courbe brille pendant qu'elle avance.
+          if (enDirect && !fantome && tete) {
+            ctx.globalAlpha = 0.16 + 0.12 * intensite; ctx.lineWidth = 8 + 4 * intensite;
+            ctx.stroke();
+            ctx.globalAlpha = alphaTraces; ctx.lineWidth = 2.5 + intensite;
+          }
           ctx.stroke();
           ctx.setLineDash([]);
           ctx.globalAlpha = 1;
           if (tete && enDirect) {
-            ctx.beginPath(); ctx.arc(sx(tete[0]), sy(tete[1]), fantome ? 3 : 4, 0, TAU);
+            const hx = sx(tete[0]), hy2 = sy(tete[1]);
+            if (!fantome) {
+              ctx.globalAlpha = 0.25; ctx.fillStyle = couleur;
+              ctx.beginPath(); ctx.arc(hx, hy2, 10 + 5 * intensite, 0, TAU); ctx.fill();
+              ctx.globalAlpha = 1;
+              // Quelques étincelles derrière la tête.
+              if (!calme && Math.random() < dtJeu * 40) {
+                jaillir(tete[0], tete[1], 1, couleur, 0.5, 2.5, { duree: 0.4 + Math.random() * 0.3, taille: 1.5, frein: 1 });
+              }
+            }
+            ctx.beginPath(); ctx.arc(hx, hy2, fantome ? 3 : 4.5, 0, TAU);
             if (fantome) { ctx.fillStyle = th.papier; ctx.fill(); ctx.lineWidth = 1.5; ctx.stroke(); }
-            else { ctx.fillStyle = couleur; ctx.fill(); }
+            else { ctx.fillStyle = couleur; ctx.fill(); ctx.fillStyle = th.papier; ctx.beginPath(); ctx.arc(hx, hy2, 1.8, 0, TAU); ctx.fill(); }
           }
         }
       };
@@ -553,11 +685,35 @@ export function Arene(props: Props) {
       dessinerJoueurs(true);
 
       // Ondes : un anneau qui s'élargit là où une courbe a touché.
-      ondes = ondes.filter((o) => (o.vie += dt) < o.duree);
+      ondes = ondes.filter((o) => (o.vie += dtJeu) < o.duree);
       for (const o of ondes) {
+        if (o.vie < 0) continue;
         const u = o.vie / o.duree;
-        ctx.globalAlpha = 1 - u; ctx.strokeStyle = o.couleur; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(sx(o.x), sy(o.y), (0.6 + u * o.portee) * k, 0, TAU); ctx.stroke();
+        ctx.globalAlpha = 1 - u; ctx.strokeStyle = o.couleur; ctx.lineWidth = 2 + 2 * (1 - u);
+        ctx.beginPath(); ctx.arc(sx(o.x), sy(o.y), (0.6 + (1 - (1 - u) ** 2) * o.portee) * k, 0, TAU); ctx.stroke();
+      }
+
+      // Particules : elles vivent au rythme du jeu, donc ralentissent avec lui.
+      particules = particules.filter((p) => (p.vie += dtJeu) < p.duree);
+      for (const p of particules) {
+        const f = Math.exp(-p.frein * dtJeu);
+        p.vx *= f; p.vy *= f;
+        p.x += p.vx * dtJeu; p.y += p.vy * dtJeu;
+        p.angle += p.rotation * dtJeu;
+        const u = p.vie / p.duree;
+        ctx.globalAlpha = (1 - u) * (1 - u * 0.3);
+        ctx.fillStyle = p.couleur; ctx.strokeStyle = p.couleur;
+        const px = sx(p.x), py = sy(p.y);
+        if (p.forme === 1) {
+          const l = p.taille * (1 - u * 0.5);
+          ctx.lineWidth = 2; ctx.lineCap = "round";
+          ctx.beginPath();
+          ctx.moveTo(px - Math.cos(p.angle) * l, py - Math.sin(p.angle) * l);
+          ctx.lineTo(px + Math.cos(p.angle) * l, py + Math.sin(p.angle) * l);
+          ctx.stroke();
+        } else {
+          ctx.beginPath(); ctx.arc(px, py, Math.max(0.5, p.taille * (1 - u * 0.6)), 0, TAU); ctx.fill();
+        }
       }
       ctx.globalAlpha = 1;
       ctx.restore();
@@ -566,6 +722,64 @@ export function Arene(props: Props) {
       ctx.strokeStyle = th.encre; ctx.lineWidth = 1.5; ctx.globalAlpha = 0.85;
       ctx.strokeRect(gx, hy, dx - gx, by - hy);
       ctx.globalAlpha = 1;
+
+      // Ralenti : les bords s'assombrissent, on sent le temps qui s'étire.
+      if (intensite > 0.02 && !calme) {
+        const rayon = Math.hypot(W, H) / 2;
+        const v = ctx.createRadialGradient(W / 2, H / 2, rayon * 0.35, W / 2, H / 2, rayon);
+        v.addColorStop(0, "rgba(0,0,0,0)");
+        v.addColorStop(1, `rgba(0,0,0,${(0.42 * intensite).toFixed(3)})`);
+        ctx.fillStyle = v;
+        ctx.fillRect(-20, -20, W + 40, H + 40);
+      }
+
+      // Textes qui surgissent : le nom d'une victime, ou l'annonce d'un grand moment au milieu.
+      surgis = surgis.filter((g) => (g.vie += dt * (0.5 + 0.5 * allure)) < g.duree);
+      for (const g of surgis) {
+        const u = g.vie / g.duree;
+        const entree = Math.min(1, g.vie / 0.18);
+        const echelle = g.x === null ? 1.6 - 0.6 * (1 - (1 - entree) ** 3) : 1;
+        ctx.globalAlpha = Math.min(1, (1 - u) * 3) * entree;
+        const police = (taille: number) => `800 ${Math.round(taille)}px ui-sans-serif, system-ui, sans-serif`;
+        ctx.font = police(g.taille * echelle);
+        // Sur un téléphone, l'annonce rétrécit pour tenir dans la largeur.
+        const largeur = ctx.measureText(g.texte).width, place = W - 32;
+        if (largeur > place) ctx.font = police((g.taille * echelle * place) / largeur);
+        const demi = Math.min(largeur, place) / 2;
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        const x = g.x === null ? W / 2 : borner(sx(g.x), demi + 8, W - demi - 60);
+        const y = g.x === null ? H * 0.42 : borner(sy(g.y) - 26 - u * 22, 16, H - 16);
+        ctx.lineWidth = g.x === null ? 7 : 4; ctx.lineJoin = "round"; ctx.strokeStyle = th.papier;
+        ctx.strokeText(g.texte, x, y);
+        ctx.fillStyle = g.couleur;
+        ctx.fillText(g.texte, x, y);
+      }
+      ctx.globalAlpha = 1;
+
+      // Accéléré ou ralenti : un badge, pour qu'on sache ce qui arrive au temps.
+      if (enDirect && anime && (allure < 0.9 || allure > 1.2)) {
+        const libelle = allure < 1 ? "RALENTI" : `▶▶ ×${(Math.round(allure * 10) / 10).toString().replace(".", ",")}`;
+        ctx.font = "700 12px ui-sans-serif, system-ui, sans-serif";
+        const l = ctx.measureText(libelle).width + 16;
+        ctx.globalAlpha = allure < 1 ? Math.min(1, intensite * 2) : Math.min(1, (allure - 1.2) / (ACCELERE - 1.2) + 0.3);
+        ctx.fillStyle = th.encre;
+        ctx.beginPath();
+        if (typeof ctx.roundRect === "function") ctx.roundRect(12, H - 36, l, 24, 12); else ctx.rect(12, H - 36, l, 24);
+        ctx.fill();
+        ctx.fillStyle = th.papier; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+        ctx.fillText(libelle, 20, H - 23.5);
+        ctx.globalAlpha = 1;
+      }
+
+      // Éclair : toute la feuille prend la couleur de la victime, un instant.
+      if (eclair > 0.01) {
+        ctx.globalAlpha = eclair; ctx.fillStyle = couleurEclair;
+        ctx.fillRect(-20, -20, W + 40, H + 40);
+        ctx.globalAlpha = 1;
+        eclair = Math.max(0, eclair - dt * 0.9);
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
 
       // Viseur : coordonnées du point survolé (absent en repère muet).
       if (pointeur && !muet && doigts.size === 0) {

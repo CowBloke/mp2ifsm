@@ -1,11 +1,12 @@
 import "server-only";
 import { randomInt } from "node:crypto";
 import { choisirTir } from "./bots";
+import { chronologie } from "./chronologie";
 import { enregistrerPartie, enregistrerTirs, type TirVictorieux } from "./classement";
 import { ErreurExpression, verifier, type Contraintes, type Expression } from "./expression";
 import {
-  JOUEURS_MAX, PAS, REGLAGES_DEFAUT, VITESSE, VOLEES_MAX, VUE_DEPART, VUE_TRACE,
-  aleatoire, cercleVisible, corrigerReglages, devoiler, genererArene, nouveauVoile, visible,
+  JOUEURS_MAX, REGLAGES_DEFAUT, VOLEES_MAX, VUE_DEPART, VUE_TRACE,
+  aleatoire, cercleVisible, corrigerReglages, depart, devoiler, genererArene, nouveauVoile, visible,
   type Cercle, type Reglages, type StyleCarte,
 } from "./monde";
 import { simuler, type Resultat } from "./simulation";
@@ -186,7 +187,8 @@ function ouvrirPreparation(s: Salon, t: number): void {
 
 function nouvelleManche(s: Salon, t: number): void {
   const joueurs = [...s.participants.values()].filter((p) => p.enJeu);
-  const arene = genererArene(randomInt(2 ** 31), joueurs.length, s.reglages.obstacles, s.reglages.carte);
+  const arene = genererArene(randomInt(2 ** 31), joueurs.length, s.reglages.obstacles, s.reglages.carte,
+    s.reglages.mode === "centre");
   s.manche++;
   s.volee = 1;
   s.obstacles = arene.obstacles;
@@ -210,26 +212,39 @@ function nouvelleManche(s: Salon, t: number): void {
 }
 
 function bilanTir(resultat: Resultat, id: string): string {
-  const victimes = resultat.evenements.filter((e) => e.type === "elimination" && e.tueur === id).length;
-  if (victimes) return victimes > 1 ? `${victimes} éliminations` : "1 élimination";
+  const touches = resultat.evenements.filter((e) => e.type === "elimination" && e.tueur === id);
+  const victimes = touches.filter((e) => e.type === "elimination" && e.victime !== id).length;
+  const ami = touches.length > victimes ? "tir ami" : "";
+  if (victimes) return [victimes > 1 ? `${victimes} éliminations` : "1 élimination", ami].filter(Boolean).join(" · ");
+  if (ami) return ami;
   const fins = resultat.traces.filter((tr) => tr.joueur === id).map((tr) => tr.fin);
   const mots = { bord: "sortie de l’arène", obstacle: "obstacle", rupture: "courbe rompue",
                  domaine: "hors du domaine", mort: "interrompue", longueur: "à bout de souffle" };
   return [...new Set(fins.map((f) => mots[f]))].join(" · ") || "aucun tir";
 }
 
+/** Délai entre le dévoilement des expressions et le départ des courbes (ms). */
+export function delaiRevelation(nbTirs: number): number {
+  return nbTirs ? Math.min(6000, 1800 + 700 * nbTirs) : 1500;
+}
+/** Temps laissé à la fin d'une volée, courbes arrêtées, avant la suite (ms). */
+const APRES_VOLEE = 2200;
+const ENTRE_MANCHES = 5000;
+
 function lancerVolee(s: Salon, t: number): void {
   const lice = enLice(s);
   const regles = contraintes(s.reglages);
+  const mode = s.reglages.mode;
+  const tirAmi = mode === "centre";
+  const tireur = (p: Participant, expr: Expression | null) => ({ id: p.id, x: p.x, y: p.y, expr, depart: depart(mode, p) });
   for (const bot of lice.filter((p) => p.bot)) {
-    const autres = lice.filter((p) => p !== bot).map((p) => ({ id: p.id, x: p.x, y: p.y, expr: null }));
-    bot.expression = choisirTir({ id: bot.id, x: bot.x, y: bot.y, expr: null }, autres,
-      s.obstacles, s.crateres, regles, s.rnd);
+    const autres = lice.filter((p) => p !== bot).map((p) => tireur(p, null));
+    bot.expression = choisirTir(tireur(bot, null), autres, s.obstacles, s.crateres, regles, s.rnd, tirAmi);
     bot.pret = true;
   }
 
-  const tireurs = lice.map((p) => ({ id: p.id, x: p.x, y: p.y, expr: p.pret ? p.expression : null }));
-  const resultat = simuler(tireurs, s.obstacles, s.crateres, s.reglages.tir);
+  const tireurs = lice.map((p) => tireur(p, p.pret ? p.expression : null));
+  const resultat = simuler(tireurs, s.obstacles, s.crateres, s.reglages.tir, { tirAmi });
   const crateresAvant = s.crateres.length;
   s.crateres.push(...resultat.crateres);
 
@@ -238,6 +253,8 @@ function lancerVolee(s: Salon, t: number): void {
     if (e.type !== "elimination") continue;
     const tueur = s.participants.get(e.tueur)!, victime = s.participants.get(e.victime)!;
     victime.vivant = false;
+    // Tir ami : on s'élimine soi-même, sans point.
+    if (tueur === victime) continue;
     tueur.eliminations++;
     tueur.points++;
     if (!tueur.bot && !victime.bot && tueur.expression) {
@@ -271,9 +288,8 @@ function lancerVolee(s: Salon, t: number): void {
     const cible = p.conseil && s.participants.get(p.conseil.cible);
     if (!p.conseil?.expression || !cible || !lice.includes(cible)) continue;
     const essai = simuler(
-      [{ id: cible.id, x: cible.x, y: cible.y, expr: p.conseil.expression },
-       ...lice.filter((q) => q !== cible).map((q) => ({ id: q.id, x: q.x, y: q.y, expr: null }))],
-      s.obstacles, crateresDAvant, s.reglages.tir);
+      [tireur(cible, p.conseil.expression), ...lice.filter((q) => q !== cible).map((q) => tireur(q, null))],
+      s.obstacles, crateresDAvant, s.reglages.tir, { tirAmi });
     conseils.push({
       id: p.id, cible: cible.id, source: p.conseil.expression.source, traces: essai.traces,
       touches: essai.evenements.flatMap((e) => (e.type === "elimination"
@@ -283,11 +299,12 @@ function lancerVolee(s: Salon, t: number): void {
   const ticks = Math.max(resultat.ticks, ...conseils.map((c) => Math.max(...c.traces.map((tr) => tr.pts.length / 2 - 1))));
 
   const nbTirs = tireurs.filter((x) => x.expr).length;
-  const revelation = nbTirs ? Math.min(11_000, Math.max(4500, 3000 + 1100 * nbTirs)) : 2500;
-  const animation = (ticks * PAS / VITESSE) * 1000;
+  const revelation = delaiRevelation(nbTirs);
+  // Même calcul que chez les navigateurs : ralentis et accéléré compris.
+  const animation = chronologie(ticks, resultat.evenements.flatMap((e) => (e.type === "elimination" ? [e] : [])), lice.length).duree;
   s.tir = {
     n: ++s.compteurVolees, manche: s.manche, volee: s.volee,
-    tRevelation: t, tAnimation: t + revelation, tFin: t + revelation + animation + 3200,
+    tRevelation: t, tAnimation: t + revelation, tFin: t + revelation + animation + APRES_VOLEE,
     resultat,
     expressions: lice.map((p) => ({ id: p.id, source: p.pret && p.expression ? p.expression.source : null })),
     crateresAvant,
@@ -318,7 +335,7 @@ function finDeManche(s: Salon, t: number): void {
     })), s.reglages);
   } else {
     s.phase = "finManche";
-    s.transition = t + 7000;
+    s.transition = t + ENTRE_MANCHES;
   }
   s.version++;
 }

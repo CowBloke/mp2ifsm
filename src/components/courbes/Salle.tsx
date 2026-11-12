@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FAMILLES, ErreurExpression, compiler, verifier, type Expression, type Famille } from "@/lib/courbes/expression";
-import { CHOIX, JOUEURS_MAX, NOMS_CARTES, PAS, VITESSE, VOLEES_MAX, type Reglages } from "@/lib/courbes/monde";
+import { chronologieDe, tickA, type Moment } from "@/lib/courbes/chronologie";
+import { CHOIX, JOUEURS_MAX, NOMS_CARTES, VOLEES_MAX, depart, type Reglages } from "@/lib/courbes/monde";
 import type { Action } from "@/lib/courbes/salons";
 import { simuler, type Fin } from "@/lib/courbes/simulation";
 import { affiner, ecrireNombre } from "@/lib/courbes/trace";
@@ -79,9 +80,11 @@ export function Salle({ code }: { code: string }) {
 /* --- Antichambre ----------------------------------------------------------- */
 
 const MODES: { v: Reglages["mode"]; titre: string; detail: string }[] = [
-  { v: "classique", titre: "Classique", detail: "Tout le monde se voit." },
-  { v: "brouillard", titre: "Brouillard", detail: "Personne ne se voit ; tes courbes dégagent le brouillard sur leur passage." },
+  { v: "classique", titre: "Classique", detail: "Tout le monde se voit, chaque courbe part de son joueur." },
+  { v: "brouillard", titre: "Brouillard", detail: "Tu ne vois que ce que tes courbes ont dégagé." },
+  { v: "centre", titre: "Centre", detail: "Toutes les courbes partent de l’origine, joueurs en cercle au loin. Tir ami : ta courbe peut t’éliminer." },
 ];
+export const NOMS_MODES: Record<Reglages["mode"], string> = { classique: "Classique", brouillard: "Brouillard", centre: "Centre" };
 const TIRS: { v: Reglages["tir"]; titre: string; detail: string }[] = [
   { v: "fonction", titre: "y = f(x)", detail: "Le graphe de f, translaté pour passer par toi." },
   { v: "equadiff", titre: "y′ = f(x, y)", detail: "Tu donnes la pente : la courbe est la solution qui passe par toi." },
@@ -97,6 +100,7 @@ function Antichambre({ etat, agir, quitter, son, basculerSon }: {
   const faire = async (a: Action) => setErreur(await agir(a));
   const regler = (reglages: Partial<Reglages>) => faire({ t: "reglages", reglages });
   const presents = etat.joueurs.filter((p) => p.present);
+  const bots = etat.joueurs.filter((p) => p.bot).length;
   const nomHote = etat.joueurs.find((p) => p.id === etat.hote)?.nom ?? "l’hôte";
 
   async function copier() {
@@ -108,128 +112,183 @@ function Antichambre({ etat, agir, quitter, son, basculerSon }: {
   }
 
   return (
-    <main>
+    <main className="cf-antichambre">
       <Retour libelle="Quitter le salon" avant={quitter} />
-      <header className="page-heading">
-        <h1>Salon <span className="font-mono tracking-[0.08em]">{etat.code}</span></h1>
-        <p>Donne ce code à la classe, ou envoie le lien.</p>
+      <header className="cf-entete-salon">
+        <p className="etiquette">Salon</p>
+        <h1 className="cf-entete-salon__code">{etat.code}</h1>
+        <p className="text-[14px] text-[var(--muted-foreground)]">Donne ce code à la classe, ou envoie le lien.</p>
+        <div className="page-toolbar mt-3">
+          <button type="button" className="puce" onClick={copier}>{copie ? "Lien copié ✓" : "Copier le lien"}</button>
+          <button type="button" className="puce" aria-pressed={son} onClick={basculerSon}>{son ? "Son activé" : "Son coupé"}</button>
+        </div>
       </header>
 
       <div className="page-stack">
-        <div className="page-toolbar -mt-5">
-          <button type="button" className="puce" onClick={copier}>{copie ? "Lien copié" : "Copier le lien"}</button>
-          <button type="button" className="puce" aria-pressed={son} onClick={basculerSon}>{son ? "Son activé" : "Son coupé"}</button>
-        </div>
-
-        <section>
-          <h2 className="etiquette">Joueurs · {presents.length}/{JOUEURS_MAX}</h2>
-          <ul>
+        <section aria-label="Joueurs">
+          <h2 className="cf-titre-section">Joueurs <span>{presents.length}/{JOUEURS_MAX}</span></h2>
+          <ul className="cf-joueurs">
             {etat.joueurs.map((p) => (
-              <li key={p.id} className={`ligne min-h-[56px] ${p.present ? "" : "opacity-50"}`} style={teinte(p.couleur)}>
+              <li key={p.id} className="cf-joueur" style={teinte(p.couleur)} data-absent={p.present ? undefined : ""}>
                 <span className="cf-pion" aria-hidden="true" />
-                <span className="min-w-0 flex-1 truncate ligne__titre">
-                  {p.nom}{p.id === etat.moi && <span className="ligne__meta"> · toi</span>}
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[15px] font-medium">{p.nom}{p.id === etat.moi && " (toi)"}</span>
+                  {(p.id === etat.hote || !p.present) && (
+                    <span className="block text-[12px] text-[var(--muted-foreground)]">{p.id === etat.hote ? "Hôte" : "absent"}</span>
+                  )}
                 </span>
-                {p.id === etat.hote && <span className="ligne__meta">Hôte</span>}
-                {!p.present && <span className="ligne__meta">absent</span>}
                 {hote && p.id !== etat.moi && !p.bot && (
-                  <button type="button" className="lien-discret" onClick={() => faire({ t: "exclure", id: p.id })}>Exclure</button>
+                  <button type="button" className="cf-joueur__retirer" aria-label={`Exclure ${p.nom}`}
+                          onClick={() => faire({ t: "exclure", id: p.id })}>×</button>
                 )}
               </li>
             ))}
           </ul>
           {hote && (
-            <div className="page-toolbar mt-3">
-              <button type="button" className="puce" onClick={() => faire({ t: "bot", delta: 1 })}
-                      disabled={etat.joueurs.length >= JOUEURS_MAX}>Ajouter un bot</button>
-              <button type="button" className="puce" onClick={() => faire({ t: "bot", delta: -1 })}
-                      disabled={!etat.joueurs.some((p) => p.bot)}>Retirer un bot</button>
+            <div className="cf-bots">
+              <span className="text-[14px]">Bots <span className="text-[var(--muted-foreground)]">· {bots}</span></span>
+              <div className="flex gap-2">
+                <button type="button" className="bouton-rond cf-bots__bouton" aria-label="Retirer un bot"
+                        onClick={() => faire({ t: "bot", delta: -1 })} disabled={!bots}>−</button>
+                <button type="button" className="bouton-rond cf-bots__bouton" aria-label="Ajouter un bot"
+                        onClick={() => faire({ t: "bot", delta: 1 })} disabled={etat.joueurs.length >= JOUEURS_MAX}>+</button>
+              </div>
             </div>
           )}
         </section>
 
-        <section aria-label="Réglages du salon" className="flex flex-col gap-7">
-          <div>
-            <h2 className="text-[20px] font-semibold tracking-[-0.01em]">Réglages</h2>
-            {!hote && <p className="mt-1 text-[14px] text-[var(--muted-foreground)]">Choisis par {nomHote}.</p>}
-          </div>
+        {hote ? (
+          <section aria-label="Réglages du salon" className="flex flex-col gap-7">
+            <Groupe titre="Mode de jeu">
+              <div className="cf-options cf-options--3">
+                {MODES.map((m) => (
+                  <Option key={m.v} actif={r.mode === m.v} verrou={false} titre={m.titre} detail={m.detail}
+                          onClick={() => regler({ mode: m.v })} />
+                ))}
+              </div>
+            </Groupe>
 
-          <Groupe titre="Mode de jeu">
-            <div className="grid gap-2 sm:grid-cols-2">
-              {MODES.map((m) => (
-                <Option key={m.v} actif={r.mode === m.v} verrou={!hote} titre={m.titre} detail={m.detail}
-                        onClick={() => regler({ mode: m.v })} />
-              ))}
+            <Groupe titre="Ce qu’on écrit">
+              <div className="cf-options">
+                {TIRS.map((m) => (
+                  <Option key={m.v} actif={r.tir === m.v} verrou={false} titre={m.titre} detail={m.detail} mono
+                          onClick={() => regler({ tir: m.v })} />
+                ))}
+              </div>
+            </Groupe>
+
+            <div className="grid gap-7 sm:grid-cols-2">
+              <Groupe titre="Temps de réflexion">
+                <Segments valeur={r.temps} verrou={false} onChange={(temps) => regler({ temps })}
+                          options={CHOIX.temps.map((v) => ({ v, nom: v ? `${v} s` : "Libre" }))} />
+              </Groupe>
+              <Groupe titre="Manches">
+                <Segments valeur={r.manches} verrou={false} onChange={(manches) => regler({ manches })}
+                          options={CHOIX.manches.map((v) => ({ v, nom: String(v) }))} />
+              </Groupe>
             </div>
-          </Groupe>
 
-          <Groupe titre="Ce qu’on écrit">
-            <div className="grid gap-2 sm:grid-cols-2">
-              {TIRS.map((m) => (
-                <Option key={m.v} actif={r.tir === m.v} verrou={!hote} titre={m.titre} detail={m.detail} mono
-                        onClick={() => regler({ tir: m.v })} />
-              ))}
-            </div>
-          </Groupe>
+            <details className="cf-plus">
+              <summary>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[16px] font-semibold">Plus de réglages</span>
+                  <span className="block truncate text-[13px] text-[var(--muted-foreground)]">{resumePlus(r)}</span>
+                </span>
+                <Chevron />
+              </summary>
+              <div className="flex flex-col gap-7 pb-2 pt-3">
+                <Groupe titre="Aides">
+                  <Bascule actif={r.apercu} verrou={false} titre="Aperçu de la courbe"
+                           detail={r.apercu ? "Entraînement : ta courbe se trace pendant que tu écris" : "Désactivé : il faut la voir de tête"}
+                           onClick={() => regler({ apercu: !r.apercu })} />
+                  <Bascule actif={!r.repereMuet} verrou={false} titre="Graduations et coordonnées"
+                           detail={r.repereMuet ? "Repère muet : tout à l’œil" : "Le repère est gradué"}
+                           onClick={() => regler({ repereMuet: !r.repereMuet })} />
+                </Groupe>
+                <Groupe titre="Fonctions autorisées" aide="Les opérations + − × ÷ et les puissances le sont toujours.">
+                  {FAMILLES.map((f) => {
+                    const actif = r.familles.includes(f.cle);
+                    const suivantes: Famille[] = actif ? r.familles.filter((x) => x !== f.cle) : [...r.familles, f.cle];
+                    return (
+                      <Bascule key={f.cle} actif={actif} verrou={false} titre={f.nom} detail={f.fonctions.join("  ")} mono
+                               onClick={() => regler({ familles: suivantes })} />
+                    );
+                  })}
+                </Groupe>
+                <div className="grid gap-7 sm:grid-cols-2">
+                  <Groupe titre="Obstacles">
+                    <Segments valeur={r.obstacles} verrou={false} onChange={(obstacles) => regler({ obstacles })}
+                              options={CHOIX.obstacles.map((v) => ({ v, nom: v[0].toUpperCase() + v.slice(1) }))} />
+                  </Groupe>
+                  <Groupe titre="Longueur de l’expression">
+                    <Segments valeur={r.longueurMax} verrou={false} onChange={(longueurMax) => regler({ longueurMax })}
+                              options={CHOIX.longueurMax.map((v) => ({ v, nom: v ? `≤ ${v}` : "Libre" }))} />
+                  </Groupe>
+                </div>
+                <Groupe titre="Carte" aide={r.carte === "variee" ? "Une disposition différente à chaque manche." : undefined}>
+                  <Segments valeur={r.carte} verrou={false} onChange={(carte) => regler({ carte })}
+                            options={CHOIX.carte.map((v) => ({ v, nom: NOMS_CARTES[v] }))} />
+                </Groupe>
+              </div>
+            </details>
+          </section>
+        ) : (
+          <section aria-label="Réglages du salon">
+            <h2 className="cf-titre-section">Réglages <span>choisis par {nomHote}</span></h2>
+            <ResumeReglages r={r} />
+          </section>
+        )}
 
-          <Groupe titre="Aides">
-            <Bascule actif={r.apercu} verrou={!hote} titre="Aperçu de la courbe"
-                     detail={r.apercu ? "Mode entraînement : ta courbe se trace pendant que tu écris" : "Désactivé : il faut la voir de tête"}
-                     onClick={() => regler({ apercu: !r.apercu })} />
-            <Bascule actif={!r.repereMuet} verrou={!hote} titre="Graduations et coordonnées"
-                     detail={r.repereMuet ? "Repère muet : tout à l’œil" : "Le repère est gradué"}
-                     onClick={() => regler({ repereMuet: !r.repereMuet })} />
-          </Groupe>
+        <Regles />
+      </div>
 
-          <Groupe titre="Fonctions autorisées" aide="Les opérations + − × ÷ et les puissances le sont toujours.">
-            {FAMILLES.map((f) => {
-              const actif = r.familles.includes(f.cle);
-              const suivantes: Famille[] = actif ? r.familles.filter((x) => x !== f.cle) : [...r.familles, f.cle];
-              return (
-                <Bascule key={f.cle} actif={actif} verrou={!hote} titre={f.nom} detail={f.fonctions.join("  ")} mono
-                         onClick={() => regler({ familles: suivantes })} />
-              );
-            })}
-          </Groupe>
-
-          <div className="grid gap-7 sm:grid-cols-2">
-            <Groupe titre="Temps de réflexion">
-              <Segments valeur={r.temps} verrou={!hote} onChange={(temps) => regler({ temps })}
-                        options={CHOIX.temps.map((v) => ({ v, nom: v ? `${v} s` : "Libre" }))} />
-            </Groupe>
-            <Groupe titre="Manches">
-              <Segments valeur={r.manches} verrou={!hote} onChange={(manches) => regler({ manches })}
-                        options={CHOIX.manches.map((v) => ({ v, nom: String(v) }))} />
-            </Groupe>
-            <Groupe titre="Obstacles">
-              <Segments valeur={r.obstacles} verrou={!hote} onChange={(obstacles) => regler({ obstacles })}
-                        options={CHOIX.obstacles.map((v) => ({ v, nom: v[0].toUpperCase() + v.slice(1) }))} />
-            </Groupe>
-            <Groupe titre="Carte" aide={r.carte === "variee" ? "Une disposition différente à chaque manche." : undefined}>
-              <Segments valeur={r.carte} verrou={!hote} onChange={(carte) => regler({ carte })}
-                        options={CHOIX.carte.map((v) => ({ v, nom: NOMS_CARTES[v] }))} />
-            </Groupe>
-            <Groupe titre="Longueur de l’expression">
-              <Segments valeur={r.longueurMax} verrou={!hote} onChange={(longueurMax) => regler({ longueurMax })}
-                        options={CHOIX.longueurMax.map((v) => ({ v, nom: v ? `≤ ${v}` : "Libre" }))} />
-            </Groupe>
-          </div>
-        </section>
-
-        <div className="flex flex-col gap-3">
-          {erreur && <p role="alert" className="text-[14px] font-medium text-[var(--destructive)]">{erreur}</p>}
-          {hote ? (
-            <button type="button" className="bouton-principal" disabled={presents.length < 2}
-                    onClick={() => faire({ t: "lancer" })}>
-              {presents.length < 2 ? "Il faut au moins deux joueurs" : "Lancer la partie"}
-            </button>
-          ) : (
-            <p className="text-[15px] text-[var(--muted-foreground)]" role="status">{nomHote} lance la partie quand tout le monde est là.</p>
-          )}
-          <Regles />
-        </div>
+      <div className="cf-lancement">
+        {erreur && <p role="alert" className="mb-2 text-[14px] font-medium text-[var(--destructive)]">{erreur}</p>}
+        {hote ? (
+          <button type="button" className="bouton-principal" disabled={presents.length < 2}
+                  onClick={() => faire({ t: "lancer" })}>
+            {presents.length < 2 ? "Il faut au moins deux joueurs" : `Lancer la partie · ${presents.length} joueurs`}
+          </button>
+        ) : (
+          <p className="cf-lancement__attente" role="status">
+            <span className="cf-lancement__point" aria-hidden="true" />{nomHote} lance la partie quand tout le monde est là.
+          </p>
+        )}
       </div>
     </main>
+  );
+}
+
+function resumePlus(r: Reglages): string {
+  return [
+    r.apercu ? "aperçu" : "sans aperçu",
+    r.repereMuet ? "repère muet" : null,
+    `obstacles ${r.obstacles}`,
+    `carte ${NOMS_CARTES[r.carte].toLowerCase()}`,
+    r.longueurMax ? `≤ ${r.longueurMax} car.` : null,
+    r.familles.length < FAMILLES.length ? `${r.familles.length}/${FAMILLES.length} familles` : null,
+  ].filter(Boolean).join(" · ");
+}
+
+/** Les réglages, lisibles, pour ceux qui ne les choisissent pas. */
+function ResumeReglages({ r }: { r: Reglages }) {
+  const mode = MODES.find((m) => m.v === r.mode)!;
+  const lignes: [string, React.ReactNode][] = [
+    ["Mode", <><strong>{mode.titre}</strong><span className="block text-[13px] text-[var(--muted-foreground)]">{mode.detail}</span></>],
+    ["On écrit", <span className="font-mono">{r.tir === "equadiff" ? "y′ = f(x, y)" : "y = f(x)"}</span>],
+    ["Réflexion", r.temps ? `${r.temps} s` : "Libre"],
+    ["Manches", r.manches],
+    ["Aides", [r.apercu ? "aperçu de la courbe" : "sans aperçu", r.repereMuet ? "repère muet" : "repère gradué"].join(", ")],
+    ["Fonctions", FAMILLES.filter((f) => r.familles.includes(f.cle)).map((f) => f.nom).join(", ") || "opérations seules"],
+    ["Arène", `Obstacles ${r.obstacles} · carte ${NOMS_CARTES[r.carte].toLowerCase()}`],
+    ["Longueur", r.longueurMax ? `${r.longueurMax} caractères au plus` : "Libre"],
+  ];
+  return (
+    <dl className="cf-resume">
+      {lignes.map(([titre, valeur]) => (
+        <div key={titre}><dt>{titre}</dt><dd>{valeur}</dd></div>
+      ))}
+    </dl>
   );
 }
 
@@ -261,7 +320,7 @@ function Bascule({ actif, verrou, titre, detail, mono, onClick }: {
     <button type="button" role="switch" aria-checked={actif} disabled={verrou} onClick={onClick} className="cf-bascule">
       <span className="min-w-0 flex-1">
         <span className="block text-[15px] font-medium">{titre}</span>
-        <span className={`block truncate text-[13px] text-[var(--muted-foreground)] ${mono ? "font-mono" : ""}`}>{detail}</span>
+        <span className={`block text-[13px] leading-snug text-[var(--muted-foreground)] ${mono ? "font-mono" : ""}`}>{detail}</span>
       </span>
       <span className="cf-bascule__piste" aria-hidden="true" />
     </button>
@@ -294,6 +353,8 @@ export function Regles() {
         <li>Une courbe qui touche un joueur l’élimine. La courbe d’un joueur éliminé s’arrête net : le chemin le plus court gagne les duels.</li>
         <li>Une courbe s’arrête sur un obstacle (elle y creuse un cratère), au bord de l’arène, hors de son domaine de définition ou sur un saut de plus de 1.5.</li>
         <li>Les survivants rejouent jusqu’à ce qu’il n’en reste qu’un ({VOLEES_MAX} volées au plus). Une élimination vaut 1 point, survivre à la manche 2 points.</li>
+        <li><strong>Mode Centre</strong> : toutes les courbes partent de l’origine, les joueurs sont sur un grand cercle autour. Tir ami : ta propre courbe peut t’éliminer (sans point pour personne).</li>
+        <li>Les grands moments passent au ralenti ; quand plus rien ne peut arriver, les courbes accélèrent.</li>
       </ul>
     </details>
   );
@@ -326,7 +387,9 @@ function Partie({ etat, agir, horloge, quitter, son, basculerSon }: {
   const parId = useMemo(() => new Map(etat.joueurs.map((p) => [p.id, p])), [etat.joueurs]);
   const moi = parId.get(etat.moi);
   const enRevelation = etat.phase === "volee" && !!tir && t < tir.tAnimation;
-  const tick = etat.phase === "volee" && tir ? Math.max(0, ((t - tir.tAnimation) / 1000) * VITESSE / PAS) : Infinity;
+  // Le temps de la volée, ralentis compris : le même calcul que le repère et le serveur.
+  const chrono = useMemo(() => (tir ? chronologieDe(tir) : null), [tir?.n, tir?.ticks, tir?.evenements.length]);
+  const tick = etat.phase === "volee" && tir && chrono ? tickA(chrono, t - tir.tAnimation) : Infinity;
 
   // Décompte sonore avant le départ, puis le départ.
   const dernierBip = useRef("");
@@ -335,15 +398,22 @@ function Partie({ etat, agir, horloge, quitter, son, basculerSon }: {
     if (!tir || etat.phase !== "volee") return;
     const cle = `${tir.n}:${enRevelation ? secondes : "go"}`;
     if (cle === dernierBip.current) return;
+    const premierBip = !dernierBip.current.startsWith(`${tir.n}:`);
     dernierBip.current = cle;
     if (!enRevelation) sons.depart();
+    else if (premierBip) sons.revelation();
     else if (secondes <= 3) sons.decompte();
   }, [tir, etat.phase, enRevelation, secondes]);
-  useEffect(() => { if (etat.phase === "fin") sons.victoire(); }, [etat.phase]);
+  useEffect(() => {
+    if (etat.phase === "fin") sons.victoire();
+    else if (etat.phase === "finManche") sons.finManche();
+  }, [etat.phase]);
 
   // Le brouillon survit d'une volée à l'autre : on corrige son tir précédent.
   const [brouillon, setBrouillon] = useState("");
-  const surEvenement = (e: VueEvenement) => (e.type === "impact" ? sons.impact() : sons.elimination());
+  const surEvenement = (e: VueEvenement, m: Moment | null) =>
+    (e.type === "impact" ? sons.impact(m ? 0.5 : 1) : sons.elimination(m?.force ?? 1, e.tueur === e.victime));
+  const surRalenti = (m: Moment) => sons.ralenti(m.force);
 
   const joue = etat.phase === "preparation" && !!moi && moi.enJeu && moi.vivant;
   // Éliminé : on aide un joueur encore en lice, avec une courbe fantôme qui part de lui.
@@ -365,15 +435,17 @@ function Partie({ etat, agir, horloge, quitter, son, basculerSon }: {
   const apercu = useMemo((): ApercuDetaille | null => {
     if (!r.apercu || !tireur || !analyse.expr || x0 === null || y0 === null) return null;
     const f = compiler(analyse.expr.arbre);
-    const decalage = equadiff ? 0 : y0 - f(x0, 0);
-    const res = simuler([{ id: "moi", x: x0, y: y0, expr: analyse.expr }], etat.obstacles, etat.crateres, r.tir);
+    const o = depart(r.mode, { x: x0, y: y0 });
+    const decalage = equadiff ? 0 : o.y - f(o.x, 0);
+    const res = simuler([{ id: "moi", x: x0, y: y0, expr: analyse.expr, depart: o }], etat.obstacles, etat.crateres, r.tir,
+      { tirAmi: r.mode === "centre" });
     return {
       f, equadiff, decalage,
-      part: Number.isFinite(equadiff ? f(x0, y0) : decalage),
+      part: Number.isFinite(equadiff ? f(o.x, o.y) : decalage),
       branches: res.traces.map((tr) => (equadiff ? tr.pts : affiner(tr.pts, f, decalage))),
       fins: res.traces.map((tr) => ({ dir: tr.dir, fin: tr.fin })),
     };
-  }, [r.apercu, r.tir, tireur, analyse.expr, x0, y0, equadiff, etat.obstacles, etat.crateres]);
+  }, [r.apercu, r.tir, r.mode, tireur, analyse.expr, x0, y0, equadiff, etat.obstacles, etat.crateres]);
 
   const premier = [...etat.joueurs].filter((p) => p.enJeu)
     .sort((a, b) => b.points - a.points || b.eliminations - a.eliminations)[0];
@@ -397,7 +469,7 @@ function Partie({ etat, agir, horloge, quitter, son, basculerSon }: {
         <p className="cf-barre__titre">Curve Fight <span>{etat.code}</span></p>
         <p className="cf-barre__infos">
           Manche {etat.manche}/{r.manches} · Volée {etat.volee}/{VOLEES_MAX}
-          <span> · {r.mode === "brouillard" ? "Brouillard" : "Classique"} · {equadiff ? "y′ = f(x, y)" : "y = f(x)"}{r.repereMuet ? " · Repère muet" : ""}{etat.carte ? ` · Carte ${NOMS_CARTES[etat.carte]}` : ""}</span>
+          <span> · {NOMS_MODES[r.mode]} · {equadiff ? "y′ = f(x, y)" : "y = f(x)"}{r.repereMuet ? " · Repère muet" : ""}{etat.carte ? ` · Carte ${NOMS_CARTES[etat.carte]}` : ""}</span>
         </p>
         <button type="button" className="cf-barre__bouton" aria-pressed={son} onClick={basculerSon}
                 aria-label={son ? "Couper le son" : "Activer le son"}>
@@ -410,7 +482,7 @@ function Partie({ etat, agir, horloge, quitter, son, basculerSon }: {
       </header>
 
       <div className="cf-corps">
-        <Arene etat={etat} traces={traces} apercu={apercu} horloge={horloge} surEvenement={surEvenement}>
+        <Arene etat={etat} traces={traces} apercu={apercu} horloge={horloge} surEvenement={surEvenement} surRalenti={surRalenti}>
           {banniere && <p className="cf-banniere" role="status">{banniere}</p>}
         </Arene>
 
@@ -575,11 +647,12 @@ function LigneJoueur({ etat, p, tick, children }: {
   // Le serveur a déjà compté toute la volée : on retient les points pas encore vus à l'écran.
   const evenements = tir?.evenements ?? [];
   const aVenir = etat.phase === "volee"
-    ? evenements.filter((e) => e.type === "elimination" && e.tueur === p.id && e.tick > tick).length : 0;
+    ? evenements.filter((e) => e.type === "elimination" && e.tueur === p.id && e.victime !== p.id && e.tick > tick).length : 0;
   const vus = evenements.filter((e) => e.type === "elimination" && e.tick <= tick);
-  const touches = vus.flatMap((e) => (e.type === "elimination" && e.tueur === p.id ? [e.victime] : []));
+  const touches = vus.flatMap((e) => (e.type === "elimination" && e.tueur === p.id && e.victime !== p.id ? [e.victime] : []));
   const victimes = touches.filter((id) => id !== etat.moi).map(nom);
   const bourreau = vus.find((e) => e.type === "elimination" && e.victime === p.id);
+  const tirAmi = bourreau?.type === "elimination" && bourreau.tueur === p.id;
   const expression = tir?.expressions.find((e) => e.id === p.id);
   const enPreparation = etat.phase === "preparation";
   const parId = (id: string) => etat.joueurs.find((j) => j.id === id);
@@ -611,7 +684,8 @@ function LigneJoueur({ etat, p, tick, children }: {
           <p className="mt-0.5 text-[13px] text-[var(--muted-foreground)]">
             {touches.includes(etat.moi) && <>T’élimine. </>}
             {victimes.length > 0 && <>Élimine {victimes.join(", ")}. </>}
-            {bourreau && bourreau.type === "elimination" && <>Touché par {nom(bourreau.tueur)}.</>}
+            {tirAmi && <>{moi ? "Ta propre courbe t’a eu" : "S’élimine tout seul"} : tir ami.</>}
+            {bourreau && bourreau.type === "elimination" && !tirAmi && <>Touché par {nom(bourreau.tueur)}.</>}
           </p>
         )}
         {enPreparation && moi && !vivant && (
@@ -653,6 +727,9 @@ function Saisie({ etat, tireur, horloge, brouillon, setBrouillon, valide, messag
   const moi = tireur;
   const pourAutrui = tireur.id !== etat.moi;
   const toi = pourAutrui ? tireur.nom : "toi";
+  const centre = r.mode === "centre";
+  /** Par où passe la courbe : son joueur, ou l'origine en mode Centre. */
+  const passe = centre ? "l’origine" : toi;
 
   async function valider() {
     if (!valide) return;
@@ -691,7 +768,8 @@ function Saisie({ etat, tireur, horloge, brouillon, setBrouillon, valide, messag
   if (apercu && !apercu.part) {
     lecture = (
       <p className="text-[var(--destructive)]">
-        {equadiff ? `La pente n’est pas définie ${pourAutrui ? "là où est " + toi : "là où tu es"}` : `f n’est pas définie en ${pourAutrui ? "l’abscisse de " + toi : "ton abscisse"}${position ? ` (x = ${ecrireNombre(moi.x ?? 0)})` : ""}`} : aucune courbe ne partirait.
+        {centre ? (equadiff ? "La pente n’est pas définie à l’origine" : "f n’est pas définie en x = 0")
+          : equadiff ? `La pente n’est pas définie ${pourAutrui ? "là où est " + toi : "là où tu es"}` : `f n’est pas définie en ${pourAutrui ? "l’abscisse de " + toi : "ton abscisse"}${position ? ` (x = ${ecrireNombre(moi.x ?? 0)})` : ""}`} : aucune courbe ne partirait.
       </p>
     );
   } else if (apercu) {
@@ -701,21 +779,21 @@ function Saisie({ etat, tireur, horloge, brouillon, setBrouillon, valide, messag
         {!equadiff && (
           <p>
             <span className="cf-trait cf-trait--tirets" aria-hidden="true" /> {pourAutrui ? "Le tir proposé" : "Ton tir"}
-            {position ? <> : <span className="font-mono">y = f(x){ecrireNombre(apercu.decalage, 2) === "0" ? "" : ` ${apercu.decalage < 0 ? "−" : "+"} ${ecrireNombre(Math.abs(apercu.decalage), 2)}`}</span>, pour passer par {toi} {position}.</>
-                      : ` : le graphe translaté pour passer par ${toi}.`}
+            {position || centre ? <> : <span className="font-mono">y = f(x){ecrireNombre(apercu.decalage, 2) === "0" ? "" : ` ${apercu.decalage < 0 ? "−" : "+"} ${ecrireNombre(Math.abs(apercu.decalage), 2)}`}</span>, pour passer par {passe}{centre ? "" : ` ${position}`}.</>
+                      : ` : le graphe translaté pour passer par ${passe}.`}
             <br />
             <span className="cf-trait cf-trait--points" aria-hidden="true" /> Le graphe de f, tel quel.
           </p>
         )}
-        {equadiff && <p><span className="cf-trait cf-trait--tirets" aria-hidden="true" /> La solution qui passe par {toi}{position ? ` ${position}` : ""}, sur son champ de pentes.</p>}
+        {equadiff && <p><span className="cf-trait cf-trait--tirets" aria-hidden="true" /> La solution qui passe par {passe}{position && !centre ? ` ${position}` : ""}, sur son champ de pentes.</p>}
         <p>À droite, elle {de(1)} ; à gauche, elle {de(-1)}.</p>
       </>
     );
   } else if (!r.apercu) {
     lecture = (
       <p>
-        Rien n’est tracé avant le départ : la courbe {equadiff ? `sera la solution qui passe par ${toi}` : `sera le graphe de f, translaté pour passer par ${toi}`}
-        {position ? ` ${position}` : ""}.
+        Rien n’est tracé avant le départ : la courbe {equadiff ? `sera la solution qui passe par ${passe}` : `sera le graphe de f, translaté pour passer par ${passe}`}
+        {centre ? (position ? `, et ${pourAutrui ? toi + " est" : "tu es"} en ${position}. Attention au tir ami` : ". Attention au tir ami") : position ? ` ${position}` : ""}.
       </p>
     );
   }
@@ -773,8 +851,8 @@ function Conseiller({ etat, cible, agir, children }: {
       <div className="cf-ligne__corps">
         <p className="text-[14px] font-semibold">Aider un joueur</p>
         <p className="mt-0.5 text-[13px] text-[var(--muted-foreground)]">
-          Propose-lui une courbe : elle partira de lui en fantôme, sans toucher personne pour de vrai,
-          et reste cachée jusqu’au départ des courbes.
+          Propose-lui une courbe : elle partira {etat.reglages.mode === "centre" ? "de l’origine" : "de lui"} en fantôme,
+          sans toucher personne pour de vrai, et reste cachée jusqu’au départ des courbes.
         </p>
         <div className="mt-2 flex flex-wrap gap-2" role="radiogroup" aria-label="Joueur à aider">
           {enLice.map((p) => (

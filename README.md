@@ -275,10 +275,36 @@ plus de 1,5. Les survivants rejouent (8 volées au plus par manche).
   `shadowBlur` (bord du brouillard en dégradé et passes successives).
   Pincement Safari (`gesture*`), molette Firefox en lignes, repli de
   `roundRect`, `webkitAudioContext` et `color-mix`.
+- **Mode Centre** (`mode: "centre"`) : toutes les courbes partent de
+  l’origine (graphe de f translaté pour y passer), les joueurs sont sur un
+  cercle de rayon 12,5 (coordonnées entières, symétriques en nombre pair),
+  un disque de 3,5 autour de l’origine reste sans obstacle et le style
+  *Pilier* y devient *Semis*. **Tir ami** : sa propre courbe peut éliminer
+  son auteur (`simuler(…, { tirAmi: true })`), sans point pour personne.
+  Les bots visent depuis l’origine et écartent les tirs qui reviennent sur eux.
+- **Rythme et ralentis** (`chronologie.ts`, module pur partagé) : le temps
+  d’une volée n’est plus linéaire. Ralenti autour de chaque élimination,
+  plus fort pour un coup double, un tir ami ou le coup qui finit la manche,
+  avec un arrêt sur image au contact ; accéléré (×2,6) quand plus rien ne
+  peut arriver. Serveur et navigateurs calculent la même chronologie à
+  partir des ticks, des éliminations et du nombre de joueurs en lice : le
+  serveur en tire `tFin`, chaque navigateur le tick à afficher. Courbes à
+  12 unités/s, dévoilement de 1,8 s + 0,7 s par tir (6 s au plus), 2,2 s
+  après la volée, 5 s entre deux manches.
+- **Effets** (`Arene.tsx`) : particules et éclats aux éliminations et aux
+  impacts, secousse, éclair, halo des courbes en direct, vignette pendant le
+  ralenti, caméra qui se rapproche des grands moments (tant qu’on n’a pas
+  touché à la vue), annonces (« COUP DOUBLE ! », « TIR AMI ! », « COUP DE
+  GRÂCE »), badge ralenti / accéléré. `prefers-reduced-motion` coupe
+  particules, secousse, éclair et caméra.
+- **Sons** (`son.ts`) : bruitages CC0 de Kenney et rubberduck
+  (OpenGameArt) dans `public/courbes/sons/` (crédits dans `CREDITS.md`),
+  chargés après le premier geste, passés par un compresseur ; repli
+  synthétisé tant qu’ils ne sont pas chargés.
 - **Code** : `src/lib/courbes/` — `expression.ts` (analyseur maison, aucune
   évaluation de code ; sert aussi à l’écriture KaTeX), `simulation.ts`
   (une volée, pure et déterministe), `monde.ts` (arène, réglages, grille du
-  brouillard), `trace.ts` (géométrie d’affichage), `bots.ts`, `salons.ts` (salons et déroulement),
+  brouillard), `chronologie.ts` (ralentis et accéléré), `trace.ts` (géométrie d’affichage), `bots.ts`, `salons.ts` (salons et déroulement),
   `classement.ts` ; interface dans `src/components/courbes/`.
 - **Temps réel sans service de plus** : les salons vivent en mémoire dans le
   processus Next. Le navigateur lit l’état par attente longue

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { SalonOuvert } from "@/lib/courbes/vue";
-import { Regles } from "./Salle";
+import { NOMS_MODES, Regles } from "./Salle";
 
 const BASE = "/divertissement/curve-fight";
 const PHASES: Record<SalonOuvert["phase"], string> = {
@@ -76,39 +76,45 @@ export function Accueil({ salons: initiaux }: { salons: SalonOuvert[] }) {
   }
 
   return (
-    <div className="page-stack">
+    <div className="page-stack cf-accueil">
       <Figure />
 
-      <section className="flex flex-col gap-3">
+      <section className="cf-jouer" aria-label="Jouer">
         <button type="button" className="bouton-principal" onClick={creer} disabled={creation}>
           {creation ? "Création…" : "Créer un salon"}
         </button>
-        {erreur && <p role="alert" className="text-[14px] font-medium text-[var(--destructive)]">{erreur}</p>}
-        <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); if (codeValide) router.push(`${BASE}/salon/${code}`); }}>
-          <input className="champ min-w-0 flex-1 font-mono uppercase tracking-[0.2em]" value={code}
-                 onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4))}
-                 placeholder="Code" aria-label="Code du salon à rejoindre" autoComplete="off" autoCapitalize="characters" spellCheck={false} />
-          <button type="submit" className="puce !h-12 !px-5" disabled={!codeValide}>Rejoindre</button>
+        <form className="cf-rejoindre" onSubmit={(e) => { e.preventDefault(); if (codeValide) router.push(`${BASE}/salon/${code}`); }}>
+          <label htmlFor="cf-code" className="etiquette">Ou rejoindre avec un code</label>
+          <div className="flex gap-2">
+            <input id="cf-code" className="champ cf-code" value={code}
+                   onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4))}
+                   placeholder="ABCD" autoComplete="off" autoCapitalize="characters" spellCheck={false}
+                   inputMode="text" enterKeyHint="go" />
+            <button type="submit" className="bouton-principal bouton-sombre !h-12 !w-auto shrink-0 !px-6" disabled={!codeValide}>Rejoindre</button>
+          </div>
         </form>
+        {erreur && <p role="alert" className="text-[14px] font-medium text-[var(--destructive)]">{erreur}</p>}
       </section>
 
       <section>
-        <h2 className="etiquette">Salons ouverts</h2>
+        <h2 className="cf-titre-section">Salons ouverts {salons.length > 0 && <span>{salons.length}</span>}</h2>
         {salons.length === 0 ? (
-          <p className="py-3 text-[15px] text-[var(--muted-foreground)]">Aucun pour l’instant. Ouvre le premier ; seul, tu peux y ajouter des bots.</p>
+          <p className="cf-vide">Aucun pour l’instant. Ouvre le premier : seul, tu peux y ajouter des bots.</p>
         ) : (
-          <ul>
+          <ul className="flex flex-col gap-2">
             {salons.map((s) => (
               <li key={s.code}>
-                <Link href={`${BASE}/salon/${s.code}`} className="ligne">
-                  <span className="w-[4.5ch] font-mono text-[16px] font-semibold tracking-[0.08em]">{s.code}</span>
+                <Link href={`${BASE}/salon/${s.code}`} className="cf-salon">
+                  <span className="cf-salon__code">{s.code}</span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate ligne__titre">Salon de {s.hote}</span>
-                    <span className="block ligne__meta">
-                      {s.mode === "brouillard" ? "Brouillard" : "Classique"} · {s.tir === "equadiff" ? "y′ = f(x, y)" : "y = f(x)"} · {s.joueurs} joueur{s.joueurs > 1 ? "s" : ""}
+                    <span className="block truncate text-[16px] font-semibold">Salon de {s.hote}</span>
+                    <span className="mt-0.5 block text-[13px] text-[var(--muted-foreground)]">
+                      {NOMS_MODES[s.mode]} · {s.tir === "equadiff" ? "y′ = f(x, y)" : "y = f(x)"} · {s.joueurs} joueur{s.joueurs > 1 ? "s" : ""}
                     </span>
                   </span>
-                  <span className="ligne__meta">{s.phase === "salon" ? "Rejoindre" : `${PHASES[s.phase]} · regarder`}</span>
+                  <span className="cf-salon__etat" data-attente={s.phase === "salon" ? "" : undefined}>
+                    {s.phase === "salon" ? "Rejoindre" : s.phase === "fin" ? PHASES.fin : "Regarder"}
+                  </span>
                 </Link>
               </li>
             ))}

@@ -4,8 +4,9 @@ import {
   ErreurExpression, TOUTES_FAMILLES, compiler, formeCanonique, lire, verifier, versLatex,
 } from "../src/lib/courbes/expression";
 import { choisirTir } from "../src/lib/courbes/bots";
+import { ACCELERE, MS_TICK, chronologie, moments, tickA, vitesse } from "../src/lib/courbes/chronologie";
 import {
-  CARTES, RAYON_JOUEUR, X_MAX, Y_MAX, aleatoire, corrigerReglages, devoiler, genererArene, nouveauVoile,
+  CARTES, DEGAGEMENT_CENTRE, RAYON_CENTRE, RAYON_JOUEUR, X_MAX, Y_MAX, aleatoire, corrigerReglages, devoiler, genererArene, nouveauVoile,
   REGLAGES_DEFAUT, noteEquite, solide, visible,
 } from "../src/lib/courbes/monde";
 import { simuler, type Tireur } from "../src/lib/courbes/simulation";
@@ -374,4 +375,123 @@ test("réglages : pas d'aperçu par défaut, c'est une aide que l'hôte peut act
   assert.equal(REGLAGES_DEFAUT.apercu, false);
   assert.equal(corrigerReglages(REGLAGES_DEFAUT, { apercu: true }).apercu, true);
   assert.equal(corrigerReglages(REGLAGES_DEFAUT, { apercu: "oui" }).apercu, false);
+});
+
+test("chronologie : ralenti autour des éliminations, plus fort pour les grands moments", () => {
+  const elims = [
+    { tick: 100, tueur: "a", victime: "b" },
+    { tick: 300, tueur: "a", victime: "c" }, { tick: 302, tueur: "d", victime: "e" },
+    { tick: 500, tueur: "f", victime: "f" },
+    { tick: 700, tueur: "a", victime: "d" },
+  ];
+  const ms = moments(elims, 6);
+  assert.deepEqual(ms.map((m) => [m.tick, m.force, m.victimes.length]), [[100, 1, 1], [300, 2, 2], [500, 2, 1], [700, 3, 1]]);
+  assert.ok(ms[2].tirAmi && !ms[0].tirAmi);
+  assert.ok(ms[3].decisif);
+
+  const c = chronologie(900, elims, 6);
+  // Plus lent au moment décisif qu'à une élimination simple, et normal loin de tout.
+  assert.ok(vitesse(c, 700) < vitesse(c, 300) && vitesse(c, 300) < vitesse(c, 100) && vitesse(c, 100) < 1);
+  assert.equal(vitesse(c, 200), 1);
+  // Après le dernier moment, plus rien n'arrive : accéléré.
+  proche(vitesse(c, 880), ACCELERE);
+  // tickA est croissant, part de 0 et retombe juste aux bornes.
+  let avant = -1;
+  for (let ms = 0; ms <= c.duree + 500; ms += 7) {
+    const t = tickA(c, ms);
+    assert.ok(t >= avant - 1e-9, `${t} après ${avant}`);
+    avant = t;
+  }
+  proche(tickA(c, c.debuts[400] + c.pauses[400]), 400, 1e-6);
+  // Arrêt sur image : pendant la pause du tick 300, on reste sur 300.
+  proche(tickA(c, c.debuts[300] + c.pauses[300] / 2), 300, 1e-9);
+  assert.ok(c.duree > 0 && Math.abs(tickA(c, c.duree) - 900) < 1e-6);
+});
+
+test("chronologie : sans élimination, la volée file plus vite qu'avant", () => {
+  const c = chronologie(1000, [], 4);
+  assert.equal(c.moments.length, 0);
+  assert.ok(c.duree < 1000 * MS_TICK * 0.6, `${c.duree} ms`);
+  assert.ok(c.duree > 1000 * MS_TICK / ACCELERE);
+});
+
+test("mode Centre : joueurs en cercle loin de l'origine, origine dégagée", () => {
+  for (const n of [2, 3, 4, 5, 7, 10]) {
+    for (let graine = 1; graine < 15; graine++) {
+      for (const carte of ["variee", ...CARTES] as const) {
+        const a = genererArene(graine, n, "beaucoup", carte, true);
+        assert.equal(a.positions.length, n);
+        assert.notEqual(a.style, "pilier");
+        for (const p of a.positions) {
+          assert.ok(Number.isInteger(p.x) && Number.isInteger(p.y));
+          assert.ok(Math.abs(Math.hypot(p.x, p.y) - RAYON_CENTRE) < 0.75, `${p.x},${p.y}`);
+          assert.ok(Math.abs(p.x) < X_MAX - 2 && Math.abs(p.y) < Y_MAX - 1.5);
+        }
+        for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+          const p = a.positions[i], q = a.positions[j];
+          assert.ok(Math.hypot(p.x - q.x, p.y - q.y) > 4, "joueurs écartés");
+        }
+        if (n % 2 === 0) for (const p of a.positions) assert.ok(a.positions.some((q) => q.x === -p.x && q.y === -p.y));
+        for (const o of a.obstacles) assert.ok(Math.hypot(o.x, o.y) >= o.r + DEGAGEMENT_CENTRE - 0.05, "origine dégagée");
+      }
+    }
+  }
+});
+
+test("mode Centre : les courbes partent de l'origine, et le tir ami existe", () => {
+  const depart = { x: 0, y: 0 };
+  const a = { ...tireur("a", 10, 5, "0.5x"), depart };
+  const b = tireur("b", -10, -5);
+  // y = 0.5x depuis l'origine passe par (10, 5) et par (−10, −5) : son auteur et b.
+  const r = simuler([a, b], [], [], "fonction", { tirAmi: true });
+  assert.deepEqual(r.traces[0].pts.slice(0, 2), [0, 0]);
+  const victimes = r.evenements.flatMap((e) => (e.type === "elimination" ? [e.victime] : [])).sort();
+  assert.deepEqual(victimes, ["a", "b"]);
+  assert.ok(r.evenements.some((e) => e.type === "elimination" && e.tueur === "a" && e.victime === "a"));
+  // Sans tir ami (mode Classique), sa courbe l'épargne.
+  const sans = simuler([a, b], [], [], "fonction");
+  assert.deepEqual(sans.evenements.flatMap((e) => (e.type === "elimination" ? [e.victime] : [])), ["b"]);
+});
+
+test("mode Centre : les bots visent depuis l'origine sans se tirer dessus", () => {
+  const rnd = aleatoire(5);
+  let touches = 0;
+  for (let k = 0; k < 30; k++) {
+    const arene = genererArene(k + 1, 4, "peu", "semis", true);
+    const [moi, ...autres] = arene.positions.map((p, i) => ({ id: `j${i}`, x: p.x, y: p.y, expr: null, depart: { x: 0, y: 0 } }));
+    const expr = choisirTir(moi, autres, arene.obstacles, [], LIBRE, rnd, true);
+    if (!expr) continue;
+    const r = simuler([{ ...moi, expr }, ...autres], arene.obstacles, [], "fonction", { tirAmi: true });
+    const elims = r.evenements.filter((e) => e.type === "elimination");
+    assert.ok(!elims.some((e) => e.type === "elimination" && e.victime === moi.id), "pas de suicide de bot");
+    if (elims.length) touches++;
+  }
+  assert.ok(touches >= 5, `${touches} tirs mortels sur 30`);
+});
+
+test("salon : mode Centre, tir ami sans point, et volée plus courte", () => {
+  const leo = { id: "41111111-1111-4111-8111-111111111111", nom: "Léo" };
+  const code = creerSalon(leo);
+  agir(code, leo, { t: "bot", delta: 1 });
+  agir(code, leo, { t: "reglages", reglages: { mode: "centre", manches: 1, obstacles: "peu", temps: 0 } });
+  let etat = agir(code, leo, { t: "lancer" })!;
+  assert.equal(etat.reglages.mode, "centre");
+  const moi = etat.joueurs.find((p) => p.id === leo.id)!;
+  assert.ok(Math.abs(Math.hypot(moi.x!, moi.y!) - RAYON_CENTRE) < 0.75);
+  // Léo vise exactement sa propre position depuis l'origine : tir ami.
+  const pente = Number((moi.y! / moi.x!).toFixed(6));
+  etat = agir(code, leo, { t: "tirer", expression: `${pente}x` })!;
+  assert.equal(etat.phase, "volee");
+  const ami = etat.tir!.evenements.find((e) => e.type === "elimination" && e.victime === leo.id);
+  assert.ok(ami && ami.type === "elimination" && ami.tueur === leo.id, "éliminé par sa propre courbe");
+  // À deux, l'arène est symétrique : la même droite touche aussi le bot, en face. Seul ce coup-là compte.
+  const autres = etat.tir!.evenements.filter((e) => e.type === "elimination" && e.tueur === leo.id && e.victime !== leo.id).length;
+  const apres = etat.joueurs.find((p) => p.id === leo.id)!;
+  assert.equal(apres.points, autres);
+  assert.equal(apres.eliminations, autres);
+  assert.match(etat.historique[0].bilan, /tir ami/);
+  // La volée dure le temps calculé par la chronologie, ralenti compris.
+  const tir = etat.tir!;
+  assert.ok(tir.tAnimation - tir.tRevelation <= 6000);
+  agir(code, leo, { t: "quitter" });
 });

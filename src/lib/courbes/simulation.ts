@@ -5,6 +5,9 @@
  * (qu'elle creuse), sur une discontinuité, hors de son domaine, ou à la
  * mort de son auteur : la courbe la plus courte gagne les duels.
  *
+ * Mode Centre : les courbes partent d'un point donné (l'origine) au lieu
+ * de leur auteur, et peuvent éliminer leur propre auteur (tir ami).
+ *
  * Module pur et déterministe : le serveur calcule, le navigateur rejoue.
  */
 import { compiler, type Expression } from "./expression";
@@ -12,7 +15,13 @@ import {
   LONGUEUR_MAX, PAS, RAYON_CRATERE, RAYON_JOUEUR, X_MAX, Y_MAX, arrondir, arrondirFin, solide, type Cercle,
 } from "./monde";
 
-export type Tireur = { id: string; x: number; y: number; expr: Expression | null };
+/** (x, y) : la position du joueur, celle qu'on touche ; depart : d'où part sa courbe, s'il ne part pas de lui. */
+export type Tireur = { id: string; x: number; y: number; expr: Expression | null; depart?: { x: number; y: number } };
+
+export type Options = {
+  /** Une courbe peut éliminer son propre auteur. */
+  tirAmi?: boolean;
+};
 
 export type Fin = "bord" | "obstacle" | "rupture" | "domaine" | "mort" | "longueur";
 
@@ -50,6 +59,7 @@ type Branche = {
 
 export function simuler(
   tireurs: Tireur[], obstacles: Cercle[], crateresAvant: Cercle[], tir: "fonction" | "equadiff",
+  options: Options = {},
 ): Resultat {
   const crateres = [...crateresAvant];
   const nouveaux: Cercle[] = [];
@@ -60,11 +70,12 @@ export function simuler(
   for (const t of tireurs) {
     if (!t.expr) continue;
     const f = compiler(t.expr.arbre);
-    const depart = tir === "fonction" ? f(t.x, 0) : f(t.x, t.y);
+    const o = t.depart ?? t;
+    const depart = tir === "fonction" ? f(o.x, 0) : f(o.x, o.y);
     for (const dir of [1, -1] as const) {
       branches.push({
-        joueur: t.id, dir, x: t.x, y: t.y, decalage: t.y - depart, h: H_MAX,
-        reste: 0, longueur: 0, actif: Number.isFinite(depart), fin: "domaine", pts: [t.x, t.y], f,
+        joueur: t.id, dir, x: o.x, y: o.y, decalage: o.y - depart, h: H_MAX,
+        reste: 0, longueur: 0, actif: Number.isFinite(depart), fin: "domaine", pts: [o.x, o.y], f,
       });
     }
   }
@@ -85,7 +96,7 @@ export function simuler(
       return false;
     }
     for (const cible of vivants.values()) {
-      if (cible.id === b.joueur || touches.has(cible.id)) continue;
+      if ((cible.id === b.joueur && !options.tirAmi) || touches.has(cible.id)) continue;
       const dx = x - cible.x, dy = y - cible.y;
       if (dx * dx + dy * dy <= RAYON_JOUEUR * RAYON_JOUEUR) {
         touches.set(cible.id, {

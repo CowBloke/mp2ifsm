@@ -12,7 +12,7 @@ export const RAYON_CRATERE = 1.3;
 /** Longueur d'arc parcourue par tick ; toutes les courbes avancent du même pas. */
 export const PAS = 0.12;
 /** Unités d'arène par seconde à l'écran. */
-export const VITESSE = 9;
+export const VITESSE = 12;
 export const LONGUEUR_MAX = 140;
 /** Brouillard : disque dégagé autour de soi, couloir dégagé par ses courbes. */
 export const VUE_DEPART = 4.5;
@@ -23,8 +23,16 @@ export const VOLEES_MAX = 8;
 
 export type Cercle = { x: number; y: number; r: number };
 
+/** Mode Centre : les courbes partent toutes de l'origine, les joueurs sont sur un grand cercle autour. */
+export const RAYON_CENTRE = 12.5;
+/** Mode Centre : disque sans obstacle autour de l'origine, pour que les courbes puissent partir. */
+export const DEGAGEMENT_CENTRE = 3.5;
+
+export type Mode = "classique" | "brouillard" | "centre";
+
 export type Reglages = {
-  mode: "classique" | "brouillard";
+  /** Centre : tir depuis l'origine, et sa propre courbe peut nous éliminer (tir ami). */
+  mode: Mode;
   tir: "fonction" | "equadiff";
   repereMuet: boolean;
   /** Aide facultative : tracé de sa propre courbe pendant la saisie. Coupée par défaut, le jeu se joue de tête. */
@@ -64,7 +72,7 @@ export const CHOIX = {
 /** Applique un changement venu du navigateur ; tout ce qui est hors liste est ignoré. */
 export function corrigerReglages(actuels: Reglages, brut: Record<string, unknown>): Reglages {
   const r = { ...actuels };
-  if (brut.mode === "classique" || brut.mode === "brouillard") r.mode = brut.mode;
+  if (brut.mode === "classique" || brut.mode === "brouillard" || brut.mode === "centre") r.mode = brut.mode;
   if (brut.tir === "fonction" || brut.tir === "equadiff") r.tir = brut.tir;
   if (typeof brut.repereMuet === "boolean") r.repereMuet = brut.repereMuet;
   if (typeof brut.apercu === "boolean") r.apercu = brut.apercu;
@@ -89,6 +97,11 @@ export function aleatoire(graine: number): () => number {
   };
 }
 
+/** D'où part la courbe d'un joueur : de lui, ou de l'origine en mode Centre. */
+export function depart(mode: Mode, joueur: { x: number; y: number }): { x: number; y: number } {
+  return mode === "centre" ? { x: 0, y: 0 } : { x: joueur.x, y: joueur.y };
+}
+
 export type Arene = { positions: { x: number; y: number }[]; obstacles: Cercle[]; style: StyleCarte };
 
 const DENSITE = { peu: 0.55, normal: 1, beaucoup: 1.55 };
@@ -105,22 +118,32 @@ type Point = { x: number; y: number };
  * près autant de place autour de lui et au moins une ligne de tir.
  */
 export function genererArene(
-  graine: number, n: number, densite: Reglages["obstacles"], carte: Carte = "semis",
+  graine: number, n: number, densite: Reglages["obstacles"], carte: Carte = "semis", centre = false,
 ): Arene {
   const rnd = aleatoire(graine);
-  const style: StyleCarte = carte === "variee" ? CARTES[Math.floor(rnd() * CARTES.length)] : carte;
+  let style: StyleCarte = carte === "variee" ? CARTES[Math.floor(rnd() * CARTES.length)] : carte;
+  // Un pilier au centre boucherait le départ de toutes les courbes.
+  if (centre && style === "pilier") style = "semis";
   const symetrie = n === 2 || style === "miroir";
 
   let positions: Point[] = [];
   let meilleur = -Infinity;
-  for (let essai = 0; essai < 24; essai++) {
-    const candidat = symetrie && n % 2 === 0 ? placerEnMiroir(rnd, n)
-      : essai % 2 === 0 ? placerEnAnneau(rnd, n) : placerAuHasard(rnd, n);
-    if (!candidat) continue;
-    const note = noteEspacement(candidat);
-    if (note > meilleur) { meilleur = note; positions = candidat; }
+  if (centre) positions = placerEnCercle(rnd, n);
+  else {
+    for (let essai = 0; essai < 24; essai++) {
+      const candidat = symetrie && n % 2 === 0 ? placerEnMiroir(rnd, n)
+        : essai % 2 === 0 ? placerEnAnneau(rnd, n) : placerAuHasard(rnd, n);
+      if (!candidat) continue;
+      const note = noteEspacement(candidat);
+      if (note > meilleur) { meilleur = note; positions = candidat; }
+    }
+    if (positions.length < n) positions = placerAuHasard(rnd, n, true)!;
   }
-  if (positions.length < n) positions = placerAuHasard(rnd, n, true)!;
+  // Points à garder dégagés : les joueurs, et l'origine en mode Centre.
+  const libresAutour = positions.map((p) => ({ ...p, marge: RAYON_JOUEUR + DEGAGEMENT }));
+  if (centre) libresAutour.push({ x: 0, y: 0, marge: DEGAGEMENT_CENTRE });
+  /** Rayon que peut prendre un obstacle centré là sans gêner personne. */
+  const place = (c: Point) => Math.min(...libresAutour.map((p) => Math.hypot(p.x - c.x, p.y - c.y) - p.marge));
 
   const voulu = DENSITE[densite];
   const miroir = symetrie && estSymetrique(positions);
@@ -131,11 +154,10 @@ export function genererArene(
     if (miroir) brut = [...brut, ...brut.map((c) => ({ ...c, x: -c.x, y: -c.y }))];
     // Trop près d'un joueur, un obstacle rétrécit ; trop petit, il disparaît.
     const libres = brut.flatMap((c): Cercle[] => {
-      const place = Math.min(...positions.map((p) => Math.hypot(p.x - c.x, p.y - c.y))) - RAYON_JOUEUR - DEGAGEMENT - 0.02;
-      const r = Math.floor(Math.min(c.r, place) * 100) / 100;
+      const r = Math.floor(Math.min(c.r, place(c) - 0.02) * 100) / 100;
       return r >= 0.8 ? [{ x: arrondir(c.x), y: arrondir(c.y), r }] : [];
-    }).filter((c) => positions.every((p) => Math.hypot(p.x - c.x, p.y - c.y) > c.r + RAYON_JOUEUR + DEGAGEMENT));
-    const note = noteEquite(positions, libres);
+    }).filter((c) => place(c) > c.r);
+    const note = noteEquite(positions, libres, centre ? { x: 0, y: 0 } : undefined);
     if (note > meilleur) { meilleur = note; obstacles = libres; }
     if (note >= 0.9) break;
   }
@@ -165,6 +187,21 @@ function placerEnAnneau(rnd: () => number, n: number): Point[] | null {
     return { x: Math.round(a * f * Math.cos(t)), y: Math.round(b * f * Math.sin(t)) };
   });
   return distincts(pts, Math.min(9, 40 / Math.sqrt(n))) ? pts : null;
+}
+
+/*
+ * Mode Centre : tout le monde à la même distance de l'origine, à intervalles
+ * réguliers sur le cercle. Coordonnées entières (lisibles sur le repère) ;
+ * en nombre pair, chacun a son symétrique exact.
+ */
+function placerEnCercle(rnd: () => number, n: number): Point[] {
+  const depart = rnd() * 2 * Math.PI, pas = (2 * Math.PI) / n;
+  const sur = (t: number) => ({ x: Math.round(RAYON_CENTRE * Math.cos(t)), y: Math.round(RAYON_CENTRE * Math.sin(t)) });
+  if (n % 2 === 0) {
+    const moitie = Array.from({ length: n / 2 }, (_, i) => sur(depart + i * pas));
+    return [...moitie, ...moitie.map((p) => ({ x: -p.x || 0, y: -p.y || 0 }))];
+  }
+  return Array.from({ length: n }, (_, i) => sur(depart + i * pas));
 }
 
 function placerEnMiroir(rnd: () => number, n: number): Point[] | null {
@@ -267,10 +304,18 @@ function ligneLibre(p: Point, q: Point, obstacles: Cercle[]): boolean {
   return true;
 }
 
-/** 1 : tout le monde aussi dégagé et chacun peut viser quelqu'un en ligne droite. */
-export function noteEquite(positions: Point[], obstacles: Cercle[]): number {
+/**
+ * 1 : tout le monde aussi dégagé et chacun peut viser quelqu'un en ligne
+ * droite. Avec une origine (mode Centre), on vise depuis elle : chacun doit
+ * pouvoir y être atteint en ligne droite.
+ */
+export function noteEquite(positions: Point[], obstacles: Cercle[], origine?: Point): number {
   if (!obstacles.length) return 1;
   const ouv = positions.map((p) => ouverture(p, obstacles));
+  if (origine) {
+    const vus = positions.filter((p) => ligneLibre(origine, p, obstacles)).length / positions.length;
+    return (Math.min(...ouv) / Math.max(...ouv)) * (0.4 + 0.6 * vus);
+  }
   const cibles = positions.map((p) => positions.filter((q) => q !== p && ligneLibre(p, q, obstacles)).length);
   const equilibre = Math.min(...ouv) / Math.max(...ouv);
   const tirs = cibles.every((c) => c > 0) ? 1 : 0.4;
