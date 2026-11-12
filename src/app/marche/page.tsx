@@ -9,8 +9,6 @@ import { SqueletteFil } from "@/components/Squelettes";
 import { formatCentimes } from "@/lib/money";
 import { listerMarches, soldeCentimes } from "@/lib/queries";
 import { utilisateurCourant } from "@/lib/session";
-import { EnTeteJeu } from "@/components/divertissement/EnTeteJeu";
-import { styleJeu } from "@/components/divertissement/jeux";
 
 export const dynamic = "force-dynamic";
 
@@ -19,12 +17,14 @@ export default async function PageMarche() {
   if (!u) redirect("/connexion");
 
   return (
-    <main className="jeu" style={styleJeu("marche")}>
-      <EnTeteJeu jeu="marche" action={
+    <main>
+      <LienRetour href="/divertissement" label="Retour au divertissement" />
+      <header className="page-heading">
+        <h1>Marché</h1>
         <Suspense fallback={<div className="skeleton h-9 w-24 rounded-full" />}>
           <PastilleSolde userId={u.id} />
         </Suspense>
-      } />
+      </header>
 
       <Suspense fallback={<SqueletteFil />}>
         <Fil userId={u.id} />

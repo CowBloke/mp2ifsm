@@ -1,10 +1,9 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { LienRetour } from "@/components/LienRetour";
 import { BoutonPassage } from "@/components/toilet/BoutonPassage";
 import { PartagerLien, SupprimerPassage } from "@/components/toilet/Outils";
 import { AjouterPhoto } from "@/components/toilet/AjouterPhoto";
-import { EnTeteJeu } from "@/components/divertissement/EnTeteJeu";
-import { styleJeu } from "@/components/divertissement/jeux";
 import { utilisateurCourant } from "@/lib/session";
 import {
   aProuver, classementToilet, codeInvitation, derniersPassages, ilYa, mesStats, toiletVisible,
@@ -37,10 +36,12 @@ export default async function PageToilet({ searchParams }: {
   const progression = prochain ? (stats.total - statut.seuil) / (prochain.seuil - statut.seuil) : 1;
 
   return (
-    <main className="reading-column jeu" style={styleJeu("toilet")}>
-      <EnTeteJeu jeu="toilet">
-        Le classement officiel des toilettes du bas. Laissez-les comme vous aimeriez les trouver.
-      </EnTeteJeu>
+    <main className="reading-column">
+      <LienRetour href="/divertissement" label="Retour au divertissement" />
+      <header className="page-heading mb-6">
+        <h1>Toilet!</h1>
+        <p>Le classement officiel des toilettes du bas. Laissez-les comme vous aimeriez les trouver.</p>
+      </header>
 
       <section aria-label="Mon statut"
                className="mb-4 rounded-[var(--radius-lg)] border border-[var(--hairline)] bg-[var(--card)] p-4">

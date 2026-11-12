@@ -116,7 +116,7 @@ export const JEUX: Record<CleJeu, Jeu> = {
   toilet: { cle: "toilet", nom: "Toilet!", href: "/toilet", couleur: "#7ad9d3", Icone: IconeToilet },
 };
 
-/** Variables CSS d'un jeu : à poser sur l'élément qui l'entoure (classe « jeu »). */
+/** Variables CSS d’N cube : sa couleur. */
 export function styleJeu(cle: CleJeu) {
   return { "--jeu": JEUX[cle].couleur } as React.CSSProperties;
 }
