@@ -1058,3 +1058,89 @@ html.fil-plein-ecran .bottom-nav { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .cube, .cube:active, .jeu .bouton-principal:active { transition: none; transform: none; }
 }
+/* --- La Toile ------------------------------------------------------------
+ * La scène occupe tout l'écran au-dessus de la barre de navigation : toile,
+ * palette et bouton de pose restent visibles quel que soit le format. En
+ * portrait, les outils sont sous la toile ; quand la scène est plus large
+ * que haute, ils passent dans une colonne à droite.
+ */
+.toile-page { margin-top: -32px; margin-bottom: calc(-24px - 1.5rem + 8px); }
+@media (min-width: 768px) { .toile-page { margin-top: -56px; } }
+.toile-scene {
+  container-type: size;
+  /* Marges réduites : 8 px au lieu des 24 px de la colonne. */
+  margin-inline: -16px;
+  height: calc(100dvh - var(--bottom-nav-height) - env(safe-area-inset-bottom, 0px) - 17px);
+  min-height: 300px;
+}
+@media (min-width: 700px) {
+  /* Sur grand écran la scène déborde de la colonne de lecture. */
+  .toile-scene { position: relative; left: 50%; width: min(calc(100vw - 48px), 1200px); margin-inline: 0; translate: -50% 0; }
+}
+.toile-grille {
+  display: grid; height: 100%; gap: 8px;
+  grid-template: "tete" auto "cadre" minmax(0, 1fr) "outils" auto / minmax(0, 1fr);
+}
+.toile-tete { grid-area: tete; display: flex; align-items: center; gap: 6px; min-height: 40px; }
+.toile-cadre { grid-area: cadre; min-height: 0; }
+.toile-outils { grid-area: outils; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+@container (min-aspect-ratio: 6/5) {
+  .toile-grille {
+    gap: 8px 12px;
+    grid-template: "cadre tete" auto "cadre outils" minmax(0, 1fr) / minmax(0, 1fr) clamp(190px, 28%, 300px);
+  }
+  .toile-outils { justify-content: flex-end; overflow-y: auto; }
+  .toile-palette { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}
+
+.toile-etapes { display: flex; gap: 4px; margin: 0; padding: 0; list-style: none; counter-reset: etape; }
+.toile-etapes li {
+  counter-increment: etape; display: flex; flex: 1; align-items: center; gap: 5px; min-width: 0;
+  font-size: 12px; line-height: 1.2; color: var(--muted-foreground);
+}
+.toile-etapes li::before {
+  content: counter(etape); display: grid; flex-shrink: 0; place-items: center; width: 18px; height: 18px;
+  border: 1px solid var(--border); border-radius: 999px; font-size: 11px; font-weight: 600;
+}
+.toile-etapes li[data-etat="actif"] { color: var(--foreground); font-weight: 600; }
+.toile-etapes li[data-etat="actif"]::before { border-color: var(--foreground); background: var(--foreground); color: var(--background); }
+.toile-etapes li[data-etat="fait"]::before { content: "✓"; border-color: var(--outcome-1); color: var(--outcome-1); }
+
+.toile-palette { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 5px; }
+@container (min-width: 560px) and (max-aspect-ratio: 6/5) { .toile-palette { grid-template-columns: repeat(18, minmax(0, 1fr)); } }
+.toile-palette button {
+  aspect-ratio: 1; width: 100%; max-height: 40px; padding: 0;
+  border: 1px solid var(--border); border-radius: 6px;
+}
+.toile-palette button[aria-checked="true"] { box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--foreground); }
+
+.toile-poser {
+  display: flex; align-items: center; justify-content: center; gap: 8px; flex-shrink: 0;
+  width: 100%; height: 48px; padding-inline: 16px;
+  border: 0; border-radius: var(--radius-md);
+  background: var(--primary); color: var(--primary-foreground);
+  font-size: 15px; font-weight: 600;
+}
+/* Bouton inactif lisible : son libellé dit quoi faire ensuite. */
+.toile-poser:disabled { background: var(--muted); color: var(--muted-foreground); }
+
+.toile-pastille {
+  max-width: 100%; padding: 4px 10px; border-radius: 999px;
+  background: color-mix(in oklab, var(--background) 88%, transparent);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.15);
+  font-size: 12px; color: var(--foreground);
+}
+.toile-pastille--forte { background: var(--foreground); color: var(--background); font-weight: 500; }
+.toile-zoom {
+  display: grid; place-items: center; width: 40px; height: 40px; border-radius: 999px;
+  border: 1px solid var(--border); background: color-mix(in oklab, var(--card) 92%, transparent);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.15); font-size: 20px; color: var(--foreground);
+}
+.toile-zoom:hover { background: var(--muted); }
+
+/* La Toile garde l'identité de sa rubrique dans sa barre compacte. */
+.toile-tete .jeu-icone { width: 28px; height: 28px; }
+.toile-tete .jeu-titre { font-size: 22px; }
+.jeu .toile-poser:not(:disabled) { background: var(--jeu); color: var(--jeu-encre); box-shadow: inset 0 -4px 0 rgb(0 0 0 / 0.14); }
+.jeu .toile-poser:not(:disabled):active { transform: translateY(2px); box-shadow: inset 0 -2px 0 rgb(0 0 0 / 0.14); }

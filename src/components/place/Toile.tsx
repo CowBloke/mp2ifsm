@@ -5,6 +5,8 @@ import {
   NOMS_COULEURS, PALETTE, TAILLE, decoderToile, formatAttente, normaliserZone,
   type EtatToile, type InfoPixel, type Zone,
 } from "@/lib/place/commun";
+import Link from "next/link";
+import { JEUX } from "@/components/divertissement/jeux";
 import { Moderation } from "./Moderation";
 
 type Vue = { s: number; tx: number; ty: number };
@@ -30,6 +32,8 @@ function ilYa(iso: string, maintenant: number): string {
   return `le ${new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}`;
 }
 
+const IconeToile = JEUX.toile.Icone;
+
 export function Toile({ admin }: { admin: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const cadreRef = useRef<HTMLDivElement>(null);
@@ -38,7 +42,7 @@ export function Toile({ admin }: { admin: boolean }) {
   const decalage = useRef(0); // horloge serveur − horloge locale
 
   const [pret, setPret] = useState(false);
-  const [cote, setCote] = useState(0);
+  const [cadre, setCadre] = useState({ w: 0, h: 0 });
   const [vue, setVueEtat] = useState<Vue>({ s: 1, tx: 0, ty: 0 });
   const vueRef = useRef(vue);
   const [etat, setEtat] = useState({ delai: 300, gelee: false, banni: false, prochain: 0 });
@@ -81,13 +85,16 @@ export function Toile({ admin }: { admin: boolean }) {
 
   /* --- Vue : zoom et déplacement ----------------------------------------- */
 
+  /** Échelle où la toile entière tient dans le cadre (qui n'est pas forcément carré). */
+  const echelleMin = (w: number, h: number) => Math.min(w, h) / TAILLE;
+
   const borner = useCallback((v: Vue): Vue => {
-    const w = cadreRef.current?.clientWidth ?? 0;
-    if (!w) return v;
-    const s = Math.min(ZOOM_MAX, Math.max(w / TAILLE, v.s));
+    const w = cadreRef.current?.clientWidth ?? 0, h = cadreRef.current?.clientHeight ?? 0;
+    if (!w || !h) return v;
+    const s = Math.min(ZOOM_MAX, Math.max(echelleMin(w, h), v.s));
     const t = TAILLE * s;
-    const axe = (d: number) => (t <= w ? (w - t) / 2 : Math.min(0, Math.max(w - t, d)));
-    return { s, tx: axe(v.tx), ty: axe(v.ty) };
+    const axe = (d: number, l: number) => (t <= l ? (l - t) / 2 : Math.min(0, Math.max(l - t, d)));
+    return { s, tx: axe(v.tx, w), ty: axe(v.ty, h) };
   }, []);
 
   const setVue = useCallback((v: Vue) => {
@@ -107,11 +114,15 @@ export function Toile({ admin }: { admin: boolean }) {
   useEffect(() => {
     const cadre = cadreRef.current;
     if (!cadre) return;
+    let avant = 0; // échelle « toile entière » du cadre précédent
     const ro = new ResizeObserver(() => {
-      const w = cadre.clientWidth;
-      setCote(w);
-      // Premier affichage : toile entière. Ensuite on garde le zoom, recadré.
-      setVue(vueRef.current.s === 1 && vueRef.current.tx === 0 ? { s: w / TAILLE, tx: 0, ty: 0 } : vueRef.current);
+      const w = cadre.clientWidth, h = cadre.clientHeight;
+      if (!w || !h) return;
+      setCadre({ w, h });
+      // Toile entière tant qu'on n'a pas zoomé ; sinon on garde le zoom, recadré.
+      const entiere = avant === 0 || vueRef.current.s <= avant * 1.001;
+      avant = echelleMin(w, h);
+      setVue(entiere ? { s: avant, tx: 0, ty: 0 } : vueRef.current);
     });
     ro.observe(cadre);
     const roulette = (e: WheelEvent) => {
@@ -266,8 +277,9 @@ export function Toile({ admin }: { admin: boolean }) {
   }
 
   function clavier(e: React.KeyboardEvent) {
+    if (e.target !== e.currentTarget) return; // touches des boutons de zoom posés sur la toile
     const pas: Record<string, Point> = { ArrowLeft: { x: -1, y: 0 }, ArrowRight: { x: 1, y: 0 }, ArrowUp: { x: 0, y: -1 }, ArrowDown: { x: 0, y: 1 } };
-    const centre = { x: cote / 2, y: cote / 2 };
+    const centre = { x: cadre.w / 2, y: cadre.h / 2 };
     if (e.key === "+" || e.key === "=") { e.preventDefault(); zoomer(1.4, centre); return; }
     if (e.key === "-") { e.preventDefault(); zoomer(1 / 1.4, centre); return; }
     if (e.key === "Enter" && selection) { e.preventDefault(); envoyer(); return; }
@@ -329,119 +341,155 @@ export function Toile({ admin }: { admin: boolean }) {
   });
   const delaiTexte = etat.delai % 60 === 0 ? `${etat.delai / 60} min` : `${etat.delai} s`;
 
-  return (
-    <div className="flex flex-col gap-5">
-      <div
-        ref={cadreRef}
-        role="application"
-        aria-label={`Toile de ${TAILLE} × ${TAILLE} pixels. Flèches pour choisir un pixel, + et − pour zoomer, Entrée pour poser.`}
-        tabIndex={0}
-        onKeyDown={clavier}
-        onPointerDown={bas}
-        onPointerMove={bouge}
-        onPointerUp={haut}
-        onPointerCancel={haut}
-        className="relative aspect-square w-full touch-none select-none overflow-hidden rounded-[var(--radius-lg)]
-                   border border-[var(--hairline)] bg-[var(--muted)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
-        style={{ cursor: modeZone ? "crosshair" : "default" }}
-      >
-        <canvas
-          ref={canvasRef}
-          width={TAILLE}
-          height={TAILLE}
-          className="absolute left-0 top-0 origin-top-left"
-          style={{
-            width: TAILLE, height: TAILLE, imageRendering: "pixelated",
-            transform: `translate(${vue.tx}px, ${vue.ty}px) scale(${vue.s})`,
-            opacity: pret ? 1 : 0,
-          }}
-        />
-        {!pret && (
-          <div className="absolute inset-0 grid place-items-center text-[14px] text-[var(--muted-foreground)]">
-            Chargement de la toile…
-          </div>
-        )}
-        {selection && !modeZone && (
-          <div className="pointer-events-none absolute" style={{
-            ...carre(selection.x, selection.y),
-            background: couleur !== null && peutPoser ? PALETTE[couleur] : undefined,
-            boxShadow: "0 0 0 2px #000, 0 0 0 4px #fff",
-          }} />
-        )}
-        {modeZone && coins.length === 1 && (
-          <div className="pointer-events-none absolute" style={{ ...carre(coins[0].x, coins[0].y), boxShadow: "0 0 0 2px #e63946" }} />
-        )}
-        {modeZone && zone && (
-          <div className="pointer-events-none absolute" style={{
-            ...carre(zone.x0, zone.y0, zone.x1 - zone.x0 + 1, zone.y1 - zone.y0 + 1),
-            background: "rgba(230,57,70,0.15)", boxShadow: "0 0 0 2px #e63946",
-          }} />
-        )}
-        {(hors || etat.gelee) && (
-          <div className="pointer-events-none absolute left-3 top-3 rounded-full bg-[var(--foreground)] px-3 py-1
-                          text-[12px] font-medium text-[var(--background)]">
-            {hors ? "Reconnexion…" : "Toile gelée"}
-          </div>
-        )}
-      </div>
+  const centre = { x: cadre.w / 2, y: cadre.h / 2 };
+  const infoSel = selection && info && info.x === selection.x && info.y === selection.y ? info : null;
+  // Étape en cours, rappelée au-dessus de la palette : où, puis quelle couleur, puis poser.
+  const etape = !selection ? 1 : couleur === null ? 2 : 3;
 
-      <div className="flex min-h-[44px] items-center justify-between gap-3 text-[14px]">
-        <p className="m-0 text-[var(--muted-foreground)]" aria-live="polite">
-          {modeZone ? (
-            zone ? `Zone (${zone.x0}, ${zone.y0}) → (${zone.x1}, ${zone.y1})`
-              : coins.length === 1 ? "Touche le coin opposé" : "Touche un premier coin"
-          ) : selection ? (
-            <>
-              <span className="tabular font-medium text-[var(--foreground)]">({selection.x}, {selection.y})</span>
-              {" · "}
-              {info && info.x === selection.x && info.y === selection.y
-                ? info.le
-                  ? <>{info.nature === "admin" ? "modération" : info.auteur?.nom ?? "compte supprimé"}, {ilYa(info.le, maintenant)}</>
-                  : "jamais touché"
-                : "…"}
-            </>
-          ) : `Un pixel toutes les ${delaiTexte}. Pince ou molette pour zoomer.`}
-        </p>
-        <div className="flex gap-2">
-          <button type="button" className="bouton-rond" aria-label="Dézoomer" onClick={() => zoomer(1 / 1.6, { x: cote / 2, y: cote / 2 })}>−</button>
-          <button type="button" className="bouton-rond" aria-label="Zoomer" onClick={() => zoomer(1.6, { x: cote / 2, y: cote / 2 })}>+</button>
+  return (
+    <div className="toile-page">
+      <div className="toile-scene">
+        <div className="toile-grille">
+          <div className="toile-tete">
+            <Link href="/divertissement" aria-label="Retour au divertissement"
+                  className="-ml-2 grid h-10 w-10 shrink-0 place-items-center rounded-full hover:bg-[var(--muted)]">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8"
+                   strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="m15 6-6 6 6 6" />
+              </svg>
+            </Link>
+            <IconeToile />
+            <h1 className="jeu-titre">La Toile</h1>
+            <span className="ml-auto whitespace-nowrap text-[13px] text-[var(--muted-foreground)]">
+              1 pixel / {delaiTexte}
+            </span>
+          </div>
+
+          <div
+            ref={cadreRef}
+            role="application"
+            aria-label={`Toile de ${TAILLE} × ${TAILLE} pixels. Flèches pour choisir un pixel, + et − pour zoomer, Entrée pour poser.`}
+            tabIndex={0}
+            onKeyDown={clavier}
+            onPointerDown={bas}
+            onPointerMove={bouge}
+            onPointerUp={haut}
+            onPointerCancel={haut}
+            className="toile-cadre relative touch-none select-none overflow-hidden rounded-[var(--radius-md)]
+                       border border-[var(--hairline)] bg-[var(--muted)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+            style={{ cursor: modeZone ? "crosshair" : "default" }}
+          >
+            <canvas
+              ref={canvasRef}
+              width={TAILLE}
+              height={TAILLE}
+              className="absolute left-0 top-0 origin-top-left"
+              style={{
+                width: TAILLE, height: TAILLE, imageRendering: "pixelated",
+                transform: `translate(${vue.tx}px, ${vue.ty}px) scale(${vue.s})`,
+                opacity: pret ? 1 : 0,
+              }}
+            />
+            {!pret && (
+              <div className="absolute inset-0 grid place-items-center text-[14px] text-[var(--muted-foreground)]">
+                Chargement de la toile…
+              </div>
+            )}
+            {selection && !modeZone && (
+              <div className="pointer-events-none absolute" style={{
+                ...carre(selection.x, selection.y),
+                background: couleur !== null && peutPoser ? PALETTE[couleur] : undefined,
+                boxShadow: "0 0 0 2px #000, 0 0 0 4px #fff",
+              }} />
+            )}
+            {modeZone && coins.length === 1 && (
+              <div className="pointer-events-none absolute" style={{ ...carre(coins[0].x, coins[0].y), boxShadow: "0 0 0 2px #e63946" }} />
+            )}
+            {modeZone && zone && (
+              <div className="pointer-events-none absolute" style={{
+                ...carre(zone.x0, zone.y0, zone.x1 - zone.x0 + 1, zone.y1 - zone.y0 + 1),
+                background: "rgba(230,57,70,0.15)", boxShadow: "0 0 0 2px #e63946",
+              }} />
+            )}
+
+            {/* Pastilles par-dessus la toile : état et pixel sélectionné. */}
+            <div className="pointer-events-none absolute inset-x-2 top-2 flex flex-wrap items-start gap-1.5">
+              {(hors || etat.gelee) && (
+                <span className="toile-pastille toile-pastille--forte">{hors ? "Reconnexion…" : "Toile gelée"}</span>
+              )}
+              {(modeZone || selection) && (
+                <span className="toile-pastille" aria-live="polite">
+                  {modeZone ? (
+                    zone ? `Zone (${zone.x0}, ${zone.y0}) → (${zone.x1}, ${zone.y1})`
+                      : coins.length === 1 ? "Touche le coin opposé" : "Touche un premier coin"
+                  ) : selection && (
+                    <>
+                      <span className="font-medium">({selection.x}, {selection.y})</span>
+                      {" · "}
+                      {infoSel
+                        ? infoSel.le
+                          ? <>{infoSel.nature === "admin" ? "modération" : infoSel.auteur?.nom ?? "compte supprimé"}, {ilYa(infoSel.le, maintenant)}</>
+                          : "jamais touché"
+                        : "…"}
+                    </>
+                  )}
+                </span>
+              )}
+            </div>
+
+            <div className="absolute bottom-2 right-2 flex gap-1.5" onPointerDown={e => e.stopPropagation()}>
+              <button type="button" className="toile-zoom" aria-label="Dézoomer" onClick={() => zoomer(1 / 1.6, centre)}>−</button>
+              <button type="button" className="toile-zoom" aria-label="Zoomer" onClick={() => zoomer(1.6, centre)}>+</button>
+            </div>
+          </div>
+
+          <div className="toile-outils">
+            <ol className="toile-etapes" aria-label="Poser un pixel">
+              <li data-etat={etape > 1 ? "fait" : "actif"}>Touche un pixel</li>
+              <li data-etat={etape > 2 ? "fait" : etape === 2 ? "actif" : undefined}>Choisis une couleur</li>
+              <li data-etat={etape === 3 ? "actif" : undefined}>Pose</li>
+            </ol>
+
+            <div className="toile-palette" role="radiogroup" aria-label="Couleur">
+              {PALETTE.map((hex, i) => (
+                <button
+                  key={hex}
+                  type="button"
+                  role="radio"
+                  aria-checked={couleur === i}
+                  aria-label={NOMS_COULEURS[i]}
+                  title={NOMS_COULEURS[i]}
+                  onClick={() => setCouleur(i)}
+                  style={{ background: hex }}
+                />
+              ))}
+            </div>
+
+            <button type="button" className="toile-poser" disabled={!peutPoser} onClick={envoyer}>
+              {peutPoser && couleur !== null && (
+                <span className="h-4 w-4 shrink-0 rounded-[4px] border border-white/60" style={{ background: PALETTE[couleur] }} aria-hidden="true" />
+              )}
+              <span className="truncate">
+                {envoi ? "Envoi…" : peutPoser && selection ? `Poser en (${selection.x}, ${selection.y})` : libelle}
+              </span>
+            </button>
+            {erreur && <p className="m-0 text-[13px] text-[var(--destructive)]" role="alert">{erreur}</p>}
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-9 gap-2" role="radiogroup" aria-label="Couleur">
-        {PALETTE.map((hex, i) => (
-          <button
-            key={hex}
-            type="button"
-            role="radio"
-            aria-checked={couleur === i}
-            aria-label={NOMS_COULEURS[i]}
-            title={NOMS_COULEURS[i]}
-            onClick={() => setCouleur(i)}
-            className="aspect-square w-full rounded-[var(--radius-sm,6px)] border border-[var(--border)]"
-            style={{
-              background: hex,
-              boxShadow: couleur === i ? "0 0 0 2px var(--background), 0 0 0 4px var(--foreground)" : undefined,
-            }}
-          />
-        ))}
-      </div>
-
-      <button type="button" className="bouton-principal" disabled={!peutPoser} onClick={envoyer}>
-        {envoi ? "Envoi…" : libelle}
-      </button>
-      {erreur && <p className="m-0 text-[14px] text-[var(--destructive)]" role="alert">{erreur}</p>}
-
       {admin && (
-        <Moderation
-          etat={etat}
-          sansDelai={sansDelai} setSansDelai={setSansDelai}
-          modeZone={modeZone}
-          setModeZone={m => { setModeZone(m); setCoins([]); }}
-          zone={zone}
-          couleur={couleur}
-          info={selection && info && info.x === selection.x && info.y === selection.y ? info : null}
-        />
+        <div className="mx-auto w-full max-w-[640px] px-4">
+          <Moderation
+            etat={etat}
+            sansDelai={sansDelai} setSansDelai={setSansDelai}
+            modeZone={modeZone}
+            setModeZone={m => { setModeZone(m); setCoins([]); }}
+            zone={zone}
+            couleur={couleur}
+            info={infoSel}
+          />
+        </div>
       )}
     </div>
   );
