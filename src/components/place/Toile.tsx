@@ -45,7 +45,7 @@ export function Toile({ admin }: { admin: boolean }) {
   const [cadre, setCadre] = useState({ w: 0, h: 0 });
   const [vue, setVueEtat] = useState<Vue>({ s: 1, tx: 0, ty: 0 });
   const vueRef = useRef(vue);
-  const [etat, setEtat] = useState({ delai: 300, gelee: false, banni: false, prochain: 0 });
+  const [etat, setEtat] = useState({ delai: 300, pixels: 1, gelee: false, banni: false, prochain: 0, restants: 1, recharge: 0 });
   const [maintenant, setMaintenant] = useState(() => Date.now());
   const [selection, setSelection] = useState<Point | null>(null);
   const [couleur, setCouleur] = useState<number | null>(null);
@@ -146,8 +146,10 @@ export function Toile({ admin }: { admin: boolean }) {
     }
     version.current = d.v;
     setEtat({
-      delai: d.delai, gelee: d.gelee, banni: d.banni,
+      delai: d.delai, pixels: d.pixels, gelee: d.gelee, banni: d.banni,
       prochain: d.prochain ? d.prochain - decalage.current : 0,
+      restants: d.restants,
+      recharge: d.recharge ? d.recharge - decalage.current : 0,
     });
     setPret(true);
   }, [dessinerTout, poser]);
@@ -300,6 +302,10 @@ export function Toile({ admin }: { admin: boolean }) {
   const attente = !pinceauAdmin && etat.prochain > maintenant
     ? Math.min(etat.prochain - maintenant, etat.delai * 1000) : 0;
   const bloque = etat.banni || (etat.gelee && !pinceauAdmin);
+  // Lot entamé : pixels restants, et recharge complète une fois le délai écoulé.
+  const lotEntame = etat.pixels > 1 && etat.recharge > maintenant;
+  const restants = lotEntame ? etat.restants : etat.pixels;
+  const avantRecharge = lotEntame ? Math.min(etat.recharge - maintenant, etat.delai * 1000) : 0;
 
   async function envoyer() {
     if (!selection || couleur === null || envoi || bloque || attente > 0) return;
@@ -316,7 +322,14 @@ export function Toile({ admin }: { admin: boolean }) {
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.erreur || "Pixel refusé");
-      if (d.prochain) setEtat(e => ({ ...e, prochain: d.prochain - decalage.current }));
+      if (typeof d.restants === "number") {
+        setEtat(e => ({
+          ...e,
+          restants: d.restants,
+          prochain: d.prochain ? d.prochain - decalage.current : 0,
+          recharge: d.recharge ? d.recharge - decalage.current : 0,
+        }));
+      }
       chargerInfo({ x, y });
     } catch (err) {
       poser(x, y, avant);
@@ -329,7 +342,9 @@ export function Toile({ admin }: { admin: boolean }) {
   let libelle = "Poser le pixel";
   if (etat.banni) libelle = "Tu ne peux plus poser de pixels";
   else if (bloque) libelle = "Toile gelée";
-  else if (attente > 0) libelle = `Prochain pixel dans ${formatAttente(attente)}`;
+  else if (attente > 0) libelle = etat.pixels > 1
+    ? `${etat.pixels} pixels dans ${formatAttente(attente)}`
+    : `Prochain pixel dans ${formatAttente(attente)}`;
   else if (!selection) libelle = "Touche la toile pour choisir un pixel";
   else if (couleur === null) libelle = "Choisis une couleur";
   const peutPoser = !!selection && couleur !== null && !envoi && !bloque && attente === 0;
@@ -361,7 +376,9 @@ export function Toile({ admin }: { admin: boolean }) {
             <IconeToile />
             <h1 className="jeu-titre">La Toile</h1>
             <span className="ml-auto whitespace-nowrap text-[13px] text-[var(--muted-foreground)]">
-              1 pixel / {delaiTexte}
+              {etat.pixels > 1 && !pinceauAdmin && !etat.banni
+                ? `${restants}/${etat.pixels} pixels${lotEntame && restants > 0 ? ` · recharge ${formatAttente(avantRecharge)}` : ""}`
+                : `${etat.pixels} pixel${etat.pixels > 1 ? "s" : ""} / ${delaiTexte}`}
             </span>
           </div>
 

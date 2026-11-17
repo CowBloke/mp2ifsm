@@ -21,7 +21,7 @@ export async function POST(request: Request) {
   return membre(async u => {
     switch (d.action) {
       case "regler":
-        await reglerToile(u, { gelee: d.gelee, delai: d.delai });
+        await reglerToile(u, { gelee: d.gelee, delai: d.delai, pixels: d.pixels });
         return { ok: true };
       case "bannir":
         await bannir(u, d.membre, d.banni === true);

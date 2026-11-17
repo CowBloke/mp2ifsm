@@ -24,6 +24,7 @@ export const NOMS_COULEURS = [
 ] as const;
 
 export const DELAI_DEFAUT_SECONDES = 300;
+export const PIXELS_MAX_PAR_RECHARGE = 1000;
 
 export const entierDans = (v: unknown, min: number, max: number): v is number =>
   typeof v === "number" && Number.isInteger(v) && v >= min && v <= max;
@@ -71,9 +72,15 @@ export type EtatToile = {
   v: number;
   maintenant: number;
   delai: number;
+  /** Pixels rendus à chaque recharge (taille du lot). */
+  pixels: number;
   gelee: boolean;
   /** Fin de l'attente du membre courant (ms epoch), 0 s'il peut poser. */
   prochain: number;
+  /** Pixels qu'il peut encore poser avant la recharge. */
+  restants: number;
+  /** Recharge du lot en cours (ms epoch), 0 si aucun lot n'est entamé. */
+  recharge: number;
   banni: boolean;
   /** Toile entière (première lecture, ou trop de retard). */
   plein?: string;

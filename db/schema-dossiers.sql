@@ -310,3 +310,12 @@ create table if not exists place_joueur (
   dernier_pose  timestamptz,
   banni         boolean not null default false
 );
+
+-- Recharge par lots (bloc du 17 novembre 2026) : chaque membre dispose de
+-- `pixels_par_recharge` pixels ; le délai part du premier pixel du lot
+-- (place_joueur.dernier_pose) et, une fois écoulé, le lot entier revient.
+-- poses_cycle compte les pixels déjà posés dans le lot en cours.
+alter table place_config add column if not exists
+  pixels_par_recharge integer not null default 1 check (pixels_par_recharge between 1 and 1000);
+alter table place_joueur add column if not exists
+  poses_cycle integer not null default 0;

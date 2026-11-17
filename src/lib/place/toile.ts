@@ -4,13 +4,15 @@ import { query, queryOne, tx } from "../db";
 import { ErreurMetier } from "../errors";
 import type { Utilisateur } from "../session";
 import {
-  TAILLE, encoderToile, entierDans, normaliserZone, pixelValide,
+  PIXELS_MAX_PAR_RECHARGE, TAILLE, encoderToile, entierDans, normaliserZone, pixelValide,
   type Contributeur, type EtatToile, type InfoPixel,
 } from "./commun";
 
 /*
- * La Toile : toile de pixels partagée. Chaque compte pose un pixel, puis
- * attend `place_config.delai_secondes` (5 minutes par défaut). L'état fait
+ * La Toile : toile de pixels partagée. Chaque compte dispose d'un lot de
+ * `place_config.pixels_par_recharge` pixels (1 par défaut) ; le délai
+ * `delai_secondes` (5 minutes par défaut) part du premier pixel du lot et,
+ * une fois écoulé, le lot entier revient. L'état fait
  * foi en base ; le temps réel est une attente longue réveillée en mémoire
  * (un seul processus Next.js), comme Curve Fight.
  */
@@ -63,20 +65,24 @@ export async function versionToile(): Promise<number> {
  */
 export async function lireToile(userId: string, connue: number): Promise<EtatToile> {
   const r = await queryOne<{
-    v: number; delai: number; gelee: boolean; prochain: number | null; banni: boolean | null; maintenant: number;
+    v: number; delai: number; pixels: number; gelee: boolean; recharge: number | null; poses: number | null;
+    banni: boolean | null; maintenant: number;
   }>(
     `select (select coalesce(max(id), 0) from place_log)::bigint as v,
-            c.delai_secondes as delai, c.gelee,
-            (extract(epoch from j.dernier_pose + make_interval(secs => c.delai_secondes)) * 1000)::bigint as prochain,
-            j.banni,
+            c.delai_secondes as delai, c.pixels_par_recharge as pixels, c.gelee,
+            (extract(epoch from j.dernier_pose + make_interval(secs => c.delai_secondes)) * 1000)::bigint as recharge,
+            j.poses_cycle as poses, j.banni,
             (extract(epoch from now()) * 1000)::bigint as maintenant
        from place_config c
        left join place_joueur j on j.user_id = $1::uuid`, [userId]);
   if (!r) throw new Error("place_config vide : migration de La Toile non appliquée");
 
+  const enCycle = !!r.recharge && r.recharge > r.maintenant;
+  const restants = enCycle ? Math.max(0, r.pixels - (r.poses ?? 0)) : r.pixels;
+  const recharge = enCycle ? r.recharge! : 0;
   const etat: EtatToile = {
-    v: r.v, maintenant: r.maintenant, delai: r.delai, gelee: r.gelee,
-    prochain: r.prochain && r.prochain > r.maintenant ? r.prochain : 0,
+    v: r.v, maintenant: r.maintenant, delai: r.delai, pixels: r.pixels, gelee: r.gelee,
+    prochain: restants > 0 ? 0 : recharge, restants, recharge,
     banni: r.banni ?? false,
   };
 
@@ -107,20 +113,20 @@ export async function lireToile(userId: string, connue: number): Promise<EtatToi
 /** Pose un pixel. Les administrateurs peuvent passer outre le délai et le gel (`sansDelai`). */
 export async function poserPixel(
   u: Utilisateur, x: unknown, y: unknown, couleur: unknown, sansDelai = false,
-): Promise<{ prochain: number }> {
+): Promise<{ prochain: number; restants: number; recharge: number }> {
   if (!pixelValide(x, y, couleur)) throw new ErreurMetier("PLACE_INVALIDE");
   const admin = sansDelai && u.role === "admin";
   return ecrire(async c => {
-    const cfg = (await c.query<{ delai: number; gelee: boolean }>(
-      `select delai_secondes as delai, gelee from place_config`)).rows[0];
+    const cfg = (await c.query<{ delai: number; pixels: number; gelee: boolean }>(
+      `select delai_secondes as delai, pixels_par_recharge as pixels, gelee from place_config`)).rows[0];
     await c.query(`insert into place_joueur (user_id) values ($1::uuid) on conflict do nothing`, [u.id]);
-    const j = (await c.query<{ banni: boolean; attente: boolean }>(
-      `select banni,
-              coalesce(dernier_pose > now() - make_interval(secs => $2), false) as attente
+    const j = (await c.query<{ banni: boolean; en_cycle: boolean; poses: number }>(
+      `select banni, poses_cycle as poses,
+              coalesce(dernier_pose > now() - make_interval(secs => $2), false) as en_cycle
          from place_joueur where user_id = $1::uuid`, [u.id, cfg.delai])).rows[0];
     if (j.banni) throw new ErreurMetier("PLACE_BANNI");
     if (!admin && cfg.gelee) throw new ErreurMetier("PLACE_GELEE");
-    if (!admin && j.attente) throw new ErreurMetier("PLACE_TROP_TOT");
+    if (!admin && j.en_cycle && j.poses >= cfg.pixels) throw new ErreurMetier("PLACE_TROP_TOT");
 
     const log = await c.query<{ id: number }>(
       `insert into place_log (x, y, couleur, user_id, nature) values ($1, $2, $3, $4::uuid, $5) returning id`,
@@ -129,13 +135,20 @@ export async function poserPixel(
       `insert into place_pixel (x, y, couleur, log_id) values ($1, $2, $3, $4)
        on conflict (x, y) do update set couleur = excluded.couleur, log_id = excluded.log_id`,
       [x, y, couleur, log.rows[0].id]);
-    // Un pixel admin ne consomme pas le délai de l'administrateur.
-    if (admin) return { prochain: 0 };
-    const p = await c.query<{ prochain: number }>(
-      `update place_joueur set dernier_pose = now() where user_id = $1::uuid
-       returning (extract(epoch from now() + make_interval(secs => $2)) * 1000)::bigint as prochain`,
-      [u.id, cfg.delai]);
-    return { prochain: p.rows[0].prochain };
+    // Un pixel admin ne consomme pas le lot de l'administrateur.
+    if (admin) return { prochain: 0, restants: cfg.pixels, recharge: 0 };
+    // Premier pixel d'un lot : le délai de recharge part maintenant.
+    const p = await c.query<{ recharge: number; poses: number }>(
+      `update place_joueur
+          set dernier_pose = case when $2 then dernier_pose else now() end,
+              poses_cycle  = case when $2 then poses_cycle + 1 else 1 end
+        where user_id = $1::uuid
+       returning (extract(epoch from dernier_pose + make_interval(secs => $3)) * 1000)::bigint as recharge,
+                 poses_cycle as poses`,
+      [u.id, j.en_cycle, cfg.delai]);
+    const { recharge, poses } = p.rows[0];
+    const restants = Math.max(0, cfg.pixels - poses);
+    return { prochain: restants > 0 ? 0 : recharge, restants, recharge };
   });
 }
 
@@ -252,18 +265,24 @@ export async function leverDelai(u: Utilisateur, cibleId: unknown): Promise<void
   if (cibleId !== null && (typeof cibleId !== "string" || !/^[0-9a-f-]{36}$/i.test(cibleId))) {
     throw new ErreurMetier("PLACE_INVALIDE");
   }
-  await query(`update place_joueur set dernier_pose = null where $1::uuid is null or user_id = $1::uuid`, [cibleId]);
+  await query(
+    `update place_joueur set dernier_pose = null, poses_cycle = 0 where $1::uuid is null or user_id = $1::uuid`,
+    [cibleId]);
   reveiller();
 }
 
-export async function reglerToile(u: Utilisateur, reglages: { gelee?: unknown; delai?: unknown }): Promise<void> {
+export async function reglerToile(
+  u: Utilisateur, reglages: { gelee?: unknown; delai?: unknown; pixels?: unknown },
+): Promise<void> {
   exigerAdmin(u);
-  const { gelee, delai } = reglages;
+  const { gelee, delai, pixels } = reglages;
   if (gelee !== undefined && typeof gelee !== "boolean") throw new ErreurMetier("PLACE_INVALIDE");
   if (delai !== undefined && !entierDans(delai, 0, 86400)) throw new ErreurMetier("PLACE_INVALIDE");
+  if (pixels !== undefined && !entierDans(pixels, 1, PIXELS_MAX_PAR_RECHARGE)) throw new ErreurMetier("PLACE_INVALIDE");
   await query(
-    `update place_config set gelee = coalesce($1, gelee), delai_secondes = coalesce($2, delai_secondes)`,
-    [gelee ?? null, delai ?? null]);
+    `update place_config set gelee = coalesce($1, gelee), delai_secondes = coalesce($2, delai_secondes),
+            pixels_par_recharge = coalesce($3, pixels_par_recharge)`,
+    [gelee ?? null, delai ?? null, pixels ?? null]);
   reveiller();
 }
 

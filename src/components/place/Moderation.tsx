@@ -9,7 +9,7 @@ import { NOMS_COULEURS, type Contributeur, type InfoPixel, type Zone } from "@/l
  */
 
 type Props = {
-  etat: { delai: number; gelee: boolean };
+  etat: { delai: number; pixels: number; gelee: boolean };
   sansDelai: boolean; setSansDelai: (v: boolean) => void;
   modeZone: boolean; setModeZone: (v: boolean) => void;
   zone: Zone | null;
@@ -22,9 +22,11 @@ export function Moderation({ etat, sansDelai, setSansDelai, modeZone, setModeZon
   const [message, setMessage] = useState<{ ok: boolean; texte: string } | null>(null);
   const [occupe, setOccupe] = useState(false);
   const [delaiMin, setDelaiMin] = useState(String(etat.delai / 60));
+  const [pixels, setPixels] = useState(String(etat.pixels));
   const [retour, setRetour] = useState("30");
 
   useEffect(() => { setDelaiMin(String(etat.delai / 60)); }, [etat.delai]);
+  useEffect(() => { setPixels(String(etat.pixels)); }, [etat.pixels]);
 
   const charger = useCallback(async () => {
     try {
@@ -85,15 +87,22 @@ export function Moderation({ etat, sansDelai, setSansDelai, modeZone, setModeZon
             Lever toutes les attentes
           </button>
         </div>
-        <form className="flex items-center gap-2"
+        <form className="flex flex-wrap items-center gap-2"
               onSubmit={e => {
                 e.preventDefault();
                 const s = Math.round(Number(delaiMin.replace(",", ".")) * 60);
-                if (Number.isFinite(s)) agir({ action: "regler", delai: s });
+                const n = Math.trunc(Number(pixels));
+                if (!Number.isFinite(s) || !Number.isInteger(n) || n < 1) {
+                  setMessage({ ok: false, texte: "Délai ou nombre de pixels invalide" });
+                  return;
+                }
+                agir({ action: "regler", delai: s, pixels: n });
               }}>
-          <label htmlFor="toile-delai" className="whitespace-nowrap text-[14px]">Délai par pixel</label>
-          <input id="toile-delai" className="champ w-24" inputMode="decimal" value={delaiMin}
-                 onChange={e => setDelaiMin(e.target.value)} />
+          <input id="toile-pixels" aria-label="Pixels par recharge" className="champ w-20" inputMode="numeric"
+                 value={pixels} onChange={e => setPixels(e.target.value)} />
+          <label htmlFor="toile-pixels" className="whitespace-nowrap text-[14px]">pixel(s) toutes les</label>
+          <input id="toile-delai" aria-label="Délai de recharge en minutes" className="champ w-24" inputMode="decimal"
+                 value={delaiMin} onChange={e => setDelaiMin(e.target.value)} />
           <span className="text-[14px] text-[var(--muted-foreground)]">min</span>
           <button type="submit" className="puce" disabled={occupe}>Enregistrer</button>
         </form>
