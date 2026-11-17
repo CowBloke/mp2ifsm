@@ -98,4 +98,8 @@ export type InfoPixel = {
 export type Contributeur = {
   id: string; nom: string; banni: boolean;
   dernier: string | null; heure: number; total: number;
+  /** Création du compte (ISO). */
+  cree: string;
+  /** Autres comptes vus sur le même appareil ou la même IP. */
+  lies: { nom: string; banni: boolean; par: ("ip" | "appareil")[] }[];
 };

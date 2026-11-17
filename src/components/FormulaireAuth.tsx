@@ -6,8 +6,9 @@ import Link from "next/link";
 import { connexion, inscription } from "@/lib/actions";
 
 /*
- * Connexion et inscription partagent la meme mise en page. En cas de
- * succes l'action serveur redirige ; on n'affiche donc que les erreurs.
+ * Connexion et inscription partagent la meme mise en page. Une connexion
+ * reussie redirige ; une inscription reussie affiche qu'elle attend la
+ * validation d'un administrateur.
  */
 export function FormulaireAuth({ mode }: { mode: "connexion" | "inscription" }) {
   const action = mode === "connexion" ? connexion : inscription;
@@ -19,6 +20,12 @@ export function FormulaireAuth({ mode }: { mode: "connexion" | "inscription" }) 
         <h1 className="titre-page">MP2I/FSM</h1>
       </div>
 
+      {mode === "inscription" && etat?.ok ? (
+        <p role="status" className="rounded-[var(--radius-md)] border-2 bg-[var(--card)] px-4 py-3 text-[14px]">
+          Compte créé ! Un administrateur doit valider ton inscription :
+          tu pourras te connecter dès qu’elle sera acceptée.
+        </p>
+      ) : (
       <form action={envoyer} className="space-y-3">
         {mode === "inscription" && (
           <Champ nom="pseudo" label="Pseudo" autoComplete="nickname" />
@@ -45,7 +52,13 @@ export function FormulaireAuth({ mode }: { mode: "connexion" | "inscription" }) 
         )}
 
         <BoutonEnvoyer label={mode === "connexion" ? "Se connecter" : "Créer mon compte"} />
+        {mode === "inscription" && (
+          <p className="text-[12px] text-[var(--muted-foreground)]">
+            Chaque inscription est vérifiée par un administrateur avant d’être activée.
+          </p>
+        )}
       </form>
+      )}
 
       <p className="mt-6 text-center text-[14px] text-[var(--muted-foreground)]">
         {mode === "connexion" ? (

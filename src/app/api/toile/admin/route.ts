@@ -1,6 +1,6 @@
 import { ErreurMetier } from "@/lib/errors";
 import {
-  annulerMembre, bannir, contributeurs, leverDelai, reglerToile, remplirZone, restaurerZone,
+  annulerMembre, bannir, bannirAvecDoublons, bannirRecents, contributeurs, leverDelai, reglerToile, remplirZone, restaurerZone,
 } from "@/lib/place/toile";
 import { corps, membre } from "../_api";
 
@@ -26,6 +26,10 @@ export async function POST(request: Request) {
       case "bannir":
         await bannir(u, d.membre, d.banni === true);
         return { ok: true };
+      case "bannirDoublons":
+        return { ok: true, comptes: await bannirAvecDoublons(u, d.membre) };
+      case "bannirRecents":
+        return { ok: true, ...(await bannirRecents(u, d.heures)) };
       case "leverDelai":
         await leverDelai(u, d.membre ?? null);
         return { ok: true };

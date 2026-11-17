@@ -3,6 +3,7 @@ import { query } from "@/lib/db";
 import { proposals } from "@/lib/proposals";
 import { listerMatieres } from "@/lib/matieres";
 import { tousLesRetours } from "@/lib/retours";
+import { listerInscriptions } from "@/lib/inscriptions";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { CarteResolution, FormulaireMarche } from "@/components/AdminMarches";
@@ -14,12 +15,14 @@ import { utilisateurCourant } from "@/lib/session";
 export async function Administration({ userId }: { userId: string }) {
   const u = await utilisateurCourant();
   if (!u || u.role !== "admin") return null;
-  const [users, items, matieres, retours] = await Promise.all([
+  const [users, items, matieres, retours, inscriptions] = await Promise.all([
     query<AdminUser>(`select u.id,u.display_name,u.email,u.role,u.created_at,
       (select count(*)::int from user_session s where s.user_id=u.id and s.expires_at>now()) as sessions
-      from app_user u order by u.created_at desc`), proposals(), listerMatieres(true), tousLesRetours(),
+      from app_user u where u.statut='actif' order by u.created_at desc`), proposals(), listerMatieres(true), tousLesRetours(),
+    listerInscriptions(),
   ]);
   return <AdminPanel currentId={userId} users={JSON.parse(JSON.stringify(users))} proposals={JSON.parse(JSON.stringify(items))}
+                     inscriptions={inscriptions}
                      matieres={matieres} retours={JSON.parse(JSON.stringify(retours))}>
     <FormulaireMarche /><Controle /><Marches userId={userId} />
   </AdminPanel>;

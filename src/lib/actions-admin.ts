@@ -6,6 +6,7 @@ import { query, tx } from "./db";
 import { proposalSchema, submitProposal, reviewProposal } from "./proposals";
 import type { Reponse } from "./actions";
 import { ErreurMetier, messageFr } from "./errors";
+import { deciderInscriptions } from "./inscriptions";
 
 export async function proposerPari(input: unknown): Promise<Reponse> {
  try {
@@ -54,5 +55,16 @@ export async function reinitialiserMotDePasse(userId: string, motDePasse: string
   });
   if (!trouve) return {ok:false,erreur:'Compte introuvable'};
   revalidatePath('/profil'); return {ok:true};
+ } catch(e) { return {ok:false,erreur:messageFr(e)}; }
+}
+/* Validation des inscriptions (voir src/lib/inscriptions.ts). */
+export async function deciderInscription(ids: string[], accepter: boolean): Promise<Reponse<{ n: number }>> {
+ try {
+  const u = await exigerAdmin();
+  if (!Array.isArray(ids) || ids.length > 500 || typeof accepter !== 'boolean'
+      || !ids.every(id => z.string().uuid().safeParse(id).success)) return {ok:false,erreur:'Demande invalide'};
+  const n = await deciderInscriptions(u.id, ids, accepter);
+  revalidatePath('/profil');
+  return {ok:true,data:{n}};
  } catch(e) { return {ok:false,erreur:messageFr(e)}; }
 }

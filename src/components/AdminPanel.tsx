@@ -8,11 +8,14 @@ import type { Retour } from "@/lib/retours";
 import type { MatiereVue } from "@/lib/constantes";
 import { AdminMatieres } from "@/components/AdminMatieres";
 import { AdminRetours } from "@/components/AdminRetours";
+import { AdminInscriptions } from "@/components/AdminInscriptions";
+import type { Inscription } from "@/lib/inscriptions";
 import { Dialogue } from "@/components/Dialogue";
 export type AdminUser = { id: string; display_name: string; email: string; role: string; created_at: string; sessions: number };
 const button = 'rounded-[var(--radius-md)] border px-3 py-2 text-sm disabled:opacity-50';
-export function AdminPanel({ users, proposals, matieres, retours, currentId, children }: { users: AdminUser[]; proposals: Proposal[]; matieres: MatiereVue[]; retours: Retour[]; currentId: string; children: React.ReactNode }) {
- const [tab,setTab] = useState('proposals');
+export function AdminPanel({ users, proposals, matieres, retours, inscriptions, currentId, children }: { users: AdminUser[]; proposals: Proposal[]; matieres: MatiereVue[]; retours: Retour[]; inscriptions: Inscription[]; currentId: string; children: React.ReactNode }) {
+ const enAttente = inscriptions.filter(i=>i.statut==='en_attente').length;
+ const [tab,setTab] = useState(enAttente>0?'signups':'proposals');
  const [search,setSearch] = useState('');
  const [message,setMessage] = useState('');
  const [busy,start] = useTransition();
@@ -21,8 +24,9 @@ export function AdminPanel({ users, proposals, matieres, retours, currentId, chi
  const retoursOuverts = retours.filter(r=>r.archived_at===null && r.statut==='ouvert').length;
  return <section className="space-y-4">
   <h2 className="text-xl font-bold">Administration</h2>
-  <div className="grid grid-cols-3 gap-2 text-center text-sm">{[[users.length,'Comptes'],[pending,'À valider'],[users.filter(u=>u.role==='admin').length,'Admins']].map(([n,label])=><div key={label} className="rounded-lg border bg-[var(--card)] p-3"><strong className="block text-xl">{n}</strong>{label}</div>)}</div>
-  <nav aria-label="Administration" className="flex flex-wrap gap-2">{[['proposals',`Propositions (${pending})`],['feedback',`Retours (${retoursOuverts})`],['subjects','Matières'],['users','Utilisateurs'],['markets','Marchés & comptes']].map(([key,label])=><button key={key} className={`${button} ${tab===key?'bg-[var(--secondary)] text-[var(--secondary-foreground)]':''}`} aria-pressed={tab===key} onClick={()=>setTab(key)}>{label}</button>)}</nav>
+  <div className="grid grid-cols-3 gap-2 text-center text-sm">{[[users.length,'Comptes'],[pending+enAttente,'À valider'],[users.filter(u=>u.role==='admin').length,'Admins']].map(([n,label])=><div key={label} className="rounded-lg border bg-[var(--card)] p-3"><strong className="block text-xl">{n}</strong>{label}</div>)}</div>
+  <nav aria-label="Administration" className="flex flex-wrap gap-2">{[['signups',`Inscriptions (${enAttente})`],['proposals',`Propositions (${pending})`],['feedback',`Retours (${retoursOuverts})`],['subjects','Matières'],['users','Utilisateurs'],['markets','Marchés & comptes']].map(([key,label])=><button key={key} className={`${button} ${tab===key?'bg-[var(--secondary)] text-[var(--secondary-foreground)]':''}`} aria-pressed={tab===key} onClick={()=>setTab(key)}>{label}</button>)}</nav>
+  {tab==='signups' && <AdminInscriptions inscriptions={inscriptions} />}
   {tab==='proposals' && <ProposalList items={proposals} admin />}
   {tab==='feedback' && <AdminRetours retours={retours} />}
   {tab==='subjects' && <AdminMatieres matieres={matieres} />}

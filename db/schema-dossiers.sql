@@ -319,3 +319,39 @@ alter table place_config add column if not exists
   pixels_par_recharge integer not null default 1 check (pixels_par_recharge between 1 and 1000);
 alter table place_joueur add column if not exists
   poses_cycle integer not null default 0;
+
+-- Comptes validés par un administrateur et traces anti-doublons
+-- (bloc du 17 novembre 2026, après une vague de bots sur La Toile).
+-- Une inscription crée un compte « en_attente » ; seul un compte « actif »
+-- peut se connecter. Les comptes existants restent actifs.
+do $$ begin
+  create type statut_compte as enum ('actif', 'en_attente', 'refuse');
+exception when duplicate_object then null; end $$;
+alter table app_user add column if not exists statut statut_compte not null default 'actif';
+alter table app_user add column if not exists inscription_ip text;
+alter table app_user add column if not exists inscription_appareil text;
+alter table app_user add column if not exists valide_par uuid references app_user(id) on delete set null;
+alter table app_user add column if not exists valide_le timestamptz;
+create index if not exists app_user_statut_idx on app_user (statut) where statut <> 'actif';
+create index if not exists app_user_inscription_ip_idx on app_user (inscription_ip, created_at);
+
+-- IP (en-tête Cloudflare) et appareil (cookie aléatoire mp2_appareil) vus
+-- pour chaque compte : deux comptes qui partagent un appareil sont très
+-- probablement la même personne ; une IP partagée peut être le wifi du lycée.
+create table if not exists compte_trace (
+  user_id  uuid not null references app_user(id) on delete cascade,
+  nature   text not null check (nature in ('ip', 'appareil')),
+  valeur   text not null check (length(valeur) between 1 and 100),
+  premier  timestamptz not null default now(),
+  dernier  timestamptz not null default now(),
+  primary key (user_id, nature, valeur)
+);
+create index if not exists compte_trace_valeur_idx on compte_trace (nature, valeur);
+
+-- La Toile : le lot de pixels est aussi compté par appareil, pour qu'un
+-- second compte sur le même navigateur ne double pas la cadence.
+create table if not exists place_appareil (
+  appareil      text primary key check (length(appareil) between 1 and 100),
+  dernier_pose  timestamptz,
+  poses_cycle   integer not null default 0
+);

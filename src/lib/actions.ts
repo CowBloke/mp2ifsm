@@ -13,6 +13,7 @@ import {
   creerSession, detruireSession, exigerAdmin, exigerUtilisateur,
   inscrireMembre, verifierIdentifiants,
 } from "./session";
+import { noterTrace, traceRequete } from "./traces";
 
 /*
  * Actions serveur. C'est la SEULE surface de mutation de l'application.
@@ -242,26 +243,32 @@ export async function connexion(
       String(formData.get("motDePasse") ?? ""),
     );
     await creerSession(userId);
+    await noterTrace(userId, await traceRequete());
   } catch (err) {
     return echec(err);
   }
   redirect("/");
 }
 
+/*
+ * Le compte est créé en attente : pas de session tant qu'un administrateur
+ * ne l'a pas validé. Le formulaire affiche alors un message de confirmation.
+ */
 export async function inscription(
   _precedent: Reponse<undefined> | null,
   formData: FormData,
 ): Promise<Reponse<undefined>> {
   try {
+    const trace = await traceRequete();
     const userId = await inscrireMembre({
       email: formData.get("email"), pseudo: formData.get("pseudo"),
       motDePasse: formData.get("motDePasse"), code: formData.get("code"),
-    });
-    await creerSession(userId);
+    }, trace);
+    await noterTrace(userId, trace);
+    return { ok: true };
   } catch (err) {
     return echec(err);
   }
-  redirect("/");
 }
 
 export async function deconnexion(): Promise<void> {

@@ -24,6 +24,7 @@ export function Moderation({ etat, sansDelai, setSansDelai, modeZone, setModeZon
   const [delaiMin, setDelaiMin] = useState(String(etat.delai / 60));
   const [pixels, setPixels] = useState(String(etat.pixels));
   const [retour, setRetour] = useState("30");
+  const [heuresRecents, setHeuresRecents] = useState("48");
 
   useEffect(() => { setDelaiMin(String(etat.delai / 60)); }, [etat.delai]);
   useEffect(() => { setPixels(String(etat.pixels)); }, [etat.pixels]);
@@ -46,7 +47,10 @@ export function Moderation({ etat, sansDelai, setSansDelai, modeZone, setModeZon
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.erreur || "Action refusée");
-      setMessage({ ok: true, texte: typeof d.modifies === "number" ? `${d.modifies} pixel${d.modifies > 1 ? "s" : ""} modifié${d.modifies > 1 ? "s" : ""}` : "C’est fait" });
+      const textes: string[] = [];
+      if (typeof d.comptes === "number") textes.push(`${d.comptes} compte${d.comptes > 1 ? "s" : ""} banni${d.comptes > 1 ? "s" : ""}`);
+      if (typeof d.modifies === "number") textes.push(`${d.modifies} pixel${d.modifies > 1 ? "s" : ""} modifié${d.modifies > 1 ? "s" : ""}`);
+      setMessage({ ok: true, texte: textes.length ? textes.join(" · ") : "C’est fait" });
       charger();
     } catch (err) {
       setMessage({ ok: false, texte: err instanceof Error ? err.message : "Action refusée" });
@@ -105,6 +109,20 @@ export function Moderation({ etat, sansDelai, setSansDelai, modeZone, setModeZon
                  value={delaiMin} onChange={e => setDelaiMin(e.target.value)} />
           <span className="text-[14px] text-[var(--muted-foreground)]">min</span>
           <button type="submit" className="puce" disabled={occupe}>Enregistrer</button>
+        </form>
+        <form className="flex flex-wrap items-center gap-2"
+              onSubmit={e => {
+                e.preventDefault();
+                const h = Math.trunc(Number(heuresRecents));
+                if (!Number.isInteger(h) || h < 1) return;
+                agir({ action: "bannirRecents", heures: h },
+                  `Bannir TOUS les comptes inscrits depuis ${h} h et annuler tous leurs pixels ?`);
+              }}>
+          <label htmlFor="toile-recents" className="text-[14px]">Vague de faux comptes : bannir les inscrits depuis</label>
+          <input id="toile-recents" className="champ w-20" inputMode="numeric" value={heuresRecents}
+                 onChange={e => setHeuresRecents(e.target.value)} />
+          <span className="text-[14px] text-[var(--muted-foreground)]">h</span>
+          <button type="submit" className="puce" disabled={occupe}>Bannir et annuler</button>
         </form>
         <label className="flex items-center gap-3 text-[14px]">
           <input type="checkbox" checked={sansDelai} onChange={e => setSansDelai(e.target.checked)} className="h-5 w-5" />
@@ -187,7 +205,15 @@ export function Moderation({ etat, sansDelai, setSansDelai, modeZone, setModeZon
           <div key={m.id} className="ligne flex-wrap">
             <div className="min-w-0 flex-1">
               <div className="ligne__titre">{m.nom}{m.banni && <span className="ml-2 text-[13px] text-[var(--destructive)]">banni</span>}</div>
-              <div className="ligne__meta">{m.heure} cette heure · {m.total} au total</div>
+              <div className="ligne__meta">
+                {m.heure} cette heure · {m.total} au total · inscrit le {new Date(m.cree).toLocaleDateString("fr-FR")}
+              </div>
+              {m.lies.length > 0 && (
+                <div className="ligne__meta text-[var(--destructive)]">
+                  Doublons possibles : {m.lies.map(l =>
+                    `${l.nom} (${l.par.map(p => p === "ip" ? "même IP" : "même appareil").join(", ")}${l.banni ? ", banni" : ""})`).join(" · ")}
+                </div>
+              )}
             </div>
             <div className="flex flex-wrap gap-2">
               <button type="button" className="puce" disabled={occupe}
@@ -195,6 +221,13 @@ export function Moderation({ etat, sansDelai, setSansDelai, modeZone, setModeZon
                         m.banni ? undefined : `Retirer à ${m.nom} le droit de poser des pixels ?`)}>
                 {m.banni ? "Débannir" : "Bannir"}
               </button>
+              {m.lies.length > 0 && (
+                <button type="button" className="puce" disabled={occupe}
+                        onClick={() => agir({ action: "bannirDoublons", membre: m.id },
+                          `Bannir ${m.nom} et ses comptes liés (${m.lies.map(l => l.nom).join(", ")}) ?`)}>
+                  Bannir avec ses doublons
+                </button>
+              )}
               <button type="button" className="puce" disabled={occupe || m.total === 0}
                       onClick={() => agir({ action: "annulerMembre", membre: m.id, minutes: 60 },
                         `Annuler les pixels de ${m.nom} de la dernière heure ?`)}>

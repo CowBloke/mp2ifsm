@@ -3,6 +3,7 @@ import type { PoolClient } from "pg";
 import { query, queryOne, tx } from "../db";
 import { ErreurMetier } from "../errors";
 import type { Utilisateur } from "../session";
+import { comptesLies } from "../traces";
 import {
   PIXELS_MAX_PAR_RECHARGE, TAILLE, encoderToile, entierDans, normaliserZone, pixelValide,
   type Contributeur, type EtatToile, type InfoPixel,
@@ -110,13 +111,21 @@ export async function lireToile(userId: string, connue: number): Promise<EtatToi
   return etat;
 }
 
-/** Pose un pixel. Les administrateurs peuvent passer outre le délai et le gel (`sansDelai`). */
+type ResultatPose = { prochain: number; restants: number; recharge: number };
+
+/**
+ * Pose un pixel. Les administrateurs peuvent passer outre le délai et le
+ * gel (`sansDelai`). `appareil` (cookie mp2_appareil) sert contre les
+ * doublons : le lot est aussi compté par appareil, et un compte utilisé
+ * sur le même appareil qu'un compte banni ou refusé est banni à son tour.
+ */
 export async function poserPixel(
-  u: Utilisateur, x: unknown, y: unknown, couleur: unknown, sansDelai = false,
-): Promise<{ prochain: number; restants: number; recharge: number }> {
+  u: Utilisateur, x: unknown, y: unknown, couleur: unknown, sansDelai = false, appareil: string | null = null,
+): Promise<ResultatPose> {
   if (!pixelValide(x, y, couleur)) throw new ErreurMetier("PLACE_INVALIDE");
   const admin = sansDelai && u.role === "admin";
-  return ecrire(async c => {
+  // Le bannissement d'un doublon doit être validé avant de lever l'erreur.
+  const r = await ecrire<ResultatPose | "doublon">(async c => {
     const cfg = (await c.query<{ delai: number; pixels: number; gelee: boolean }>(
       `select delai_secondes as delai, pixels_par_recharge as pixels, gelee from place_config`)).rows[0];
     await c.query(`insert into place_joueur (user_id) values ($1::uuid) on conflict do nothing`, [u.id]);
@@ -127,6 +136,27 @@ export async function poserPixel(
     if (j.banni) throw new ErreurMetier("PLACE_BANNI");
     if (!admin && cfg.gelee) throw new ErreurMetier("PLACE_GELEE");
     if (!admin && j.en_cycle && j.poses >= cfg.pixels) throw new ErreurMetier("PLACE_TROP_TOT");
+
+    let app: { en_cycle: boolean; poses: number } | null = null;
+    if (appareil && u.role !== "admin") {
+      const d = await c.query(
+        `select 1 from compte_trace t
+           join app_user o on o.id = t.user_id
+           left join place_joueur pj on pj.user_id = t.user_id
+          where t.nature = 'appareil' and t.valeur = $1 and t.user_id <> $2::uuid
+            and (coalesce(pj.banni, false) or o.statut <> 'actif')
+          limit 1`, [appareil, u.id]);
+      if (d.rowCount) {
+        await c.query(`update place_joueur set banni = true where user_id = $1::uuid`, [u.id]);
+        return "doublon";
+      }
+      await c.query(`insert into place_appareil (appareil) values ($1) on conflict do nothing`, [appareil]);
+      app = (await c.query<{ en_cycle: boolean; poses: number }>(
+        `select poses_cycle as poses,
+                coalesce(dernier_pose > now() - make_interval(secs => $2), false) as en_cycle
+           from place_appareil where appareil = $1`, [appareil, cfg.delai])).rows[0];
+      if (!admin && app.en_cycle && app.poses >= cfg.pixels) throw new ErreurMetier("PLACE_TROP_TOT");
+    }
 
     const log = await c.query<{ id: number }>(
       `insert into place_log (x, y, couleur, user_id, nature) values ($1, $2, $3, $4::uuid, $5) returning id`,
@@ -146,10 +176,24 @@ export async function poserPixel(
        returning (extract(epoch from dernier_pose + make_interval(secs => $3)) * 1000)::bigint as recharge,
                  poses_cycle as poses`,
       [u.id, j.en_cycle, cfg.delai]);
-    const { recharge, poses } = p.rows[0];
+    let { recharge, poses } = p.rows[0];
+    if (appareil && app) {
+      const a = await c.query<{ recharge: number; poses: number }>(
+        `update place_appareil
+            set dernier_pose = case when $2 then dernier_pose else now() end,
+                poses_cycle  = case when $2 then poses_cycle + 1 else 1 end
+          where appareil = $1
+         returning (extract(epoch from dernier_pose + make_interval(secs => $3)) * 1000)::bigint as recharge,
+                   poses_cycle as poses`,
+        [appareil, app.en_cycle, cfg.delai]);
+      // L'appareil est plus avancé dans son lot (autre compte) : c'est lui qui borne.
+      if (a.rows[0].poses > poses) ({ recharge, poses } = a.rows[0]);
+    }
     const restants = Math.max(0, cfg.pixels - poses);
     return { prochain: restants > 0 ? 0 : recharge, restants, recharge };
   });
+  if (r === "doublon") throw new ErreurMetier("PLACE_DOUBLON");
+  return r;
 }
 
 /** Qui a posé ce pixel, et quand. Visible de tous, comme sur r/place. */
@@ -226,6 +270,17 @@ export async function restaurerZone(u: Utilisateur, zone: unknown, minutes: unkn
        from (${ZONE}) z`, [z.x0, z.y0, z.x1, z.y1, minutes]));
 }
 
+/** Rétablit, là où il est visible, la couleur d'avant chaque pixel annulé. */
+function retablirAnnules(c: PoolClient, adminId: string): Promise<number> {
+  return appliquer(c, adminId,
+    `select p.x, p.y, coalesce((
+        select l2.couleur from place_log l2
+         where l2.x = p.x and l2.y = p.y and not l2.annule
+         order by l2.id desc limit 1), 0) as c
+       from place_pixel p join place_log l on l.id = p.log_id
+      where l.annule`, []);
+}
+
 /**
  * Annule les pixels d'un membre (les `minutes` dernières, ou tous si null).
  * Là où il est encore visible, le pixel reprend la couleur d'avant lui ;
@@ -240,14 +295,50 @@ export async function annulerMembre(u: Utilisateur, cibleId: unknown, minutes: u
       `update place_log set annule = true
         where user_id = $1::uuid and nature = 'pixel' and not annule
           and ($2::int is null or cree_le >= now() - make_interval(mins => $2::int))`, [cibleId, minutes]);
-    return appliquer(c, u.id,
-      `select p.x, p.y, coalesce((
-          select l2.couleur from place_log l2
-           where l2.x = p.x and l2.y = p.y and not l2.annule
-           order by l2.id desc limit 1), 0) as c
-         from place_pixel p join place_log l on l.id = p.log_id
-        where l.annule`, []);
+    return retablirAnnules(c, u.id);
   });
+}
+
+/**
+ * Contre les vagues de faux comptes : bannit tous les membres inscrits
+ * depuis `heures` heures et annule tous leurs pixels. Renvoie le nombre
+ * de pixels modifiés sur la toile.
+ */
+export async function bannirRecents(u: Utilisateur, heures: unknown): Promise<{ comptes: number; modifies: number }> {
+  exigerAdmin(u);
+  if (!entierDans(heures, 1, 24 * 30)) throw new ErreurMetier("PLACE_INVALIDE");
+  return ecrire(async c => {
+    const b = await c.query(
+      `insert into place_joueur (user_id, banni)
+       select id, true from app_user
+        where role = 'member' and created_at > now() - make_interval(hours => $1::int)
+       on conflict (user_id) do update set banni = true`, [heures]);
+    await c.query(
+      `update place_log l set annule = true
+         from app_user a
+        where a.id = l.user_id and a.role = 'member'
+          and a.created_at > now() - make_interval(hours => $1::int)
+          and l.nature = 'pixel' and not l.annule`, [heures]);
+    return { comptes: b.rowCount ?? 0, modifies: await retablirAnnules(c, u.id) };
+  });
+}
+
+/**
+ * Bannit un membre et tous les comptes qui partagent son appareil ou une
+ * IP récente (doublons probables). Renvoie le nombre de comptes bannis.
+ */
+export async function bannirAvecDoublons(u: Utilisateur, cibleId: unknown): Promise<number> {
+  exigerAdmin(u);
+  if (typeof cibleId !== "string" || !/^[0-9a-f-]{36}$/i.test(cibleId)) throw new ErreurMetier("PLACE_INVALIDE");
+  const lies = (await comptesLies([cibleId])).get(cibleId) ?? [];
+  const ids = [cibleId, ...lies.map(l => l.id)];
+  const r = await query(
+    `insert into place_joueur (user_id, banni)
+     select a.id, true from app_user a where a.id = any($1::uuid[]) and a.role = 'member'
+     on conflict (user_id) do update set banni = true
+     returning 1`, [ids]);
+  reveiller();
+  return r.length;
 }
 
 export async function bannir(u: Utilisateur, cibleId: unknown, banni: boolean): Promise<void> {
@@ -290,16 +381,20 @@ export async function reglerToile(
 export async function contributeurs(u: Utilisateur): Promise<Contributeur[]> {
   exigerAdmin(u);
   const rows = await query<{
-    id: string; nom: string; banni: boolean; dernier: Date | null; heure: number; total: number;
+    id: string; nom: string; banni: boolean; dernier: Date | null; heure: number; total: number; cree: Date;
   }>(
-    `select j.user_id as id, u.display_name as nom, j.banni, j.dernier_pose as dernier,
+    `select j.user_id as id, u.display_name as nom, j.banni, j.dernier_pose as dernier, u.created_at as cree,
             count(l.id) filter (where l.cree_le > now() - interval '1 hour')::int as heure,
             count(l.id)::int as total
        from place_joueur j
        join app_user u on u.id = j.user_id
        left join place_log l on l.user_id = j.user_id and l.nature = 'pixel' and not l.annule
-      group by j.user_id, u.display_name, j.banni, j.dernier_pose
-      order by j.banni desc, j.dernier_pose desc nulls last
-      limit 200`);
-  return rows.map(r => ({ ...r, dernier: r.dernier ? r.dernier.toISOString() : null }));
+      group by j.user_id, u.display_name, u.created_at, j.banni, j.dernier_pose
+      order by j.banni, j.dernier_pose desc nulls last
+      limit 300`);
+  const lies = await comptesLies(rows.map(r => r.id));
+  return rows.map(r => ({
+    ...r, dernier: r.dernier ? r.dernier.toISOString() : null, cree: r.cree.toISOString(),
+    lies: (lies.get(r.id) ?? []).map(({ nom, banni, par }) => ({ nom, banni, par })),
+  }));
 }

@@ -4,6 +4,7 @@ import { promisify } from "node:util";
 import { cookies, headers } from "next/headers";
 import { query, queryOne, tx } from "./db";
 import { ErreurMetier } from "./errors";
+import type { Trace } from "./traces";
 
 const scryptAsync = promisify(scrypt) as (
   motDePasse: string,
@@ -77,14 +78,17 @@ async function jetonCourant(): Promise<string | null> {
  */
 export async function verifierIdentifiants(email: string, motDePasse: string): Promise<string> {
   if (!email || !motDePasse) throw new ErreurMetier("CHAMPS_MANQUANTS");
-  const u = await queryOne<{ id: string; password_hash: string }>(
-    `select id, password_hash from app_user where lower(email) = lower($1)`,
+  const u = await queryOne<{ id: string; password_hash: string; statut: string }>(
+    `select id, password_hash, statut::text as statut from app_user where lower(email) = lower($1)`,
     [email],
   );
   const ok = u
     ? await verifierMotDePasse(motDePasse, u.password_hash)
     : await verifierMotDePasse(motDePasse, await hashMotDePasse(randomBytes(16).toString("hex")));
   if (!u || !ok) throw new ErreurMetier("IDENTIFIANTS_INVALIDES");
+  // Après le mot de passe seulement : on ne révèle rien à qui ne le connaît pas.
+  if (u.statut === "en_attente") throw new ErreurMetier("COMPTE_EN_ATTENTE");
+  if (u.statut !== "actif") throw new ErreurMetier("COMPTE_REFUSE");
   return u.id;
 }
 
@@ -99,14 +103,18 @@ export async function ouvrirSession(userId: string): Promise<{ jeton: string; ex
   return { jeton, expire };
 }
 
+/** Inscriptions acceptées par IP sur 24 h (le wifi du lycée en partage une). */
+const INSCRIPTIONS_PAR_IP = 3;
+
 /**
- * Crée un compte avec un code d'invitation de la classe ; renvoie son id.
- * Le verrou sur le code sérialise les inscriptions concurrentes :
- * max_uses ne peut pas être dépassé.
+ * Crée un compte EN ATTENTE avec un code d'invitation de la classe ;
+ * renvoie son id. Un administrateur doit le valider avant la première
+ * connexion. Le verrou sur le code sérialise les inscriptions
+ * concurrentes : max_uses ne peut pas être dépassé.
  */
 export async function inscrireMembre(champs: {
   email: unknown; pseudo: unknown; motDePasse: unknown; code: unknown;
-}): Promise<string> {
+}, trace: Trace): Promise<string> {
   const email = String(champs.email ?? "").trim();
   const pseudo = String(champs.pseudo ?? "").trim();
   const motDePasse = String(champs.motDePasse ?? "");
@@ -127,9 +135,16 @@ export async function inscrireMembre(champs: {
     if (existant.rowCount) throw new ErreurMetier("EMAIL_DEJA_UTILISE");
     const pris = await c.query(`select 1 from app_user where lower(display_name) = lower($1)`, [pseudo]);
     if (pris.rowCount) throw new ErreurMetier("PSEUDO_DEJA_UTILISE");
+    if (trace.ip) {
+      const r = await c.query<{ n: number }>(
+        `select count(*)::int as n from app_user
+          where inscription_ip = $1 and created_at > now() - interval '24 hours'`, [trace.ip]);
+      if (r.rows[0].n >= INSCRIPTIONS_PAR_IP) throw new ErreurMetier("INSCRIPTIONS_TROP_NOMBREUSES");
+    }
     const u = await c.query<{ id: string }>(
-      `insert into app_user (email, display_name, password_hash) values ($1, $2, $3) returning id`,
-      [email, pseudo, hash]);
+      `insert into app_user (email, display_name, password_hash, statut, inscription_ip, inscription_appareil)
+       values ($1, $2, $3, 'en_attente', $4, $5) returning id`,
+      [email, pseudo, hash, trace.ip, trace.appareil]);
     await c.query(`update invite_code set uses = uses + 1 where code = $1`, [code]);
     return u.rows[0].id;
   });
@@ -165,7 +180,7 @@ export async function utilisateurCourant(): Promise<Utilisateur | null> {
     `select u.id, u.display_name, u.email, u.role, u.groupe_colle, s.groupe_reporte
        from user_session s
        join app_user u on u.id = s.user_id
-      where s.token_hash = $1 and s.expires_at > now()`,
+      where s.token_hash = $1 and s.expires_at > now() and u.statut = 'actif'`,
     [hashJeton(jeton)],
   );
 }
