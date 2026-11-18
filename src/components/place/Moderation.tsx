@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { NOMS_COULEURS, type Contributeur, type InfoPixel, type Zone } from "@/lib/place/commun";
 
@@ -69,7 +70,10 @@ export function Moderation({ etat, sansDelai, setSansDelai, modeZone, setModeZon
              aria-labelledby="moderation-titre">
       <div className="flex items-center justify-between gap-3">
         <h2 id="moderation-titre" className="m-0 text-[17px] font-semibold">Modération</h2>
-        <span className="text-[13px] text-[var(--muted-foreground)]">Administrateurs</span>
+        <Link href="/divertissement/toile/timelapse"
+              className="text-[13px] font-medium text-[var(--primary)] underline-offset-2 hover:underline">
+          Timelapse
+        </Link>
       </div>
 
       {message && (

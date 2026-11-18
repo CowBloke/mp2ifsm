@@ -6,7 +6,7 @@ import type { Utilisateur } from "../session";
 import { comptesLies } from "../traces";
 import {
   PIXELS_MAX_PAR_RECHARGE, TAILLE, encoderToile, entierDans, normaliserZone, pixelValide,
-  type Contributeur, type EtatToile, type InfoPixel,
+  type Contributeur, type EtatToile, type HistoriqueToile, type InfoPixel,
 } from "./commun";
 
 /*
@@ -397,4 +397,20 @@ export async function contributeurs(u: Utilisateur): Promise<Contributeur[]> {
     ...r, dernier: r.dernier ? r.dernier.toISOString() : null, cree: r.cree.toISOString(),
     lies: (lies.get(r.id) ?? []).map(({ nom, banni, par }) => ({ nom, banni, par })),
   }));
+}
+
+/**
+ * Historique complet de la toile, pour le timelapse (administrateurs).
+ * Rejouer les lignes dans l'ordre redonne l'état de la toile à tout
+ * instant, modération comprise.
+ */
+export async function historiqueToile(u: Utilisateur): Promise<HistoriqueToile> {
+  exigerAdmin(u);
+  const rows = await query<{ x: number; y: number; couleur: number; annule: boolean; t: number }>(
+    `select x, y, couleur, annule, floor(extract(epoch from cree_le))::int as t
+       from place_log order by id`);
+  const debut = rows[0]?.t ?? 0;
+  const evenements: number[] = [];
+  for (const r of rows) evenements.push(r.x, r.y, r.couleur, r.annule ? 1 : 0, r.t - debut);
+  return { debut, evenements };
 }

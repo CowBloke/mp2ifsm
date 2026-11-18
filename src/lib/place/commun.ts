@@ -103,3 +103,14 @@ export type Contributeur = {
   /** Autres comptes vus sur le même appareil ou la même IP. */
   lies: { nom: string; banni: boolean; par: ("ip" | "appareil")[] }[];
 };
+
+/**
+ * Réponse de GET /api/toile/timelapse (administrateurs) : tout place_log
+ * dans l'ordre des id, cinq nombres par ligne à la suite —
+ * x, y, couleur, annulé (0/1), secondes écoulées depuis `debut`.
+ */
+export type HistoriqueToile = {
+  /** Première ligne (secondes epoch), 0 si la toile est vide. */
+  debut: number;
+  evenements: number[];
+};

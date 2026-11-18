@@ -404,6 +404,13 @@ Tables `place_config`, `place_log` (historique complet, colonne `annule`),
 dans `db/schema-dossiers.sql` (bloc du 12 novembre 2026). Tests :
 `tests/place.test.ts`.
 
+**Timelapse** (administrateurs seulement pour l’instant, lien « Timelapse »
+de la modération) : `/divertissement/toile/timelapse` rejoue tout
+`place_log` dans l’ordre des id (`GET /api/toile/timelapse`, rôle revérifié ;
+la page répond 404 aux membres). Rythme constant (par pixel) ou
+chronologique, durée de 10 s à 5 min, curseur pour avancer ou reculer, et
+option pour masquer les pixels annulés par la modération.
+
 ## Vidéos éducatives
 
 `/divertissement/videos` : les membres publient des vidéos où ils expliquent
