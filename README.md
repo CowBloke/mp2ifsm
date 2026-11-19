@@ -92,7 +92,7 @@ Cours en dépendent. Publier depuis un PC (poppler-utils pour le texte) :
 
 ```bash
 export COURS_TOKEN=...
-node --experimental-strip-types scripts/publier-cours.ts chapitre --cle maths-ch6 --titre "Complexes" --matiere Maths --numero 6
+node --experimental-strip-types scripts/publier-cours.ts chapitre --cle maths-ch6 --titre "Complexes" --matiere Mathématiques --numero 6
 node --experimental-strip-types scripts/publier-cours.ts fichier --chapitre maths-ch6 --cle cours --titre "Cours" "MP2I - chapitre 6.pdf"
 node --experimental-strip-types scripts/publier-cours.ts paquets --chapitre maths-ch6 complexes
 node --experimental-strip-types scripts/publier-cours.ts liste
