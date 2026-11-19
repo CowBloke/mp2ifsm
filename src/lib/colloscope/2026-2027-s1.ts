@@ -12,6 +12,9 @@ import type { Periode } from "./types";
 const NOTE_RAQUIN =
   "Les deux premiers du groupe prennent chacun un texte en avance (pas seulement le premier)\u00a0; le troisième reçoit le sien en arrivant.";
 
+/** Le PDF révisé ne donne pas de salle pour les créneaux de Mme Passicos. */
+const SALLE_A_PRECISER = "à préciser";
+
 export const S1_2026_2027: Periode = {
   id: "2026-2027-S1",
   anneeScolaire: "2026-2027",
@@ -54,17 +57,17 @@ export const S1_2026_2027: Periode = {
       note: "Les colles P2 de M. Pricoupenko ont lieu le lundi lorsqu’il n’y a pas informatique. Sinon, la colle se passe le vendredi.",
     },
     { code: "A3", matiere: "A", colleur: "Mme Talent", horaire: { jour: 4, debut: "17:45", fin: "18:45", salle: "N 16" } },
-    { code: "P3", matiere: "P", colleur: "Mme Passicos", horaire: { jour: 4, debut: "17:00", fin: "18:00", salle: "N 22" } },
+    { code: "P3", matiere: "P", colleur: "M. Toulemonde", horaire: { jour: 5, debut: "18:00", fin: "19:00", salle: "N 17" } },
     { code: "A4", matiere: "A", colleur: "Mme Monnier", horaire: { jour: 4, debut: "17:30", fin: "18:30", salle: "N 21" } },
     { code: "P4", matiere: "P", colleur: "M. Ferrer", horaire: { jour: 4, debut: "18:00", fin: "19:00", salle: "F 21" } },
     { code: "A5", matiere: "A", colleur: "Mme Talent", horaire: { jour: 3, debut: "16:00", fin: "17:00", salle: "N 16" } },
-    { code: "P5", matiere: "P", colleur: "M. Toulemonde", horaire: { jour: 5, debut: "18:00", fin: "19:00", salle: "N 17" } },
+    { code: "P5", matiere: "P", colleur: "Mme Passicos", horaire: { jour: 3, debut: "13:00", fin: "15:00", salle: SALLE_A_PRECISER } },
     { code: "A6", matiere: "A", colleur: "Mme Monnier", horaire: { jour: 3, debut: "18:00", fin: "19:00", salle: "N 25" } },
     { code: "P6", matiere: "P", colleur: "M. Pricoupenko", horaire: { jour: 4, debut: "17:00", fin: "18:00", salle: "N 23" } },
     { code: "A7", matiere: "A", colleur: "Mme Talent", horaire: { jour: 4, debut: "18:45", fin: "19:45", salle: "N 16" } },
-    { code: "P7", matiere: "P", colleur: "Mme Passicos", horaire: { jour: 4, debut: "18:00", fin: "19:00", salle: "N 22" } },
+    { code: "P7", matiere: "P", colleur: "M. Ferrer", horaire: { jour: 5, debut: "18:00", fin: "19:00", salle: "N 11" } },
     { code: "A8", matiere: "A", colleur: "Mme Monnier", horaire: { jour: 4, debut: "18:30", fin: "19:30", salle: "N 21" } },
-    { code: "P8", matiere: "P", colleur: "M. Ferrer", horaire: { jour: 5, debut: "18:00", fin: "19:00", salle: "N 11" } },
+    { code: "P8", matiere: "P", colleur: "Mme Passicos", horaire: { jour: 3, debut: "14:00", fin: "15:00", salle: SALLE_A_PRECISER } },
 
     // Mathématiques (M4, M8, M12 et M16 sont des semaines de repos).
     { code: "M1", matiere: "M", colleur: "M. Raulet", horaire: { jour: 4, debut: "17:00", fin: "18:00", salle: "F 04" } },

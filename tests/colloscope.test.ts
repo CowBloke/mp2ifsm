@@ -44,16 +44,25 @@ test("Paris wall times convert across daylight saving changes", () => {
   assert.equal(lundiDe("2026-09-27"), "2026-09-21");
 });
 
-test("group 10 week 1 (C10) is P5 Toulemonde and M10 Révol", () => {
+test("group 10 week 1 (C10) is P5 Passicos and M10 Révol", () => {
   const s = semaineDuGroupe(10, "2026-09-21");
   assert.equal(s.numero, 1);
   assert.equal(s.rotation, "C10");
   assert.deepEqual(s.colles.map((c) => [c.creneau, c.colleur, c.salle]), [
+    ["P5", "Mme Passicos", "à préciser"],
     ["M10", "Mme Révol", "F 01"],
-    ["P5", "M. Toulemonde", "N 17"],
   ]);
-  // Jeudi 24 septembre 17 h à Paris.
-  assert.equal(s.colles[0].debut.toISOString(), "2026-09-24T15:00:00.000Z");
+  // Mercredi 23 septembre 13 h → 15 h à Paris.
+  assert.equal(s.colles[0].debut.toISOString(), "2026-09-23T11:00:00.000Z");
+  assert.equal(s.colles[0].fin.toISOString(), "2026-09-23T13:00:00.000Z");
+});
+
+test("group 6 week 1 (C6) is P3 Toulemonde on Friday", () => {
+  const s = semaineDuGroupe(6, "2026-09-21");
+  const p3 = s.colles.find((c) => c.creneau === "P3")!;
+  assert.equal(p3.colleur, "M. Toulemonde");
+  assert.equal(p3.salle, "N 17");
+  assert.equal(p3.debut.toISOString(), "2026-09-25T16:00:00.000Z");
 });
 
 test("P2 keeps its Friday fallback and note; rest weeks carry their note", () => {
