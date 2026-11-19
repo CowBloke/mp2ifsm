@@ -26,7 +26,7 @@ const RETARD_MAX = 3000;
 const memoire = globalThis as unknown as { placeAttentes?: Set<() => void> };
 const attentes = (memoire.placeAttentes ??= new Set());
 
-function reveiller(): void {
+export function reveiller(): void {
   for (const f of [...attentes]) f();
 }
 
